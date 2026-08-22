@@ -25,3 +25,9 @@ El agente nunca tiene tool de URL. Si no hay enlace, la respuesta dice que lo en
 
 Verificar las 14 keys indicadas en `docs/MESSAGES.md`, la invitación manual de reseña y la futura reactivación. Reactivación no forma parte del agente. Cualquier limpieza de keys huérfanas requiere comprobar referencias provider primero.
 
+## Mantenimiento
+
+Cada RPC valida expiración inline; cleanup nunca autoriza. Programar en la implementación futura `sweep_expired_agent_sessions(1000)` al minuto 15 de cada hora. Producción ya tiene una purga inbound horaria: verificar que use 30 días/batch 5000 y no crear otro cron si es equivalente. La purga nueva debe respetar el orden option→tool→turn→inbound.
+
+El pseudocódigo anterior de `quick_reply_token_hash`/botón queda sustituido para el agente por correlación authenticated quoted reply y emisión lazy de option token.
+

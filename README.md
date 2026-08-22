@@ -20,3 +20,12 @@ node scripts/verify-legacy-sources.mjs --source /ruta/a/database_pseudocodigo
 
 Consulta `docs/PRODUCTION_HANDOFF.md` antes de convertir estos contratos en migraciones o Edge Functions.
 
+## Inventario
+
+- 23 RPC service-only, 3 contratos Edge, 4 helpers privados y 1 worker.
+- 26 decisiones y 37 escenarios trazados.
+- 13 funciones legacy clasificadas 8 rewrite / 3 replace / 2 omit.
+- WhatsApp Flow de seis pantallas con éxito posterior al commit.
+- Configuración fail-closed mientras el preflight vivo de Kapso siga pendiente.
+
+Documentos de entrada: `docs/AGENT_WHATSAPP_SPEC.md`, `docs/ARCHITECTURE.md` y `docs/FUNCTION_MATRIX.md`. Seguridad: `docs/SECURITY.md`. Implementación/validación futura: `docs/CORE_DEPENDENCIES.md`, `docs/TEST_PLAN.md` y `docs/PRODUCTION_HANDOFF.md`.
