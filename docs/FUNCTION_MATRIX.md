@@ -52,3 +52,6 @@ Los RPC públicos son `service_role` únicamente. “Público” aquí significa
 
 No se definen contratos para URL online, handoff, reactivación, banca, edición/estado de reseña, reemplazo/rechazo de comprobante, solicitud de recursos ni series.
 
+## Invariantes de mutación
+
+Todas las mutaciones revalidan paciente activo, ownership, estado y políticas bajo lock; usan el `command_id` que el claim generó y devuelven replay sellado. Creación/reprogramación recalculan disponibilidad y economía. Ninguna operación sobre una cita escribe el resto de una serie. La única excepción al límite de una mutación es la saga fija cancelar→crear, con estados y dos command IDs separados.
