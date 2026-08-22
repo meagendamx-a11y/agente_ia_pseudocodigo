@@ -1,0 +1,13 @@
+{
+  "support": "Claro. Si necesitas ayuda de nuestro equipo, puedes escribirnos por WhatsApp al 55 64 37 00 81: https://wa.me/525564370081",
+  "inactive_relationship": "Por el momento no me apareces como paciente activo con este profesional. Puedo compartirte su perfil público o, si prefieres, puedes escribirnos a soporte al 55 64 37 00 81: https://wa.me/525564370081",
+  "crisis": "Si necesitas ayuda inmediata: Agenda Psi no es un servicio de emergencias. Si tú o alguien más se encuentra en peligro, llama al 911. Para recibir apoyo en salud mental, comunícate gratis, las 24 horas, a Línea de la Vida: 800 911 2000.",
+  "rate_limit_notice": "Recibimos varios mensajes en poco tiempo y pausamos esta conversación por seguridad. Inténtalo de nuevo más tarde. Si necesitas soporte, escríbenos al 55 64 37 00 81: https://wa.me/525564370081\n\nSi necesitas ayuda inmediata: Agenda Psi no es un servicio de emergencias. Si tú o alguien más se encuentra en peligro, llama al 911. Para recibir apoyo en salud mental, comunícate gratis, las 24 horas, a Línea de la Vida: 800 911 2000.",
+  "unknown_outcome": "Lo siento, no pude confirmar si el cambio se realizó. Para cuidar tu cita, no lo intentaré de nuevo automáticamente. Puedes revisar de nuevo en unos minutos o escribirnos a soporte al 55 64 37 00 81.",
+  "ordinary_success_closing": "¿Hay algo más en lo que te pueda apoyar?",
+  "appointment_created": "Perfecto, tu cita quedó creada para {{fecha}} a las {{hora}}, en modalidad {{modalidad}}. Nos vemos. ¿Hay algo más en lo que te pueda apoyar?",
+  "online_link_provider": "El enlace de tu sesión te lo envía directamente tu profesional. Puedes gestionarlo con él.",
+  "review_thanks": "Perfecto, muchas gracias por tu reseña.",
+  "proof_received": "Perfecto, recibimos tu comprobante y quedó pendiente de revisión por tu profesional. ¿Hay algo más en lo que te pueda apoyar?"
+}
+
