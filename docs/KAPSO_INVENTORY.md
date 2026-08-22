@@ -18,6 +18,7 @@ Observado: 2026-08-22 (America/Mexico_City).
 | Tool invocation ID estable en retry | no verificado | Gate obligatorio para tools directas. |
 | `auto_send -> complete_task -> Function Node` | no verificado | Gate E2E. |
 | `nfm_reply`, encryption y data endpoint | no verificado | Gate E2E. |
+| Flow JSON estático 7.0 / Data API 3.0 | comprobado contra docs públicas | Artefacto local; aún no validado por provider. |
 
 ## Consecuencia
 
@@ -32,4 +33,3 @@ Observado: 2026-08-22 (America/Mexico_City).
 5. Observar orden del mensaje final y Function Node.
 6. Probar `nfm_reply`, flow token y respuesta data API 3.0.
 7. Actualizar el lock a `verified_e2e` en un cambio revisado; nunca cambiar modelo automáticamente.
-

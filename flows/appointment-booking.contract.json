@@ -1,0 +1,24 @@
+{
+  "schema_version": 1,
+  "flow_json_version": "7.0",
+  "data_api_version": "3.0",
+  "screen_order": ["SERVICE","MODALITY","CALENDAR","SLOT","SUMMARY","CONFIRMATION"],
+  "success_after_commit": true,
+  "max_gateway_calls_per_turn": 8,
+  "provider_timeout_ms": 15000,
+  "internal_timeout_ms": 10000,
+  "token": {"kind":"flow","ttl_minutes":15,"one_time":true,"exact_replay":"sealed_result"},
+  "price_is_advisory_until_create": true,
+  "lost_slot_behavior": "return_SLOT_with_fresh_options",
+  "provider_validation": {
+    "status": "blocked_unverified",
+    "draft_imported": false,
+    "published": false,
+    "reason": "No authenticated Kapso workspace was available; static JSON is not provider proof."
+  },
+  "official_references": [
+    "https://docs.kapso.ai/docs/whatsapp/flows/flow-json",
+    "https://docs.kapso.ai/docs/whatsapp/flows/data-endpoint"
+  ]
+}
+

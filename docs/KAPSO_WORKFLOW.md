@@ -24,3 +24,9 @@ Solo el webhook/gateway inyecta referencias de sesión, turno, ejecución y mens
 ## Preflight obligatorio
 
 Estado al 2026-08-22: **bloqueado/no verificado** porque no hay sesión autenticada de Kapso disponible en esta ejecución. Permanecen por verificar: webhook/target, payload v2, workflow ID, Flow ID/versión, `provider_model_id`, semántica start/resume, ordering de send/complete, serialización `nfm_reply`, y un provider tool-invocation ID estable ante retry. Hasta comprobarlo, kill switch off y tools Agent Node deshabilitadas.
+
+## WhatsApp Flow de citas
+
+El Flow 7.0 usa Data API 3.0 y seis pantallas: `SERVICE -> MODALITY -> CALENDAR -> SLOT -> SUMMARY -> CONFIRMATION`. La data endpoint no llama al modelo y solo usa rutas Flow del gateway. SUMMARY solicita confirmación; CONFIRMATION solo se devuelve después del commit. Un slot perdido regresa a SLOT con opciones frescas. La respuesta `interactive.type='nfm_reply'`, `kapso.flow_response` y `kapso.flow_token` debe copiarse a variables allowlisted antes de reanudar Agent Node.
+
+Referencia pública comprobada: <https://docs.kapso.ai/docs/whatsapp/flows/flow-json> y <https://docs.kapso.ai/docs/whatsapp/flows/data-endpoint>. Validación/import en workspace sigue bloqueada.
