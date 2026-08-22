@@ -58,4 +58,3 @@ Gratis/preferencial/default; todos activos; inactivo; recurrencia mismo/otro ser
 ## Trazabilidad
 
 DEC-04, DEC-05, DEC-08; SCN-11..SCN-13.
-

@@ -57,4 +57,3 @@ Doble finalize, commit/reject/unknown, reconciliación, saga cancel/create y res
 ## Trazabilidad
 
 DEC-23; SCN-28, SCN-29, SCN-32.
-

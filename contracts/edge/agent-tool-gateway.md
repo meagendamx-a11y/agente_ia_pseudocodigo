@@ -70,4 +70,3 @@ Auth/route/schema; key estable; replay antes/después commit; novena llamada; ti
 ## Trazabilidad
 
 DEC-01, DEC-08, DEC-23, DEC-26; SCN-11, SCN-24..SCN-37.
-

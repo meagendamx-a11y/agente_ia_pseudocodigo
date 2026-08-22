@@ -34,4 +34,3 @@ Falla cerrado ante Flow/phone/token/session/turn mismatch, action no permitida, 
 ## Validación pendiente
 
 El JSON sigue la referencia pública Kapso Flow JSON 7.0/Data API 3.0, pero no se importó a un draft autenticado. Debe pasar validación provider y E2E `nfm_reply` antes de publicar.
-

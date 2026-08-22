@@ -54,4 +54,3 @@ Perfil aprobado, no público, relación activa/inactiva, duplicado de nombre y o
 ## Trazabilidad
 
 DEC-08, DEC-18; SCN-11, SCN-23.
-

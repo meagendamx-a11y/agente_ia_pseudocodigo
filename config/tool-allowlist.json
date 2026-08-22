@@ -37,4 +37,3 @@
     {"operation":"complete_inbound","route":"/workflow/complete","method":"POST","input":{},"output":"completion","mutation_cost":0,"turn_states":["completing"],"timeout_ms":10000,"tool_call_key":"kapso_execution + complete_inbound"}
   ]
 }
-

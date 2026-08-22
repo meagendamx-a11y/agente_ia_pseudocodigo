@@ -54,4 +54,3 @@ Cada grupo, varios estados, sin pendientes, otro tenant e inactivo.
 ## Trazabilidad
 
 DEC-08, DEC-11; SCN-20.
-

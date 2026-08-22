@@ -54,4 +54,3 @@ Elegible, serie activa, servicio deshabilitado, token extranjero/expirado, pacie
 ## Trazabilidad
 
 DEC-04, DEC-05, DEC-08; SCN-13, SCN-25.
-

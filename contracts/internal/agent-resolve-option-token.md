@@ -57,4 +57,3 @@ Token extranjero, kind incorrecto, expirado, one-time concurrente, inactivo y re
 ## Trazabilidad
 
 DEC-08, DEC-23, DEC-24; SCN-04, SCN-06, SCN-14.
-

@@ -57,4 +57,3 @@ Una/múltiples relaciones, nombres iguales, token extranjero/vencido/consumido, 
 ## Trazabilidad
 
 DEC-08; SCN-05, SCN-06, SCN-11.
-

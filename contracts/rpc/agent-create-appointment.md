@@ -61,4 +61,3 @@ No confiar en slot/precio/timezone cliente, no crear `appointment_created` en ou
 ## Trazabilidad
 
 DEC-04..DEC-08, DEC-19, DEC-23; SCN-13..SCN-15, SCN-25, SCN-26, SCN-28, SCN-32.
-

@@ -54,4 +54,3 @@ Futura/pasada/ahora, empate, serie, otro tenant e inactivo.
 ## Trazabilidad
 
 DEC-07, DEC-10; SCN-17, SCN-19.
-

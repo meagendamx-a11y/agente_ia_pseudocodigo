@@ -56,4 +56,3 @@ Los 37 escenarios se detallan en `docs/TRACEABILITY.md` y en `test/fixtures/agen
 - Mutaciones de serie, `skip_to_next`, reembolsos o acreditación automática.
 - Editar/consultar reseñas o comprobantes.
 - Cambios al sender, al outbox o a `kapso_status_callback`.
-

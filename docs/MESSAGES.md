@@ -21,4 +21,3 @@ El sender puede seguir utilizando las 14 familias actuales indicadas por product
 ## Presupuesto
 
 El envelope configurado permite hasta `16 × 2,048 = 32,768` tokens de salida teóricos por turno, pero 8 calls y los límites de admisión acotan abuso. No se afirma un costo monetario hasta verificar el SKU/precio vivo de `provider_model_id`; input, Kapso y Meta se miden por separado. Revisar costo beta diariamente antes de cambiar modelo, reasoning, iterations o tokens.
-

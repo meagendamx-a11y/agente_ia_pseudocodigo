@@ -57,4 +57,3 @@ Emisi√≥n/replay concurrente, TTL por kind, tenant extranjero, reinicio y rotaci√
 ## Trazabilidad
 
 DEC-24; SCN-06, SCN-14, SCN-16.
-

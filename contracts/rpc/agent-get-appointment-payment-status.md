@@ -54,4 +54,3 @@ Pending solicitado/no solicitado; proof presente; paid; late change; ambigüedad
 ## Trazabilidad
 
 DEC-11, DEC-12, DEC-13; SCN-20..SCN-22.
-

@@ -23,4 +23,3 @@ Conteo contractual: **rewrite 8 / replace 3 / omit 2**.
 ## Entradas legacy retiradas
 
 El esquema visible al modelo no admite IDs de paciente/profesional/cita/servicio, rutas de Storage, `command_id`, `session_id`, precio, fee, método de pago, `p_reschedule_mode`, `skip_to_next` ni nombres de funciones. El gateway deriva el contexto y los identificadores técnicos.
-

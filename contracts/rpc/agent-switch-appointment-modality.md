@@ -54,4 +54,3 @@ Ambas direcciones, no-op, lead exacto, recurso ocupado, replay, inactivo, otra r
 ## Trazabilidad
 
 DEC-07, DEC-08, DEC-10, DEC-23; SCN-31, SCN-32.
-

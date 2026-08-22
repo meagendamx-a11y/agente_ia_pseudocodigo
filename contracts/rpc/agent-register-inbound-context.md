@@ -73,4 +73,3 @@ Replay exacto/mismatch; carreras teléfono/profesional; 0/1/N relaciones; sesió
 ## Trazabilidad
 
 DEC-08, DEC-16, DEC-20, DEC-24, DEC-25; SCN-03..SCN-08, SCN-11, SCN-35.
-

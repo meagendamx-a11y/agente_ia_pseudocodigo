@@ -54,4 +54,3 @@ Presencial/online, sin dirección, sin próxima cita, inactivo y ubicación no p
 ## Trazabilidad
 
 DEC-08, DEC-10; SCN-18, SCN-19.
-

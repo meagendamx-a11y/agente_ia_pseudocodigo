@@ -67,4 +67,3 @@ Body exacto/alterado; firma timing-safe; 1 MiB; header/body mismatch; target equ
 ## Trazabilidad
 
 DEC-02, DEC-16, DEC-22, DEC-25; SCN-01..SCN-10.
-

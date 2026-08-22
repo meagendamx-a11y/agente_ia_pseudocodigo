@@ -11,4 +11,3 @@ test('documents every legacy disposition without embedding SQL', async () => {
   }
   assert.doesNotMatch(text, /CREATE\s+(OR\s+REPLACE\s+)?FUNCTION/i);
 });
-

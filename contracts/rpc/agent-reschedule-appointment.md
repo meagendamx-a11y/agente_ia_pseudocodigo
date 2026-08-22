@@ -54,4 +54,3 @@ No modificar series/otra ocurrencia, no confiar en fees/precio, no enviar URL ni
 ## Trazabilidad
 
 DEC-07, DEC-08, DEC-23; SCN-30, SCN-32.
-

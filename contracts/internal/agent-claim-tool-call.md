@@ -58,4 +58,3 @@ Claim nuevo/replay, carrera de key, novena llamada, segunda mutación normal, up
 ## Trazabilidad
 
 DEC-23, DEC-25; SCN-28, SCN-29, SCN-32.
-

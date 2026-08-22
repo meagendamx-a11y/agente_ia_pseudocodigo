@@ -18,4 +18,3 @@
     "provider_tool_invocation_id": {"type":["string","null"],"maxLength":255}
   }
 }
-

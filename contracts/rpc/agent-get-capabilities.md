@@ -54,4 +54,3 @@ Activo/inactivo, sin relación, perfil aprobado/no visible y capabilities contra
 ## Trazabilidad
 
 DEC-08, DEC-14; SCN-11, SCN-37.
-

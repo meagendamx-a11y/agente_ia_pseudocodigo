@@ -61,4 +61,3 @@ Correlación exacta/ausente/ambigua/purgada; attended/no; waiting/queued/sending
 ## Trazabilidad
 
 DEC-08, DEC-20, DEC-23; SCN-35, SCN-36.
-

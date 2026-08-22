@@ -9,4 +9,3 @@
   "message_delivery_mode": "auto_send_assistant_text",
   "enabled_default_tools": ["complete_task", "enter_waiting"]
 }
-

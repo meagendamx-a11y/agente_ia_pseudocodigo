@@ -62,4 +62,3 @@ JPEG/PNG/WebP reales; MIME falso; polyglot; stream >5MiB; timeout/redirect; repl
 ## Trazabilidad
 
 DEC-12, DEC-13, DEC-23; SCN-21, SCN-33, SCN-34.
-

@@ -54,4 +54,3 @@ No cancelar otra cita/serie, no aceptar `skip_to_next`, no inventar reembolso ni
 ## Trazabilidad
 
 DEC-07, DEC-08, DEC-23; SCN-27..SCN-29, SCN-32.
-

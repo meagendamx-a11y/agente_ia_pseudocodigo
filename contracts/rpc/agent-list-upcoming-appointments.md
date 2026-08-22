@@ -54,4 +54,3 @@ Cero/una/varias, orden, ahora exacto/pasado, otro tenant, inactivo.
 ## Trazabilidad
 
 DEC-07, DEC-08; SCN-16.
-
