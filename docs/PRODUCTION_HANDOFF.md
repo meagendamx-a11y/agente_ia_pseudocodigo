@@ -39,4 +39,3 @@ Cada corte requiere revisión del diff, migración reversible/aditiva, tests, ad
 ## Publicación de esta guía
 
 El primer push al remoto vacío requiere aprobación del propietario. Después de publicar y aceptar un commit inmutable, Agenda PSI V2 puede fijarlo como referencia read-only en otro cambio revisado.
-

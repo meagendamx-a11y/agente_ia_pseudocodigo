@@ -14,4 +14,3 @@ jobs:
           node-version: 22
       - run: npm run check
       - run: git diff-tree --check --root --no-commit-id -r HEAD
-

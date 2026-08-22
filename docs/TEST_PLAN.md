@@ -37,4 +37,3 @@ Las pruebas de este repositorio validan contratos; no prueban PostgreSQL, HTTP, 
 ## Criterios
 
 No habilitar tráfico si queda un fallo de identidad, idempotencia, ACL, concurrencia, Flow provider o reminder online. Static green por sí solo no satisface el gate E2E.
-

@@ -54,4 +54,3 @@ Orden FK, terminal/no terminal, 29/30/31 días, unknown, dos purgers y batch 500
 ## Trazabilidad
 
 DEC-24, DEC-25; SCN-03, SCN-04, SCN-32.
-

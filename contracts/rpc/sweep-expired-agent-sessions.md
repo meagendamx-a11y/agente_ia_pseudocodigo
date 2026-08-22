@@ -54,4 +54,3 @@ Sesión/turno vigentes/vencidos, wait, unknown, dos sweepers, batch y replay.
 ## Trazabilidad
 
 DEC-24; SCN-03, SCN-32.
-

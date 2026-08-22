@@ -39,4 +39,3 @@ Supabase `ssyzfeadyrczlzjbvxyl`, Postgres 17.6; `enviar-whatsapp` v10 y `kapso_s
 ## Modelo de fallos
 
 Todo mismatch de identidad/token/turno falla cerrado. Rechazo pre-write puede liberar reserva; commit incrementa presupuesto; outcome desconocido bloquea. El paciente nunca recibe éxito antes del commit ni información interna al fallar.
-
