@@ -17,3 +17,14 @@ test('availability revalidates policy and does not reserve displayed slots', asy
   assert.match(text, /(does not reserve|no reserva)/i);
   assert.match(text, /patients\.patient_status='active'/);
 });
+
+test('appointment and payment reads are future-only and multi-axis', async () => {
+  const nextAppointment = await readFile('contracts/rpc/agent-get-next-appointment.md', 'utf8');
+  const paymentStatus = await readFile('contracts/rpc/agent-get-appointment-payment-status.md', 'utf8');
+  const confirm = await readFile('contracts/rpc/agent-confirm-appointment.md', 'utf8');
+  const allowlist = await readFile('config/tool-allowlist.json', 'utf8');
+  assert.match(nextAppointment, /starts_at\s*>\s*now\(\)/i);
+  assert.match(paymentStatus, /payment_state.*proof_state.*late_change_state.*actionability.*can_upload_proof/is);
+  assert.doesNotMatch(allowlist, /"profile_status"\s*:/i);
+  assert.match(confirm, /appointment_option_token.*(future|futura).*(scheduled|programada).*(lock|bloqueo)/is);
+});
