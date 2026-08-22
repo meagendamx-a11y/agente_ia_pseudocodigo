@@ -1,0 +1,40 @@
+{
+  "schema_version": 1,
+  "agent_node_enabled": false,
+  "blocking_gate": "KAPSO_PROVIDER_PREFLIGHT_NOT_VERIFIED",
+  "agent_node": [
+    {"operation":"get_capabilities","route":"/tools/capabilities","method":"POST","input":{},"output":"capabilities","mutation_cost":0,"turn_states":["active"],"timeout_ms":10000,"tool_call_key":"kapso_execution + verified_provider_invocation"},
+    {"operation":"select_relationship","route":"/tools/relationship/select","method":"POST","input":{"relationship_token":"string"},"output":"relationship_selection","mutation_cost":0,"turn_states":["active"],"timeout_ms":10000,"tool_call_key":"kapso_execution + verified_provider_invocation"},
+    {"operation":"list_services","route":"/tools/services","method":"POST","input":{},"output":"service_options","mutation_cost":0,"turn_states":["active"],"timeout_ms":10000,"tool_call_key":"kapso_execution + verified_provider_invocation"},
+    {"operation":"get_booking_eligibility","route":"/tools/booking/eligibility","method":"POST","input":{"service_token":"string"},"output":"eligibility","mutation_cost":0,"turn_states":["active"],"timeout_ms":10000,"tool_call_key":"kapso_execution + verified_provider_invocation"},
+    {"operation":"get_availability","route":"/tools/availability","method":"POST","input":{"service_token":"string","day":"date","modality":"enum"},"output":"slot_options","mutation_cost":0,"turn_states":["active","waiting_external"],"timeout_ms":10000,"tool_call_key":"kapso_execution + verified_provider_invocation"},
+    {"operation":"list_upcoming_appointments","route":"/tools/appointments/upcoming","method":"POST","input":{},"output":"appointment_options","mutation_cost":0,"turn_states":["active"],"timeout_ms":10000,"tool_call_key":"kapso_execution + verified_provider_invocation"},
+    {"operation":"get_next_appointment","route":"/tools/appointments/next","method":"POST","input":{},"output":"appointment","mutation_cost":0,"turn_states":["active"],"timeout_ms":10000,"tool_call_key":"kapso_execution + verified_provider_invocation"},
+    {"operation":"get_location","route":"/tools/location","method":"POST","input":{},"output":"location","mutation_cost":0,"turn_states":["active"],"timeout_ms":10000,"tool_call_key":"kapso_execution + verified_provider_invocation"},
+    {"operation":"get_pending_payments","route":"/tools/payments/pending","method":"POST","input":{},"output":"payment_summary","mutation_cost":0,"turn_states":["active"],"timeout_ms":10000,"tool_call_key":"kapso_execution + verified_provider_invocation"},
+    {"operation":"get_appointment_payment_status","route":"/tools/payments/status","method":"POST","input":{"appointment_token":"string?"},"output":"payment_status","mutation_cost":0,"turn_states":["active"],"timeout_ms":10000,"tool_call_key":"kapso_execution + verified_provider_invocation"},
+    {"operation":"get_professional_share_profile","route":"/tools/profile/share","method":"POST","input":{},"output":"public_profile","mutation_cost":0,"turn_states":["active"],"timeout_ms":10000,"tool_call_key":"kapso_execution + verified_provider_invocation"},
+    {"operation":"confirm_appointment","route":"/tools/appointments/confirm","method":"POST","input":{"appointment_token":"string","confirmed":true},"output":"appointment_result","mutation_cost":1,"turn_states":["active"],"timeout_ms":10000,"tool_call_key":"kapso_execution + verified_provider_invocation"},
+    {"operation":"cancel_appointment","route":"/tools/appointments/cancel","method":"POST","input":{"appointment_token":"string","confirmed":true},"output":"appointment_result","mutation_cost":1,"turn_states":["active"],"timeout_ms":10000,"tool_call_key":"kapso_execution + verified_provider_invocation"},
+    {"operation":"cancel_then_open_booking_flow","route":"/tools/appointments/cancel-then-book","method":"POST","input":{"appointment_token":"string","confirmed":true},"output":"cancel_saga_result","mutation_cost":1,"turn_states":["active"],"timeout_ms":10000,"tool_call_key":"kapso_execution + verified_provider_invocation"},
+    {"operation":"reschedule_appointment","route":"/tools/appointments/reschedule","method":"POST","input":{"appointment_token":"string","starts_at_local":"local_datetime","modality":"enum?","confirmed":true},"output":"appointment_result","mutation_cost":1,"turn_states":["active"],"timeout_ms":10000,"tool_call_key":"kapso_execution + verified_provider_invocation"},
+    {"operation":"switch_appointment_modality","route":"/tools/appointments/modality","method":"POST","input":{"appointment_token":"string","modality":"enum","confirmed":true},"output":"appointment_result","mutation_cost":1,"turn_states":["active"],"timeout_ms":10000,"tool_call_key":"kapso_execution + verified_provider_invocation"},
+    {"operation":"resume_resource_delivery","route":"/tools/resources/resume","method":"POST","input":{"invitation_token":"string","confirmed":true},"output":"resource_summary","mutation_cost":1,"turn_states":["active"],"timeout_ms":10000,"tool_call_key":"kapso_execution + verified_provider_invocation"},
+    {"operation":"submit_review","route":"/tools/reviews/submit","method":"POST","input":{"rating":"integer 1..5","comment":"string? max 1000","confirmed":true},"output":"review_result","mutation_cost":1,"turn_states":["active"],"timeout_ms":10000,"tool_call_key":"kapso_execution + verified_provider_invocation"}
+  ],
+  "flow_data_exchange": [
+    {"operation":"flow_list_services","route":"/flow/services","method":"POST","input":{"flow_token":"string"},"output":"service_options","mutation_cost":0,"turn_states":["waiting_external"],"timeout_ms":10000,"tool_call_key":"flow_token_handle + action + canonical_input_hash"},
+    {"operation":"flow_get_eligibility","route":"/flow/eligibility","method":"POST","input":{"flow_token":"string","service_token":"string"},"output":"eligibility","mutation_cost":0,"turn_states":["waiting_external"],"timeout_ms":10000,"tool_call_key":"flow_token_handle + action + canonical_input_hash"},
+    {"operation":"flow_get_availability","route":"/flow/availability","method":"POST","input":{"flow_token":"string","service_token":"string","day":"date","modality":"enum"},"output":"slot_options","mutation_cost":0,"turn_states":["waiting_external"],"timeout_ms":10000,"tool_call_key":"flow_token_handle + action + canonical_input_hash"},
+    {"operation":"flow_create_appointment","route":"/flow/create","method":"POST","input":{"flow_token":"string","service_token":"string","starts_at_local":"local_datetime","modality":"enum","confirmed":true},"output":"appointment_result","mutation_cost":1,"turn_states":["waiting_external"],"timeout_ms":10000,"tool_call_key":"flow_token_handle + action + canonical_input_hash"}
+  ],
+  "media_adapter": [
+    {"operation":"attach_payment_proof","route":"/media/payment-proof","method":"POST","input":{"appointment_token":"string","media_ordinal":"integer"},"output":"proof_result","mutation_cost":1,"turn_states":["active"],"timeout_ms":10000,"tool_call_key":"provider_message_id + media_ordinal"}
+  ],
+  "workflow_internal": [
+    {"operation":"open_booking_flow","route":"/workflow/open-booking-flow","method":"POST","input":{"service_token":"string?"},"output":"flow_opened","mutation_cost":0,"turn_states":["active"],"timeout_ms":10000,"tool_call_key":"kapso_execution + open_booking_flow"},
+    {"operation":"send_fixed_response","route":"/workflow/fixed-response","method":"POST","input":{"response_key":"allowlisted_enum"},"output":"response","mutation_cost":0,"turn_states":["active"],"timeout_ms":10000,"tool_call_key":"kapso_execution + fixed_response"},
+    {"operation":"complete_inbound","route":"/workflow/complete","method":"POST","input":{},"output":"completion","mutation_cost":0,"turn_states":["completing"],"timeout_ms":10000,"tool_call_key":"kapso_execution + complete_inbound"}
+  ]
+}
+
