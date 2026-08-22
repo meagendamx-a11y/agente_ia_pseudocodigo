@@ -1,0 +1,11 @@
+{
+  "relationship_minutes": 10,
+  "service_minutes": 15,
+  "appointment_minutes": 15,
+  "flow_minutes": 15,
+  "resource_invitation_minutes_after_correlated_inbound": 15,
+  "storage_receipt_minutes": 10,
+  "session_hours": 24,
+  "sealed_result_retention_days": 30
+}
+
