@@ -1,55 +1,88 @@
 # `agent_complete_inbound`
 
 Tipo: `command de control`
-Actor: Function Node service-only
+Actor: Function Node autenticado (`service_role`)
 
 ## Objetivo
 
-Marcar el inbound/turno completado solo después de que Kapso acepte el texto final.
+Sellar inbound/turno como completados solo después del ACK del texto final y con
+el claim técnico de completion pendiente.
+
+## Firma SQL as-built
+
+`agent_complete_inbound(p_provider_message_id text,p_kapso_execution_id text,p_response_message_id text) -> boolean`
+
+`SECURITY DEFINER SET search_path=''`, owner `agenda_psi_agent_owner`, EXECUTE
+solo para `service_role`.
 
 ## Entrada externa
 
-No visible al modelo. Firma: `(provider_message_id text, kapso_execution_id text, response_message_id text?) -> boolean`.
+Provider message ID, execution ID y response message ID opcional provenientes
+del workflow autenticado después del ACK final.
 
 ## Contexto inyectado
 
-Correlación firmada del workflow; `response_message_id` es opcional hasta probar que Kapso lo expone.
+Correlación del workflow autenticado. `p_response_message_id` es nullable/
+opcional hasta verificar E2E que Kapso siempre lo expone; si existe debe ser no
+vacío y máximo 255 caracteres.
 
 ## Lee
 
-`public.whatsapp_inbound_messages`, `public.agent_turns`, `public.agent_tool_calls`.
+`public.whatsapp_inbound_messages`, `public.agent_turns` y
+`public.agent_tool_calls` para el gate técnico.
 
 ## Escribe
 
-`processed_at`, response correlation y estado terminal de control. Cero escrituras de dominio.
+`processed_at`, legacy `response_message_sid`, status/terminal timestamps de
+inbound/turno. Cero escrituras de dominio.
 
 ## Validaciones
 
-Inbound/ejecución/turno coincidentes, estado `completing`, resultado de dominio sellado cuando aplica y respuesta final aceptada.
+Input, latest inbound, execution/turno exactos, estado `completing` y único claim
+técnico pendiente.
 
 ## Flujo lógico
 
-Orden obligatorio: **assistant text** aceptado por Kapso → `complete_task` → **Function Node** → esta RPC → `processed_at` y `completed`. Si falla el envío, no completa. Esperas usan `enter_waiting`, no esta función.
+1. Input malformado: SQLSTATE `22023/INVALID_INBOUND_TRANSITION`; mismatch
+   semántico devuelve `false` sin escribir.
+2. Bloquear inbound→turn, exigir latest inbound del turno, execution exacta y
+   estado `completing`.
+3. Exigir **exactamente un claim pendiente** del mismo turno/execution con tupla
+   `(workflow_internal,complete_inbound,false)`, ordinal 9, y ningún otro claim
+   pendiente.
+4. Orden externo obligatorio: assistant text aceptado por Kapso →
+   `complete_task` → Function Node → esta RPC.
+5. Sellar `processed_at`, response nullable, `completed` y `terminal_at` con
+   tiempo server-side posterior a locks. No cambia `session.expires_at`.
+6. Replay en `completed` usa igualdad null-safe de execution/response y devuelve
+   `true`; `NULL→valor`, valor distinto o execution distinta devuelve `false`.
+7. El claim técnico puede finalizarse después en
+   `private.agent_finalize_tool_call` sin reabrir el turno.
 
 ## Transacción/locks/idempotencia
 
-Lock de inbound/turno. Repetir misma ejecución/correlación devuelve `true`; correlación distinta falla cerrado.
+Una transacción; callbacks viejos no pueden completar si existe un inbound más
+nuevo del turno. Misma correlación es replay; distinta correlación no sobrescribe.
 
 ## Salida redactada
 
-Booleano para el Function Node; no se muestra al paciente.
+Booleano service-only, nunca visible al paciente.
 
 ## Errores seguros
 
-`INBOUND_NOT_FOUND`, `EXECUTION_MISMATCH`, `INVALID_STATE`, `RESPONSE_CORRELATION_MISMATCH`.
+Input inválido levanta `INVALID_INBOUND_TRANSITION`; mismatch de estado,
+ejecución, claim o response devuelve `false` sin eco.
 
 ## No debe hacer
 
-No enviar texto, no finalizar antes del provider ACK, no mutar dominio ni fabricar `response_message_id`.
+- Enviar texto o finalizar antes del provider ACK.
+- Completar sin el único claim técnico pendiente.
+- Mutar dominio, outbox o sesión; fabricar `response_message_id`.
 
 ## Pruebas mínimas
 
-Éxito, send fallido, replay, ejecución distinta, response ID opcional/presente y espera externa.
+Éxito, cero/claim incorrecto/múltiples claims, replay null y non-null, correlation
+distinta, execution distinta, callback stale y session expiry inmutable.
 
 ## Trazabilidad
 

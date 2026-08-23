@@ -8,11 +8,16 @@ Atender por WhatsApp solicitudes administrativas de pacientes mediante Kapso Age
 
 1. Kapso entrega `whatsapp.message.received` al webhook inbound.
 2. El webhook verifica HMAC sobre bytes crudos, valida el número y registra/admite el mensaje atómicamente.
-3. Solo un mensaje admitido inicia o reanuda el workflow.
+3. Solo un mensaje `admitted|resumed` inicia/reanuda el workflow. Un turno
+   vigente `admitted|active|completing` devuelve `TURN_BUSY`; únicamente
+   `waiting_external` puede reanudarse.
 4. Agent Node usa contexto redactado y tools fijas a través del gateway.
 5. Cada tool sella claim, presupuesto e idempotencia antes de ejecutar su wrapper.
+   Hay ocho claims útiles; el cierre usa un noveno ordinal exclusivamente técnico.
 6. El agendado nuevo usa un WhatsApp Flow dinámico; el éxito se muestra solo después del commit.
-7. Kapso envía el texto final y un Function Node marca el inbound completado.
+7. Kapso envía el texto final; lifecycle ejecuta `mark_completing`, reclama
+   `workflow_internal/complete_inbound` en ordinal 9 y un Function Node sella el
+   inbound completado.
 
 ## Decisiones de producto congeladas
 
@@ -40,10 +45,26 @@ Atender por WhatsApp solicitudes administrativas de pacientes mediante Kapso Age
 | DEC-20 | Solo se entregan recursos ya asignados y pendientes; el paciente no puede pedir otros. |
 | DEC-21 | Reactivación y template de reactivación quedan fuera del agente. |
 | DEC-22 | Sender/outbox/callback de estados permanecen independientes y sin cambios. |
-| DEC-23 | Una gestión permite 8 llamadas y 1 mutación; cancelar→crear permite exactamente 2. |
-| DEC-24 | Sesión 24 h, turno inactivo 30 min, tokens de opción 10/15 min y auditoría 30 días. |
+| DEC-23 | Una gestión permite 8 llamadas útiles (`ordinal 1..8`); `complete_inbound` usa el único ordinal 9 técnico. Normal permite 1 mutación; cancelar→crear permite exactamente 2 y nunca una tercera. |
+| DEC-24 | Sesión 24 h, turno 30 min; TTL relationship/service/appointment/slot/flow = 10/15/15/5/15 minutos; auditoría 30 días. |
 | DEC-25 | Límites atómicos por teléfono/profesional se aplican antes del modelo y los replays no cuentan. |
 | DEC-26 | El Agent Node y sus tools permanecen deshabilitados hasta probar semántica API Trigger, IDs estables y Flow E2E en Kapso. |
+
+## Baseline SQL as-built de Tasks 2–4
+
+- Schema aditivo de control con RLS default-deny, owner
+  `agenda_psi_agent_owner`, target allowlist vacía y registry de key IDs sin
+  secretos.
+- Admission pública con firma exacta de 11 argumentos y DTO exacto de siete
+  keys; no consulta colas de salida ni crea invitaciones/tokens.
+- Helpers privados claim/finalize/issue/resolve: presupuesto, saga
+  `unknown_blocked`, cinco token kinds y stable replay.
+- Lifecycle público:
+  `agent_bind_inbound_execution`, `agent_mark_inbound_waiting`,
+  `agent_mark_inbound_completing`, `agent_complete_inbound`.
+
+Este baseline pasó pruebas SQL dentro de transacciones con `ROLLBACK`; eso no
+equivale a deploy, prueba multisesión ni validación E2E de Kapso.
 
 ## Escenarios aceptados
 

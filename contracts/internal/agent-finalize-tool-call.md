@@ -1,23 +1,33 @@
 # `private.agent_finalize_tool_call`
 
 Tipo: `command privado`
-Actor: wrapper de dominio
+Actor: wrapper que posee el claim
 
 ## Objetivo
 
-Sellar el resultado redactado, contabilizar un commit conocido o liberar/bloquear la reserva.
+Sellar exactamente una vez el outcome y resultado redactado de un claim, además
+de aplicar el contador/saga correspondiente.
+
+## Firma SQL as-built
+
+`private.agent_finalize_tool_call(p_turn_id uuid,p_tool_call_key text,p_outcome text,p_redacted_result jsonb) -> jsonb`
+
+Helper `SECURITY DEFINER SET search_path=''`, propiedad de
+`agenda_psi_agent_owner`, sin `EXECUTE` efectivo para roles API.
 
 ## Entrada externa
 
-Ninguna; llamada interna con outcome enumerado.
+Ninguna directa. Solo el wrapper que ejecutó el claim puede pasar outcome y
+resultado ya redactado.
 
 ## Contexto inyectado
 
-`turn_id`, `tool_call_key`, outcome `committed|rejected_prewrite|unknown` y resultado redactado.
+Turn UUID de control y key generada por la superficie que reclamó. Outcome fijo
+`committed|rejected_prewrite|unknown`; resultado ya redactado por el wrapper.
 
 ## Lee
 
-`public.agent_turns`, `public.agent_tool_calls`, `public.command_log`.
+`public.agent_turns`, `public.agent_tool_calls`.
 
 ## Escribe
 
@@ -25,34 +35,61 @@ Ninguna; llamada interna con outcome enumerado.
 
 ## Validaciones
 
-Claim existente, operación/turno coincidentes, resultado bajo 16 KiB y sin PII/IDs internos.
+- Outcome fuera del enum, resultado no objeto o JSONB serializado mayor a 16384
+  bytes: SQLSTATE `22023`, `INVALID_TOOL_FINALIZE`.
+- Claim debe pertenecer al mismo turno/key. El lock order es `turn -> tool`.
+- Resultado distinto nunca reemplaza uno sellado.
+- La completion técnica exacta puede finalizar después de que el lifecycle
+  público ya dejó el turno `completed`; ningún otro claim obtiene esa excepción.
 
 ## Flujo lógico
 
-1. Bloquear claim y turno.
-2. Si ya finalizó, devolver replay.
-3. Commit incrementa contador; rechazo pre-write libera reserva; desconocido conserva bloqueo.
-4. Aplicar transición exacta de saga y guardar resultado seguro.
+1. Bloquear turno y claim.
+2. Si ya está finalizado y outcome/resultado son null-safe idénticos, devolver
+   `FINALIZED/EXACT_REPLAY`; si difieren, `rejected/FINALIZE_MISMATCH`.
+3. `committed` incrementa `committed_mutation_count` solo para mutación y aplica
+   la transición exacta de saga.
+4. `rejected_prewrite` libera la reserva: cancel inicial vuelve a `normal/1/0`;
+   create rechazado permanece `awaiting_replacement_create/2/1`.
+5. `unknown` no se presenta como commit: conserva el contador y sella
+   `unknown_blocked`, bloqueando mutaciones posteriores.
+6. Guardar outcome, resultado y `finalized_at`. Nunca disminuir
+   `tool_call_count`.
+
+## Saga exacta
+
+- Cancel commit: `cancel_claimed/2/0 -> awaiting_replacement_create/2/1`.
+- Create commit en ordinal 8: `awaiting_replacement_create/2/1 ->
+  awaiting_replacement_create/2/2`.
+- Segunda mutación fuera de esa tupla y toda tercera mutación quedan bloqueadas.
+- Tasks 2–4 no inventan reconciliación para `unknown_blocked`.
 
 ## Transacción/locks/idempotencia
 
-Finalización idempotente en una transacción. Reconciliación consulta `command_log` con el mismo command ID.
+Una transacción. La fila finalizada es el resultado durable; retry idéntico no
+reejecuta dominio y retry diferente no sobrescribe.
 
 ## Salida redactada
 
-Resultado sellado con ordinal y outcome seguro.
+DTO exacto: `{status,reason,ordinal,command_id,replay,outcome,redacted_result}`.
+
+Nuevo: `finalized/FINALIZED`; replay exacto: `finalized/EXACT_REPLAY` con
+`replay=true`; mismatch: `rejected/FINALIZE_MISMATCH`.
 
 ## Errores seguros
 
-`CLAIM_NOT_FOUND`, `RESULT_TOO_LARGE`, `INVALID_TRANSITION`, `UNKNOWN_OUTCOME`.
+`INVALID_TOOL_FINALIZE`, `CLAIM_NOT_FOUND`, `FINALIZE_MISMATCH`.
 
 ## No debe hacer
 
-No reejecutar dominio, no compensar citas/pagos y no reemplazar un resultado sellado.
+- Ejecutar, reintentar o compensar citas/pagos.
+- Guardar texto clínico, PII o IDs internos en el resultado redactado.
+- Tratar `unknown` como confirmado.
 
 ## Pruebas mínimas
 
-Doble finalize, commit/reject/unknown, reconciliación, saga cancel/create y resultado sobredimensionado.
+Tres outcomes; replay/mismatch sin overwrite; límites 16 KiB; transición de
+cancel/create; unknown blocked; completion post-completed.
 
 ## Trazabilidad
 

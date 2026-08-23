@@ -33,7 +33,7 @@ Token/tenant, `patients.patient_status='active'`, servicio/eligibility actual, d
 2. Interpretar horarios en timezone profesional.
 3. Sustraer bloqueos, citas y recursos presenciales compartidos.
 4. Aplicar duración, lead y política.
-5. Emitir opciones opacas con local wall time y expiry 15m.
+5. Emitir opciones opacas de slot con local wall time y expiry 5m.
 
 ## Transacción/locks/idempotencia
 

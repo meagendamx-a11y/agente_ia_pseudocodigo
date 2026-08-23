@@ -2,6 +2,7 @@
   "relationship_minutes": 10,
   "service_minutes": 15,
   "appointment_minutes": 15,
+  "slot_minutes": 5,
   "flow_minutes": 15,
   "resource_invitation_minutes_after_correlated_inbound": 15,
   "storage_receipt_minutes": 10,

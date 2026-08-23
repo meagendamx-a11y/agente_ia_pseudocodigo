@@ -26,7 +26,9 @@ async function parseJson(file) {
 
 const requiredRpc = [
   'agent-register-inbound-context.md', 'agent-select-relationship.md',
-  'agent-complete-inbound.md', 'sweep-expired-agent-sessions.md',
+  'agent-bind-inbound-execution.md', 'agent-mark-inbound-waiting.md',
+  'agent-mark-inbound-completing.md', 'agent-complete-inbound.md',
+  'sweep-expired-agent-sessions.md',
   'purge-whatsapp-inbound.md', 'agent-get-capabilities.md',
   'agent-list-services.md', 'agent-get-booking-eligibility.md',
   'agent-get-availability.md', 'agent-list-upcoming-appointments.md',
@@ -114,7 +116,9 @@ if (flow && (flow.version !== '7.0' || flow.data_api_version !== '3.0' || JSON.s
 if (flowContract?.success_after_commit !== true) fail('Flow: success_after_commit debe ser true');
 
 const domainPrivate = requiredRpc.filter(file => ![
-  'agent-register-inbound-context.md','agent-select-relationship.md','agent-complete-inbound.md',
+  'agent-register-inbound-context.md','agent-select-relationship.md',
+  'agent-bind-inbound-execution.md','agent-mark-inbound-waiting.md',
+  'agent-mark-inbound-completing.md','agent-complete-inbound.md',
   'sweep-expired-agent-sessions.md','purge-whatsapp-inbound.md',
   'agent-get-capabilities.md','agent-get-professional-share-profile.md',
 ].includes(file));

@@ -1,5 +1,17 @@
 # Dependencias de Core antes de implementar
 
+## Baseline SQL as-built, todavía no desplegado
+
+Tasks 2–4 ya construyeron en la rama runtime el schema de control, admission,
+claim/finalize, issue/resolve y las cuatro RPC lifecycle. El controller los
+validó únicamente en batches transaccionales `BEGIN -> migration -> tests ->
+ROLLBACK`, con postflight limpio. Por tanto el contrato SQL está implementado y
+probado de forma secuencial, pero **no desplegado/no aplicado en producción**.
+
+Antes del deploy siguen pendientes una prueba multisesión de carreras/deadlocks,
+la reconciliación del historial de migraciones y todos los gates de Kapso/Edge
+enumerados abajo. No se declara E2E.
+
 ## Gates obligatorios
 
 1. Reconciliar el historial de migraciones canónico con producción antes de cualquier DDL; no ejecutar `supabase db push` desde el root incompleto.
@@ -29,4 +41,8 @@ Verificar las 14 keys indicadas en `docs/MESSAGES.md`, la invitación manual de 
 
 Cada RPC valida expiración inline; cleanup nunca autoriza. Programar en la implementación futura `sweep_expired_agent_sessions(1000)` al minuto 15 de cada hora. Producción ya tiene una purga inbound horaria: verificar que use 30 días/batch 5000 y no crear otro cron si es equivalente. La purga nueva debe respetar el orden option→tool→turn→inbound.
 
-El pseudocódigo anterior de `quick_reply_token_hash`/botón queda sustituido para el agente por correlación authenticated quoted reply y emisión lazy de option token.
+El pseudocódigo anterior de `quick_reply_token_hash`/botón no forma parte del
+baseline Tasks 2–4. Admission solo sella
+`p_reply_to_provider_message_id`; no consulta la cola ni emite invitaciones. La
+correlación y emisión lazy para entrega de asignados permanece en su wrapper/
+worker de fase posterior.

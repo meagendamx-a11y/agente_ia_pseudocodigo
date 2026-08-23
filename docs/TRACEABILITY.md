@@ -7,7 +7,7 @@ Cada fila nombra una frontera server-side; el prompt puede ayudar a conversar, p
 | ID | Owner contract(s) | Fase | Prueba | Efecto outbound | Guardia negativa |
 |---|---|---:|---|---|---|
 | DEC-01 | gateway + spec | 0 | contract-shape | texto breve | sin sobrearquitectura runtime |
-| DEC-02 | inbound + workflow | 0 | inbound-admission | inicia/reanuda workflow | callback no recibe inbound |
+| DEC-02 | inbound + lifecycle de 4 RPCs | 0 | inbound-admission/control SQL | admitted inicia; waiting_external reanuda | active/completing => TURN_BUSY |
 | DEC-03 | agent-node config | 0 | agent-config | respuesta Agent Node | sin fallback automático |
 | DEC-04 | list-services + eligibility | 1 | query-contract | opciones Flow | sin subsecuente activo |
 | DEC-05 | list-services + create | 1/2 | query/mutation | precio en resumen | modelo no fija precio |
@@ -28,9 +28,9 @@ Cada fila nombra una frontera server-side; el prompt puede ayudar a conversar, p
 | DEC-20 | resource resume/worker | 3 | resource-contract | recursos asignados | sin solicitar/seleccionar |
 | DEC-21 | negative inventory | 0 | legacy/validator | ninguno | sin reactivación |
 | DEC-22 | architecture/handoff | 4 | regression plan | rail existente | no tocar sender/callback |
-| DEC-23 | claim/finalize + saga | 0/2 | security/mutation | resultado sellado | 8 calls; 1 o 2 mutaciones |
-| DEC-24 | control state + maintenance | 0/4 | security | ninguno | expiración no autoriza |
-| DEC-25 | register inbound | 0 | inbound-admission | limit notice | replay no cuenta |
+| DEC-23 | claim/finalize + lifecycle | 0/2 | SQL tool/lifecycle | resultado sellado | 8 útiles + ordinal 9 técnico; 1 o 2 mutaciones |
+| DEC-24 | control state + cinco token kinds | 0/4 | SQL tokens/security | ninguno | TTL 10/15/15/5/15; expiración no autoriza |
+| DEC-25 | register inbound | 0 | SQL admission | claim de aviso, no envío | DTO 7 keys; replay no cuenta |
 | DEC-26 | Kapso inventory + kill switch | 0/4 | agent-config/E2E | tools bloqueadas | no IDs inventados |
 
 ## Escenarios
@@ -39,18 +39,18 @@ Cada fila nombra una frontera server-side; el prompt puede ayudar a conversar, p
 |---|---|---:|---|---|---|
 | SCN-01 | inbound | 0 | HMAC válido | ACK/workflow | firma antes de parsear |
 | SCN-02 | inbound | 0 | firma inválida | 401 seguro | sin ledger/modelo |
-| SCN-03 | register-inbound | 0 | replay exacto | resultado sellado | no cuenta límite |
+| SCN-03 | register-inbound | 0 | replay exacto | DTO sellado con original_status | no cuenta límite ni refresca |
 | SCN-04 | register-inbound | 0 | key/hash distinto | rechazo | no sobrescribe identidad |
-| SCN-05 | register-inbound | 0 | una relación | inicia turno | tenant sellado |
+| SCN-05 | register-inbound + bind | 0 | una relación | inicia turno | tenant y execution sellados |
 | SCN-06 | select-relationship | 0 | varias relaciones | opciones opacas | sin IDs |
 | SCN-07 | inbound public mode | 0 | cero relaciones | soporte/crisis | cero tools dominio |
-| SCN-08 | inbound limits | 0 | teléfono limitado | aviso con crisis | sin LLM |
+| SCN-08 | inbound limits | 0 | teléfono limitado | solo notice_claimed | sin LLM ni envío en admission |
 | SCN-09 | crisis copy | 0 | peligro inmediato | 911/Línea Vida | sin consejo clínico |
 | SCN-10 | support copy | 0 | hablar con profesional | wa.me soporte | sin ticket/handoff |
 | SCN-11 | capabilities | 1 | paciente inactivo | perfil/soporte | cross-RPC deny |
 | SCN-12 | list-services | 1 | servicios activos | lista/precios | sin IDs internos |
 | SCN-13 | eligibility | 1 | subsecuente activo | no elegible | no crea serie |
-| SCN-14 | availability | 1 | slots disponibles | tokens 15m | display no reserva |
+| SCN-14 | availability | 1 | slots disponibles | tokens 5m | display no reserva |
 | SCN-15 | availability | 1 | sin slots | explicación | no inventa horario |
 | SCN-16 | upcoming appointments | 1 | varias citas | lista opaca | no elige primera |
 | SCN-17 | next appointment | 1 | próxima futura | cita redactada | excluye pasado |
@@ -64,11 +64,11 @@ Cada fila nombra una frontera server-side; el prompt puede ayudar a conversar, p
 | SCN-25 | booking Flow | 2 | crear cita | texto libre final | éxito tras commit |
 | SCN-26 | booking Flow | 2 | slot perdido | slots frescos | sin falso éxito |
 | SCN-27 | cancel appointment | 2 | cancelar confirmada | cancelada | confirmación explícita |
-| SCN-28 | cancel→create saga | 2 | reemplazo exitoso | nueva cita | exactamente 2 mutaciones |
-| SCN-29 | saga rejection | 2 | cancel rechazo prewrite | seguro | restaura límite 1 |
+| SCN-28 | cancel→create saga | 2 | cancel <=3, Flow y create ordinal 8 | nueva cita | exactamente 2 mutaciones, nunca tercera |
+| SCN-29 | saga rejection | 2 | cancel/create rejected_prewrite | seguro | cancel restaura normal; create mantiene espera |
 | SCN-30 | reschedule | 2 | reprogramar ocurrencia | nueva fecha | no serie |
 | SCN-31 | switch modality | 2 | dirección permitida | modalidad nueva | política/lead time |
-| SCN-32 | unknown outcome | 2 | timeout tras claim | copy no confirmado | no reintento nuevo |
+| SCN-32 | unknown outcome | 2 | timeout tras claim | copy no confirmado | unknown_blocked; no reconciliación/reintento nuevo |
 | SCN-33 | proof adapter | 3 | imagen válida | recibida pendiente | private bucket |
 | SCN-34 | proof adapter | 3 | MIME/tamaño inválido | error seguro | no guarda/acredita |
 | SCN-35 | resource resume | 3 | reply a invitación | jobs asignados | correlación exacta |
