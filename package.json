@@ -9,4 +9,3 @@
     "check": "npm run validate && npm test"
   }
 }
-

@@ -1,0 +1,100 @@
+{
+  "version": "7.0",
+  "data_api_version": "3.0",
+  "routing_model": {
+    "SERVICE": ["MODALITY"],
+    "MODALITY": ["CALENDAR"],
+    "CALENDAR": ["SLOT"],
+    "SLOT": ["SUMMARY"],
+    "SUMMARY": ["CONFIRMATION"],
+    "CONFIRMATION": []
+  },
+  "screens": [
+    {
+      "id": "SERVICE",
+      "title": "Elige un servicio",
+      "data": {
+        "services": {"type":"array","items":{"type":"object","properties":{"id":{"type":"string"},"title":{"type":"string"},"description":{"type":"string"}}},"__example__":[{"id":"opaque-service-token","title":"Consulta","description":"$800 MXN"}]}
+      },
+      "layout": {"type":"SingleColumnLayout","children":[
+        {"type":"TextBody","text":"Selecciona el servicio que quieres agendar."},
+        {"type":"RadioButtonsGroup","name":"service_token","label":"Servicio","required":true,"data-source":"${data.services}"},
+        {"type":"Footer","label":"Continuar","on-click-action":{"name":"data_exchange","payload":{"action":"select_service","service_token":"${form.service_token}"}}}
+      ]}
+    },
+    {
+      "id": "MODALITY",
+      "title": "Modalidad",
+      "data": {
+        "service_token":{"type":"string","__example__":"opaque-service-token"},
+        "modalities":{"type":"array","items":{"type":"object","properties":{"id":{"type":"string"},"title":{"type":"string"}}},"__example__":[{"id":"online","title":"En línea"}]}
+      },
+      "layout": {"type":"SingleColumnLayout","children":[
+        {"type":"RadioButtonsGroup","name":"modality","label":"¿Cómo prefieres tu cita?","required":true,"data-source":"${data.modalities}"},
+        {"type":"Footer","label":"Continuar","on-click-action":{"name":"data_exchange","payload":{"action":"select_modality","service_token":"${data.service_token}","modality":"${form.modality}"}}}
+      ]}
+    },
+    {
+      "id": "CALENDAR",
+      "title": "Elige una fecha",
+      "data": {
+        "service_token":{"type":"string","__example__":"opaque-service-token"},
+        "modality":{"type":"string","__example__":"online"},
+        "min_date":{"type":"string","__example__":"2026-08-23"},
+        "max_date":{"type":"string","__example__":"2026-11-23"}
+      },
+      "layout": {"type":"SingleColumnLayout","children":[
+        {"type":"DatePicker","name":"day","label":"Fecha","required":true,"min-date":"${data.min_date}","max-date":"${data.max_date}"},
+        {"type":"Footer","label":"Ver horarios","on-click-action":{"name":"data_exchange","payload":{"action":"select_day","service_token":"${data.service_token}","modality":"${data.modality}","day":"${form.day}"}}}
+      ]}
+    },
+    {
+      "id": "SLOT",
+      "title": "Elige un horario",
+      "data": {
+        "service_token":{"type":"string","__example__":"opaque-service-token"},
+        "modality":{"type":"string","__example__":"online"},
+        "day":{"type":"string","__example__":"2026-08-23"},
+        "slots":{"type":"array","items":{"type":"object","properties":{"id":{"type":"string"},"title":{"type":"string"}}},"__example__":[{"id":"opaque-slot-token","title":"10:00"}]},
+        "notice":{"type":"string","__example__":"Los horarios pueden cambiar hasta confirmar."}
+      },
+      "layout": {"type":"SingleColumnLayout","children":[
+        {"type":"TextBody","text":"${data.notice}"},
+        {"type":"RadioButtonsGroup","name":"slot_token","label":"Horario disponible","required":true,"data-source":"${data.slots}"},
+        {"type":"Footer","label":"Continuar","on-click-action":{"name":"data_exchange","payload":{"action":"select_slot","service_token":"${data.service_token}","modality":"${data.modality}","day":"${data.day}","slot_token":"${form.slot_token}"}}}
+      ]}
+    },
+    {
+      "id": "SUMMARY",
+      "title": "Confirma tu cita",
+      "data": {
+        "flow_token":{"type":"string","__example__":"opaque-flow-token"},
+        "service_token":{"type":"string","__example__":"opaque-service-token"},
+        "slot_token":{"type":"string","__example__":"opaque-slot-token"},
+        "modality":{"type":"string","__example__":"online"},
+        "starts_at_local":{"type":"string","__example__":"2026-08-23T10:00:00"},
+        "summary":{"type":"string","__example__":"Consulta · 23 ago · 10:00 · En línea · $800 MXN"}
+      },
+      "layout": {"type":"SingleColumnLayout","children":[
+        {"type":"TextBody","text":"${data.summary}"},
+        {"type":"OptIn","name":"confirmed","label":"Confirmo que quiero crear esta cita","required":true},
+        {"type":"Footer","label":"Crear cita","on-click-action":{"name":"data_exchange","payload":{"action":"create_appointment","flow_token":"${data.flow_token}","service_token":"${data.service_token}","slot_token":"${data.slot_token}","modality":"${data.modality}","starts_at_local":"${data.starts_at_local}","confirmed":"${form.confirmed}"}}}
+      ]}
+    },
+    {
+      "id": "CONFIRMATION",
+      "title": "Cita creada",
+      "terminal": true,
+      "success": true,
+      "data": {
+        "confirmation_text":{"type":"string","__example__":"Tu cita quedó creada correctamente."},
+        "flow_token":{"type":"string","__example__":"opaque-flow-token"}
+      },
+      "layout": {"type":"SingleColumnLayout","children":[
+        {"type":"TextHeading","text":"¡Listo!"},
+        {"type":"TextBody","text":"${data.confirmation_text}"},
+        {"type":"Footer","label":"Finalizar","on-click-action":{"name":"complete","payload":{"flow_token":"${data.flow_token}"}}}
+      ]}
+    }
+  ]
+}

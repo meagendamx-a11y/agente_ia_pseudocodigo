@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agendapsi.mx/schemas/provider-runtime.schema.json",
+  "title": "Trusted Kapso runtime envelope",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["provider_message_id", "sender_phone_e164", "target_phone_number_id", "kapso_conversation_id", "kapso_execution_id"],
+  "properties": {
+    "provider_message_id": {"type":"string","minLength":1,"maxLength":255},
+    "reply_to_provider_message_id": {"type":["string","null"],"maxLength":255},
+    "sender_phone_e164": {"type":"string","pattern":"^\\+[1-9][0-9]{7,14}$"},
+    "target_phone_number_id": {"type":"string","minLength":1,"maxLength":255},
+    "kapso_contact_id": {"type":["string","null"],"maxLength":255},
+    "business_portfolio_id": {"type":["string","null"],"maxLength":255},
+    "business_scoped_user_id": {"type":["string","null"],"maxLength":255},
+    "kapso_conversation_id": {"type":"string","minLength":1,"maxLength":255},
+    "kapso_execution_id": {"type":"string","minLength":1,"maxLength":255},
+    "provider_tool_invocation_id": {"type":["string","null"],"maxLength":255}
+  }
+}
