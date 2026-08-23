@@ -501,15 +501,15 @@ Order is: method/content type/content length/header syntax -> bounded raw stream
 
 - [ ] **Step 3: Call admission only when inbound is enabled**
 
-Map the authenticated envelope to the exact Task 3 parameter names. Target must pass both the environment allowlist and the DB allowlist. Use an abort timeout below 8 seconds. A replay returns 200 without workflow. A rate limit returns the fixed response key only when `notice_claimed`; this plan does not send it.
+Map the authenticated envelope to the exact Task 3 parameter names. Target must pass both the environment allowlist and the DB allowlist. Until Kapso identity authority is verified, pass `p_kapso_contact_id=null`, `p_business_portfolio_id=null` and `p_business_scoped_user_id=null`; keep `parent_business_scoped_user_id` separate and never reinterpret it as portfolio/contact identity. Use an abort timeout below 8 seconds. A replay returns 200 without workflow. A rate limit returns the fixed response key only when `notice_claimed`; this plan does not send it.
 
 - [ ] **Step 4: Keep workflow start/resume disabled**
 
-When admission succeeds and `AGENT_WORKFLOW_ENABLED=false`, return 202 `{ok:true,status:'admitted_no_workflow'}`. Do not call Kapso API. Add a dependency seam for a later `startOrResumeWorkflow`, but its default implementation throws `WORKFLOW_DISABLED`.
+When admission succeeds and `AGENT_WORKFLOW_ENABLED=false`, return `{ok:true,status:'admitted_no_workflow'}` with HTTP 200. Do not call Kapso API. Add a dependency seam for a later `startOrResumeWorkflow`, but its default implementation throws `WORKFLOW_DISABLED`.
 
 - [ ] **Step 5: Wire Deno/Supabase without domain table access**
 
-Create a function-local `deno.json` mapping `@supabase/supabase-js` to exact `npm:@supabase/supabase-js@2.112.3`, generate its integrity lock with Deno, and import only the alias. `index.ts` creates a Supabase client with the modern/fallback secret, calls only `agent_register_inbound_context`, and exports no credentials. Do not query tables from Edge.
+Create a function-local `deno.json` mapping `@supabase/supabase-js` to exact `npm:@supabase/supabase-js@2.112.3`; el `deno.lock` debe ser real, generado por Deno con integridad, nunca un placeholder escrito a mano. Import only the alias. `index.ts` creates a Supabase client with the modern/fallback secret, calls only `agent_register_inbound_context`, and exports no credentials. Do not query tables from Edge.
 
 - [ ] **Step 6: Verify and commit**
 
@@ -537,11 +537,11 @@ git commit -m "feat: add disabled Kapso inbound webhook"
 
 - [ ] **Step 1: Write failing auth/router tests**
 
-Cover missing/wrong bearer, timing-safe secret comparison, unsupported method, encoded path/traversal, unknown path, arbitrary `function_name` body, disabled gateway, health response and maximum body/result sizes.
+Cover missing/wrong bearer, timing-safe secret comparison, unsupported method, canonical path variants produced by Fetch URL, unknown path, arbitrary `function_name` body, disabled gateway, health response and maximum body/result sizes.
 
 - [ ] **Step 2: Implement fixed-route normalization**
 
-Strip only the known Supabase prefix ending in `/agent_tool_gateway`; never derive a function or table from JSON. Define a compile-time map of exact paths with no catch-all entry. The body cannot override route, session, command ID, operation or tool-call key.
+Use `new URL(request.url).pathname` como frontera canónica. Strip only the known Supabase prefix ending in `/agent_tool_gateway` from that canonical pathname; never derive a function or table from JSON. Define a compile-time mapa exacto de paths with no catch-all entry. The contract does not interpret the URL string before Fetch URL canonicalization. The body cannot override route, session, command ID, operation or tool-call key.
 
 - [ ] **Step 3: Keep every agent operation disabled**
 
@@ -549,7 +549,7 @@ Strip only the known Supabase prefix ending in `/agent_tool_gateway`; never deri
 
 - [ ] **Step 4: Wire and verify**
 
-Use a function-local `deno.json` with no floating imports and generate its lock. `index.ts` reads `AGENT_GATEWAY_SECRET` and no Kapso/model secrets. Run all tests and commit:
+Use a function-local `deno.json` with no floating imports; el `deno.lock` debe ser real, generado por Deno con integridad, nunca un placeholder. `index.ts` reads `AGENT_GATEWAY_SECRET` and no Kapso/model secrets. Run all tests and commit:
 
 ```bash
 git add supabase/functions/agent_tool_gateway supabase/functions/_shared
@@ -561,16 +561,20 @@ git commit -m "feat: add disabled fixed-route agent gateway"
 ### Task 8: Transactional Supabase Validation and Runbook
 
 **Files:**
-- Create: `docs/whatsapp-agent-foundation-runbook.md`
-- Modify only if tests expose defects: Phase 0 migration/new Edge files.
+- Create in runtime repository: `agenda-psi-database/docs/whatsapp-agent-foundation-runbook.md`
+- Modify: `docs/PRODUCTION_HANDOFF.md`
+- Modify: `docs/superpowers/plans/2026-08-22-whatsapp-agent-foundation.md`
+- Create: `test/production-handoff-as-built.test.mjs`
 
 **Interfaces:**
 - Consumes: current production schema metadata and the user-approved no-Branch test strategy.
 - Produces: behavioral proof from one rolled-back transaction plus an exact before/after fingerprint; no persistent Supabase changes.
 
+**Estado as-built:** El código de Fase 0 está implementado en una rama Git/worktree. No fue aplicado en Supabase producción, no se desplegaron las Edge nuevas y no se registró ni activó nada en Kapso. Esta validación no usa Supabase Branching ni plan Pro: no se requiere ninguno de los dos.
+
 - [ ] **Step 1: Capture the immutable pre-test baseline**
 
-Using read-only catalogs and the Supabase API, record a machine-comparable fingerprint of all existing user tables/columns/constraints/indexes/RLS/policies, function identity signatures/owners/security/search paths/effective ACL, triggers and migration versions. Record the four live Edge slugs, versions, JWT mode and deployed SHA. Store no rows, secrets or function source in Git.
+Using read-only catalogs and the Supabase API, record a machine-comparable fingerprint of all existing user tables/columns/constraints/indexes/RLS/policies, function identity signatures/owners/security/search paths/effective ACL, triggers and migration versions. Record the four live Edge slugs, versions, JWT mode and deployed SHA. El baseline es dinámico y descubre los conteos en vez de fijarlos. La última ejecución observó 75 versiones de migración; `75` es una referencia, no un gate. Store no rows, secrets or function source in Git.
 
 - [ ] **Step 2: Confirm the DB suite is RED without the migration**
 
@@ -578,7 +582,8 @@ Execute only:
 
 ```sql
 begin;
-set local statement_timeout = '15s';
+set local statement_timeout = '30s';
+set local lock_timeout = '5s';
 -- exact supabase/tests/agent_whatsapp_foundation.sql
 rollback;
 ```
@@ -591,8 +596,8 @@ Send one SQL batch through the read/write SQL endpoint, not `apply_migration`:
 
 ```sql
 begin;
-set local statement_timeout = '15s';
-set local lock_timeout = '3s';
+set local statement_timeout = '30s';
+set local lock_timeout = '5s';
 -- exact CLI-generated migration SQL
 -- exact catalog/ACL and synthetic behavioral test SQL
 rollback;
@@ -602,32 +607,39 @@ The test data uses reserved synthetic identifiers only and is rolled back. Cover
 
 - [ ] **Step 4: Prove rollback and compare the baseline**
 
-Re-run the exact fingerprint and require byte-for-byte equality with Step 1. Confirm all Fase 0 tables, RPC and role are absent; all 74 migration versions and four Edge versions/SHAs are unchanged. If any difference remains, stop and investigate before any further action.
+Re-run the exact fingerprint and require byte-for-byte equality with Step 1. Confirm all Fase 0 tables, RPC, role and synthetic fixtures are absent; require the dynamically captured migration-version set and the four Edge versions/SHAs to remain unchanged. The observed total was 75, but no fixed count is the invariant. If any difference remains, stop and investigate before any further action.
 
 - [ ] **Step 5: Validate Edge locally without deployment**
 
-Run Node tests for HMAC, streaming limit, strict Kapso parser, disabled inbound, gateway auth/routes and runtime hashes. Do not set production secrets, call Kapso, deploy either new slug or alter any existing slug. Security/performance advisors for the new schema are deferred until a separately approved persistent apply because they use a different connection and cannot inspect uncommitted DDL.
+Run Node tests for HMAC, streaming limit, strict Kapso parser, disabled inbound, gateway auth/routes and runtime hashes. Verify the function-local `deno.lock` files are real Deno-generated integrity locks, not placeholders. Do not set production secrets, call Kapso, deploy either new slug or alter any existing slug. Security/performance advisors for the new schema are deferred until a separately approved persistent apply because they use a different connection and cannot inspect uncommitted DDL.
 
 - [ ] **Step 6: Write the operational runbook**
 
-Document exact environment variable names, flags default false, test commands, the rollback-only SQL harness, persistent rollout checkpoint, rollback by flags/EXECUTE revoke, metrics without PII, and the explicit prohibition on production/Kapso activation. State that a persistent migration, deployment of either new Edge slug, secrets and Kapso registration each require a separate explicit production checkpoint.
+Document exact environment variable names, flags default false, test commands, the rollback-only SQL harness and rollback by flags/`EXECUTE` revoke. Preserve three explicit production checkpoints: checkpoint DB — migración persistente; checkpoint Edge — deploy y secretos; checkpoint Kapso — registro y activación. None authorizes the next.
+
+Document the fixed cost envelope too: cero tráfico LLM y cero llamadas a Kapso en Fase 0; `gpt-5.6-luna` preferido pero aún no verificado; sin fallback automático; `max_tokens=2048`, `max_iterations=16`, `reasoning=medium`, `prompt_cache_ttl=5m`; 8 llamadas útiles más completion técnico en ordinal 9; 1 reintento de transporte; métricas sin PII.
 
 - [ ] **Step 7: Final verification**
 
-Run:
+Run the runtime checks in its implementation worktree and the guide checks in this repository:
 
 ```bash
-cd supabase/functions && npm test
+cd /path/to/agenda-psi-database/supabase/functions && npm test
+cd ../..
 git diff --check
 git status --short
-git diff d26b6283c4ddbc169ef1078317a2008eb67a72af -- lib test supabase/functions/enviar-whatsapp supabase/functions/kapso_status_callback
+git diff d26b6283c4ddbc169ef1078317a2008eb67a72af -- \
+  flutter_application_1/lib flutter_application_1/test \
+  supabase/functions/enviar-whatsapp \
+  supabase/functions/kapso_status_callback
+cd /path/to/agente_ia_pseudocodigo && npm run check
 ```
 
-Expected: all tests PASS; final protected-path diff empty except no files at all under `lib/` or Flutter `test/`.
+Expected: all tests PASS; final protected-path diff empty, including no files under `flutter_application_1/lib` or `flutter_application_1/test`.
 
-- [ ] **Step 8: Commit, push and request review**
+- [ ] **Step 8: Record the completed local checkpoint**
 
-Commit runbook/fixes, push `codex/implement-whatsapp-agent`, and open a PR that states:
+The runtime runbook is committed locally in `82b603c`; the guide synchronization is also committed locally after its tests pass. Neither commit implies a push, merge, persistent Supabase apply, Edge deploy, secret change or Kapso registration. Present both branches and verification output for the separate publication/integration choice. A later explicitly approved publication may use this release note:
 
 ```text
 Agent disabled by default. Migration validated only inside BEGIN/ROLLBACK; new
