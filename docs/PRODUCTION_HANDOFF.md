@@ -26,7 +26,7 @@ El baseline se captura dinámicamente antes y después desde catálogos, version
 - Task 6, con workflow deshabilitado, responde HTTP `200` con `{ok:true,status:'admitted_no_workflow'}` y no llama al workflow de Kapso.
 - La versión desplegada contiene start API `202`, resume API `200`, recuperación service-only del execution sellado y bind posterior; ese código no corre mientras `AGENT_WORKFLOW_ENABLED=false`.
 - La identidad de admisión no verificada se envía explícitamente como `p_kapso_contact_id=null`, `p_business_portfolio_id=null` y `p_business_scoped_user_id=null`; no se inventan equivalencias entre BSUID, portfolio o contacto.
-- Task 7 toma `new URL(request.url).pathname` como frontera canónica y despacha solo mediante un mapa exacto de rutas. El contrato se define sobre ese pathname canónico, no sobre interpretaciones previas de la forma original de la URL.
+- Task 7 toma `new URL(request.url).pathname` como frontera canónica y despacha solo mediante un mapa exacto de rutas. Supabase elimina el prefijo público `/functions/v1` antes de `Deno.serve`, por lo que el prefijo interno verificado es `/agent_tool_gateway`; una prueba de regresión fija esta diferencia.
 - Las dos funciones nuevas conservan archivos `deno.lock` reales, generados por Deno con integridad; no son placeholders editados a mano.
 - Sender, callback de estados, Flutter, Marketplace, outbox y recursos quedan fuera de este cambio.
 
@@ -41,7 +41,7 @@ Cada turno admite 8 llamadas útiles; `complete_inbound` usa el ordinal 9 técni
 1. **Checkpoint DB — completado para Fase 1A.** Migraciones aditivas aplicadas; ACL/owner y pruebas transaccionales verificadas.
 2. **Checkpoint Edge — completado y apagado.** Slugs desplegados, secretos base cargados y humo seguro validado; las banderas siguen en `false`.
 3. **Checkpoint Kapso Draft — completado e inactivo.** API Trigger y Agent Node están conectados y guardados; la prueba sintética confirmó `send_notification_to_user -> complete_task` sin dejar `Waiting`.
-4. **Checkpoint E2E/activación — pendiente.** Probar start/resume, contexto, invocation identity y cierre con un número de prueba antes de habilitar allowlist/tools.
+4. **Checkpoint E2E/activación — parcial y apagado.** Un inbound real verificó admisión/start/bind y permitió detectar aristas faltantes. Las aristas, el secreto y la ruta Edge ya están corregidos; la Function privada cerró un inbound correlacionado. Falta repetir el inbound para probar tool, entrega y cierre en la misma ejecución antes de habilitar producción.
 
 No se combinan checkpoints por conveniencia y no basta cambiar un prompt o JSON para autorizar el siguiente.
 

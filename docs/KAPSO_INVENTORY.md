@@ -15,15 +15,15 @@ Observado: 2026-08-23 (America/Mexico_City).
 | Workflow/Flow ID y versión | Draft configurado, conectado e inactivo | `Agenda PSI — Agente WhatsApp — Draft`, ID `d4ab8c62-f138-4869-a501-19e60c4483ff`, con API Trigger (Start) → Agent Node → Function Node de cierre; ningún WhatsApp Flow disponible. |
 | `gpt-5.6-luna` en Agent Node | configurado en Draft | OpenAI, temperatura `0`, reasoning `medium`, `max_iterations=16`, `max_tokens=2048`; el `provider_model_id` interno aún no se ha fijado. |
 | Tools del Agent Node | primera tool conectada en Draft | `get_capabilities` usa la Function privada `agenda-psi-complete-inbound`, input `{}` cerrado y ruta fija `/tools/capabilities`. `send_notification_to_user`, `enter_waiting` y `complete_task` siguen habilitadas; las demás tools de dominio permanecen desconectadas. |
-| Semántica primer input/resume | no verificado | Gate E2E. |
+| Semántica primer input/resume | parcial | Un inbound real verificó webhook, admisión, variables, start y bind; la ejecución terminó en `start` por aristas faltantes. El Draft ya conserva las dos aristas, pero falta repetir el inbound. |
 | Tool invocation ID estable en retry | parcial | `get_capabilities` no depende de ese ID: se sella una vez por inbound + ejecución. Sigue siendo gate para las demás tools directas. |
-| `send_notification_to_user -> complete_task` | verificado en Test mode | Terminó `Completed` en 4 s, en ese orden y sin `Waiting`; `$0.0006`, 4,096 tokens, 2 llamadas. El Function Node ya está conectado, pero falta comprobarlo con inbound real. |
+| `send_notification_to_user -> complete_task` | verificado en Test mode | El Agent Node avanzó por `complete_task` hasta el Function Node. Tras sincronizar el secreto y corregir el pathname interno de Supabase, la Function privada devolvió `200` y cerró un inbound correlacionado. Falta comprobar el mismo recorrido dentro de un nuevo inbound real. |
 | `nfm_reply`, encryption y data endpoint | no verificado | Gate E2E. |
 | Flow JSON estático 7.0 / Data API 3.0 | comprobado contra docs públicas | Artefacto local; aún no validado por provider. |
 
 ## Consecuencia
 
-`config/agent-node.json.deployment_enabled=false` y `tool-allowlist.json.agent_node_enabled=false`. La autenticación, el inventario, `get_capabilities` y el Function Node del Draft ya no bloquean. Sí bloquea la activación un E2E inbound real que compruebe contexto, tool, entrega y cierre completo en Supabase. La identidad idempotente sigue pendiente para tools posteriores; Flow/media conservan su propio gate.
+`config/agent-node.json.deployment_enabled=false` y `tool-allowlist.json.agent_node_enabled=false`. La autenticación gateway, las aristas y el cierre correlacionado ya no bloquean. Sí bloquea la activación repetir el E2E inbound para comprobar contexto, `get_capabilities`, entrega y cierre dentro de la misma ejecución. La identidad idempotente sigue pendiente para tools posteriores; Flow/media conservan su propio gate.
 
 ## Preflight reproducible
 
