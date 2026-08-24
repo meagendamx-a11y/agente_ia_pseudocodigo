@@ -12,8 +12,9 @@ Observado: 2026-08-23 (America/Mexico_City).
 | Dynamic Flow/data endpoint | documentación disponible | <https://docs.kapso.ai/docs/whatsapp/flows/static-vs-dynamic> |
 | Cuenta/workspace autenticado | verificado | Proyecto `Agenda Psi`, ID `7cacfa3c-18f3-42c7-9623-22503fb947c7`, plan Free. |
 | Número/webhook/target real | verificado parcialmente | Target `1189669584231262`; webhook inbound v2 y callback de estados activos. |
-| Workflow/Flow ID y versión | Draft parcial | Workflow vacío Draft `d4ab8c62-f138-4869-a501-19e60c4483ff`; ningún Flow disponible. |
-| `gpt-5.6-luna` en selector | disponible | Visible bajo OpenAI; el `provider_model_id` interno aún no se ha fijado. |
+| Workflow/Flow ID y versión | Draft configurado, inactivo | `Agenda PSI — Agente WhatsApp — Draft`, ID `d4ab8c62-f138-4869-a501-19e60c4483ff`, con API Trigger y Agent Node; ningún Flow disponible. |
+| `gpt-5.6-luna` en Agent Node | configurado en Draft | OpenAI, temperatura `0`, reasoning `medium`, `max_iterations=16`, `max_tokens=2048`; el `provider_model_id` interno aún no se ha fijado. |
+| Tools del Agent Node | mínimo de preflight | Cero custom/domain tools; 10 tools opcionales apagadas. `enter_waiting`, `complete_task` y el `handoff_to_human` obligatorio de Kapso quedan presentes; el prompt prohíbe usar handoff y dirige a soporte autoservicio. |
 | Semántica primer input/resume | no verificado | Gate E2E. |
 | Tool invocation ID estable en retry | no verificado | Gate obligatorio para tools directas. |
 | `auto_send -> complete_task -> Function Node` | no verificado | Gate E2E. |
@@ -26,7 +27,7 @@ Observado: 2026-08-23 (America/Mexico_City).
 
 ## Preflight reproducible
 
-1. Registrar IDs no secretos y versión publicada/draft.
+1. Mantener registrados el workflow ID y su estado Draft.
 2. Enviar un inbound de prueba y comprobar contexto WhatsApp real al API Trigger.
 3. Hacer Wait/resume y comprobar continuidad de conversación/turno.
 4. Forzar un retry de tool y confirmar el mismo invocation ID.

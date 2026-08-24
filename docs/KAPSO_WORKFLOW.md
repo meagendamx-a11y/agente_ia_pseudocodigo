@@ -23,7 +23,7 @@ Solo el webhook/gateway inyecta referencias de sesión, turno, ejecución y mens
 
 ## Preflight obligatorio
 
-Estado al 2026-08-23: **inventario autenticado parcial**. Ya se verificaron proyecto, target, webhooks activos, disponibilidad de `gpt-5.6-luna` y un workflow Draft vacío. La documentación del provider indica que `initial_data` y el resume por API se presentan como `<external_input>`; falta demostrar en E2E si `phone_number`/`phone_number_id` también conservan `whatsapp_context` suficiente para este diseño. Permanecen pendientes el `provider_model_id` interno, start/resume real, ordering de send/complete, serialización `nfm_reply` y un tool-invocation ID estable. Kill switches y tools siguen apagados.
+Estado al 2026-08-23: **Draft configurado; E2E pendiente**. Ya se verificaron proyecto, target, webhooks activos y el workflow `d4ab8c62-f138-4869-a501-19e60c4483ff` con API Trigger y Agent Node `gpt-5.6-luna`. El nodo usa temperatura `0`, reasoning `medium`, `max_iterations=16`, `max_tokens=2048`, auto-send, cero custom/domain tools y el prompt de `config/system-prompt.phase1.es-MX.txt`. La documentación del provider indica que `initial_data` y el resume por API se presentan como `<external_input>`; falta demostrar en E2E si `phone_number`/`phone_number_id` también conservan `whatsapp_context` suficiente para este diseño. Permanecen pendientes el `provider_model_id` interno, start/resume real, ordering de send/complete, serialización `nfm_reply` y un tool-invocation ID estable. Kill switches y tools de dominio siguen apagados.
 
 ## WhatsApp Flow de citas
 
