@@ -1,9 +1,9 @@
 {
   "schema_version": 1,
   "agent_node_enabled": false,
-  "blocking_gate": "KAPSO_PROVIDER_PREFLIGHT_NOT_VERIFIED",
+  "blocking_gate": "REAL_INBOUND_E2E_PENDING",
   "agent_node": [
-    {"operation":"get_capabilities","route":"/tools/capabilities","method":"POST","input":{},"output":"capabilities","mutation_cost":0,"turn_states":["active"],"timeout_ms":10000,"tool_call_key":"kapso_execution + verified_provider_invocation"},
+    {"operation":"get_capabilities","route":"/tools/capabilities","method":"POST","input":{},"output":"capabilities","mutation_cost":0,"turn_states":["active"],"timeout_ms":10000,"tool_call_key":"provider_message_id + kapso_execution + get_capabilities"},
     {"operation":"select_relationship","route":"/tools/relationship/select","method":"POST","input":{"relationship_token":"string"},"output":"relationship_selection","mutation_cost":0,"turn_states":["active"],"timeout_ms":10000,"tool_call_key":"kapso_execution + verified_provider_invocation"},
     {"operation":"list_services","route":"/tools/services","method":"POST","input":{},"output":"service_options","mutation_cost":0,"turn_states":["active"],"timeout_ms":10000,"tool_call_key":"kapso_execution + verified_provider_invocation"},
     {"operation":"get_booking_eligibility","route":"/tools/booking/eligibility","method":"POST","input":{"service_token":"string"},"output":"eligibility","mutation_cost":0,"turn_states":["active"],"timeout_ms":10000,"tool_call_key":"kapso_execution + verified_provider_invocation"},

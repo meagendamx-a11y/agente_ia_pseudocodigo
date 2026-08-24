@@ -12,6 +12,9 @@ el claim técnico de completion pendiente.
 
 `agent_complete_inbound(p_provider_message_id text,p_kapso_execution_id text,p_response_message_id text) -> boolean`
 
+Wrapper del workflow:
+`agent_complete_inbound_from_workflow(p_provider_message_id text,p_kapso_execution_id text,p_response_message_id text) -> boolean`.
+
 `SECURITY DEFINER SET search_path=''`, owner `agenda_psi_agent_owner`, EXECUTE
 solo para `service_role`.
 
@@ -51,13 +54,13 @@ técnico pendiente.
    `(workflow_internal,complete_inbound,false)`, ordinal 9, y ningún otro claim
    pendiente.
 4. Orden externo obligatorio: assistant text aceptado por Kapso →
-   `complete_task` → Function Node → esta RPC.
+   `complete_task` → Function Node `agenda-psi-complete-inbound` → wrapper.
 5. Sellar `processed_at`, response nullable, `completed` y `terminal_at` con
    tiempo server-side posterior a locks. No cambia `session.expires_at`.
 6. Replay en `completed` usa igualdad null-safe de execution/response y devuelve
    `true`; `NULL→valor`, valor distinto o execution distinta devuelve `false`.
-7. El claim técnico puede finalizarse después en
-   `private.agent_finalize_tool_call` sin reabrir el turno.
+7. `agent_complete_inbound_from_workflow` crea/reproduce el claim técnico,
+   invoca la primitiva y lo finaliza sin reabrir el turno.
 
 ## Transacción/locks/idempotencia
 

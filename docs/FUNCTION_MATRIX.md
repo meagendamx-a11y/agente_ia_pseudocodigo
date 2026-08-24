@@ -20,11 +20,11 @@ los wrappers que siguen siendo contrato de implementación.
 | 2 | `agent_bind_inbound_execution` | SQL as-built | command | inbound/turno/sesión | inbound/turno | Sellar execution y activar admitted/resumed. |
 | 3 | `agent_mark_inbound_waiting` | SQL as-built | command | inbound/turno/sesión/claims | turno | Entrar a espera externa sin claims pendientes. |
 | 4 | `agent_mark_inbound_completing` | SQL as-built | command | inbound/turno/sesión/claims | turno | Preparar completion técnica. |
-| 5 | `agent_complete_inbound` | SQL as-built | command | inbound/turno/claim técnico | inbound/turno | Sellar ACK final y completed. |
+| 5 | `agent_complete_inbound` + `agent_complete_inbound_from_workflow` | SQL as-built desplegado | command | inbound/turno/claim técnico | inbound/turno | Wrapper del Function Node reclama ordinal 9, sella ACK final y finaliza completed. |
 | 6 | `agent_select_relationship` | contrato pendiente | command | tokens/links | sesión/control | Seleccionar relación opaca. |
 | 7 | `sweep_expired_agent_sessions` | contrato pendiente | cron | sesiones/turnos | control | Expirar capacidades. |
 | 8 | `purge_whatsapp_inbound` | contrato pendiente | cron | control expirado | control | Retención acotada. |
-| 9 | `agent_get_capabilities` | SQL as-built parcial | query | sesión/relación/profesional/perfil/citas/pagos | nada | Capacidades y reason codes redactados; handles diferidos. |
+| 9 | `agent_get_capabilities` + `agent_get_capabilities_from_workflow` | SQL as-built desplegado | query | inbound/turno/sesión/relación/profesional/perfil/citas/pagos | ledger técnico | Capacidades redactadas con claim/finalize y replay; handles diferidos. |
 | 10 | `agent_list_services` | contrato pendiente | query | servicios/precios/series | tokens técnicos | Servicios y precio efectivo. |
 | 11 | `agent_get_booking_eligibility` | contrato pendiente | query | series/políticas | nada dominio | Elegibilidad. |
 | 12 | `agent_get_availability` | contrato pendiente | query | horarios/bloqueos/citas | tokens técnicos | Slots vigentes. |

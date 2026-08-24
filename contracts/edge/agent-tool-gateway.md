@@ -14,7 +14,7 @@ Payload seguro por operación conforme a `config/tool-allowlist.json`. El modelo
 
 ## Contexto inyectado
 
-Sesión, turno, ejecución, mensaje, surface y key derivada por servidor. Para Agent Node: ejecución + **invocación del proveedor/provider invocation** estable; para Flow: **handle del token Flow/Flow token handle** + acción + hash canónico; media: provider message + ordinal; interno: ejecución + paso fijo.
+Sesión, turno, ejecución, mensaje, surface y key derivada por servidor. La primera tool `get_capabilities` usa una lectura sellada por mensaje + ejecución porque su input es `{}`. Las demás tools de Agent Node requerirán una invocación del proveedor estable o una estrategia server-side equivalente. Para Flow: **handle del token Flow/Flow token handle** + acción + hash canónico; media: provider message + ordinal; interno: ejecución + paso fijo.
 
 ## Lee
 
@@ -27,7 +27,8 @@ Control técnico por helpers y, mediante una sola ruta fija, el wrapper de domin
 ## Validaciones
 
 - Autenticación Kapso/server-to-server y target/workflow permitidos.
-- Agent Node bloqueado hasta probar E2E el provider invocation ID estable ante retry.
+- Solo `/tools/capabilities` y `/workflow/complete` están habilitadas; las demás rutas fallan cerradas.
+- Producción permanece bloqueada hasta probar un inbound E2E real. El provider invocation ID estable sigue siendo gate para tools posteriores.
 - Operación, método, schema, estado del turno y tamaño de salida permiten solo allowlist.
 - Máximo **8** llamadas, timeout **10 segundos/10 s**, una recuperación de transporte con la misma key.
 - Token HMAC timing-safe; input hash/hash de entrada canónico; paciente activo en toda ruta privada de dominio.
@@ -61,7 +62,7 @@ DTO allowlisted menor a 16 KiB, reason codes y tokens opacos. Sin IDs, SQL, stac
 - Aceptar función/ID/session/command/key arbitrarios.
 - Consultar tablas directamente desde el modelo o exponer secretos.
 - Ejecutar segunda mutación normal, tercera mutación o reintento con identidad nueva.
-- Habilitar agent_node mientras el gate Kapso esté bloqueado.
+- Habilitar producción mientras `REAL_INBOUND_E2E_PENDING` esté activo.
 
 ## Pruebas mínimas
 

@@ -5,10 +5,11 @@
 ```text
 number webhook -> kapso_inbound_webhook -> atomic admission
   admitted/resumed -> API Trigger -> Function variables -> Agent Node
-    -> tools/gateway | WhatsApp Flow | media adapter
+    -> get_capabilities -> Function privada -> gateway
+    -> tools futuros | WhatsApp Flow | media adapter
     -> pregunta: send_notification_to_user -> enter_waiting
     -> respuesta final: send_notification_to_user -> complete_task
-       -> Function Node futuro -> complete RPC
+       -> Function Node -> agent_complete_inbound_from_workflow
   replay/rate_limited/rejected -> respuesta fija/ACK, sin Agent Node
 ```
 
@@ -20,13 +21,13 @@ Solo el webhook/gateway inyecta referencias de sesión, turno, ejecución y mens
 
 ## Espera y cierre
 
-El texto directo del asistente queda interno. `send_notification_to_user` entrega cada mensaje; después de un envío exitoso, `enter_waiting` sella `waiting_external` si se hizo una pregunta y `complete_task` cierra si la respuesta fue final. Un inbound verificado reanuda el mismo turno. El Function Node futuro llamará `agent_complete_inbound` después de que Kapso acepte el mensaje final.
+El texto directo del asistente queda interno. `send_notification_to_user` entrega cada mensaje; después de un envío exitoso, `enter_waiting` sella `waiting_external` si se hizo una pregunta y `complete_task` avanza al cierre si la respuesta fue final. Un inbound verificado reanuda el mismo turno. El Function Node privado `agenda-psi-complete-inbound` llama `agent_complete_inbound_from_workflow` para cerrar y finalizar técnicamente el turno.
 
 ## Preflight obligatorio
 
-Estado al 2026-08-23: **Draft configurado y prueba sintética de entrega/cierre aprobada; E2E real pendiente**. Ya se verificaron proyecto, target, webhooks activos y el workflow `d4ab8c62-f138-4869-a501-19e60c4483ff` con API Trigger (Start) conectado al Agent Node `gpt-5.6-luna`. El nodo usa temperatura `0`, reasoning `medium`, `max_iterations=16`, `max_tokens=2048`, salida directa interna, `send_notification_to_user`, `enter_waiting`, `complete_task`, cero custom/domain tools y el prompt de `config/system-prompt.phase1.es-MX.txt`.
+Estado al 2026-08-23: **Draft configurado con primera tool y cierre técnico; E2E real pendiente**. Ya se verificaron proyecto, target, webhooks activos y el workflow `d4ab8c62-f138-4869-a501-19e60c4483ff` con API Trigger (Start) conectado al Agent Node `gpt-5.6-luna`. El nodo usa temperatura `0`, reasoning `medium`, `max_iterations=16`, `max_tokens=2048`, salida directa interna, `send_notification_to_user`, `enter_waiting`, `complete_task` y una Function Tool `get_capabilities` con input cerrado `{}`. Después del Agent Node está conectado el Function Node privado `agenda-psi-complete-inbound`.
 
-La prueba API Call de Kapso terminó `Completed` en 4 s: envió soporte con `send_notification_to_user` y, tras éxito, llamó `complete_task` en la siguiente iteración. Costó `$0.0006` y consumió 4,096 tokens en dos llamadas. El arnés sustituyó el mensaje por `Hello, I need assistance.` y expuso `context.phone_number=null`; por tanto no demuestra la semántica de `initial_data`, start/resume real ni `whatsapp_context`. También permanecen pendientes el `provider_model_id` interno, ordering hasta el Function Node/RPC, serialización `nfm_reply` y un tool-invocation ID estable en retry. Kill switches y tools de dominio siguen apagados.
+La prueba API Call previa terminó `Completed` en 4 s: envió soporte con `send_notification_to_user` y, tras éxito, llamó `complete_task` en la siguiente iteración. Costó `$0.0006` y consumió 4,096 tokens en dos llamadas. El arnés sustituyó el mensaje por `Hello, I need assistance.` y expuso `context.phone_number=null`; por tanto no demuestra `initial_data`, start/resume real, `whatsapp_context`, la nueva Function Tool ni el cierre contra Supabase. `get_capabilities` no depende de un invocation ID del modelo: el servidor sella una sola lectura por `provider_message_id + kapso_execution`. Las demás tools directas siguen bloqueadas hasta definir una identidad estable de invocación/retry. Kill switches y activación de producción continúan apagados.
 
 ## WhatsApp Flow de citas
 

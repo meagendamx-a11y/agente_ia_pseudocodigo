@@ -100,8 +100,13 @@ const model = await parseJson('config/provider-model-lock.json');
 const allowlist = await parseJson('config/tool-allowlist.json');
 if (agent && model && allowlist) {
   if (agent.reasoning_effort !== 'medium' || agent.max_iterations !== 16 || agent.max_tokens !== 2048 || agent.prompt_cache_ttl !== '5m') fail('agent-node: envelope no aprobado');
-  if (agent.message_delivery_mode !== 'internal_only') fail('agent-node: entrega directa debe permanecer interna');
+  if (agent.message_delivery_mode !== 'tool_only') fail('agent-node: entrega directa debe permanecer interna');
   if (JSON.stringify([...agent.enabled_default_tools].sort()) !== JSON.stringify(['complete_task', 'enter_waiting', 'send_notification_to_user'])) fail('agent-node: default tools incorrectas');
+  if (agent.blocking_gate !== 'REAL_INBOUND_E2E_PENDING') fail('agent-node: gate de producción incorrecto');
+  if (agent.completion_function_node !== 'agenda-psi-complete-inbound') fail('agent-node: Function Node de cierre incorrecto');
+  if (JSON.stringify(agent.custom_domain_tools?.map(tool => tool.name)) !== JSON.stringify(['get_capabilities'])) fail('agent-node: primera custom tool incorrecta');
+  const capabilitiesTool = allowlist.agent_node.find(tool => tool.operation === 'get_capabilities');
+  if (capabilitiesTool?.tool_call_key !== 'provider_message_id + kapso_execution + get_capabilities') fail('allowlist: key estable de get_capabilities incorrecta');
   if (model.automatic_fallback !== null) fail('provider lock: fallback automático prohibido');
   if (model.verification_status !== 'verified_e2e' && !(model.provider_model_id === null && agent.deployment_enabled === false && allowlist.agent_node_enabled === false)) fail('provider no verificado debe fallar cerrado');
   const visible = JSON.stringify(allowlist);

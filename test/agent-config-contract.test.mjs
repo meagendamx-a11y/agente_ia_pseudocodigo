@@ -28,7 +28,27 @@ test('uses an honest stable cost envelope and blocks unverified provider config'
   assert.equal(config.max_iterations, 16);
   assert.equal(config.max_tokens, 2048);
   assert.equal(config.prompt_cache_ttl, '5m');
-  assert.equal(config.message_delivery_mode, 'internal_only');
+  assert.equal(config.message_delivery_mode, 'tool_only');
+  assert.equal(config.blocking_gate, 'REAL_INBOUND_E2E_PENDING');
+  assert.equal(config.completion_function_node, 'agenda-psi-complete-inbound');
+  assert.deepEqual(config.custom_domain_tools.map(tool => ({
+    name: tool.name,
+    kapso_function: tool.kapso_function,
+    draft_connected: tool.draft_connected,
+    production_enabled: tool.production_enabled,
+  })), [{
+    name: 'get_capabilities',
+    kapso_function: 'agenda-psi-complete-inbound',
+    draft_connected: true,
+    production_enabled: false,
+  }]);
+  const capabilitiesTool = allowlist.agent_node.find(
+    tool => tool.operation === 'get_capabilities',
+  );
+  assert.equal(
+    capabilitiesTool.tool_call_key,
+    'provider_message_id + kapso_execution + get_capabilities',
+  );
   assert.deepEqual(config.enabled_default_tools.sort(), [
     'complete_task',
     'enter_waiting',

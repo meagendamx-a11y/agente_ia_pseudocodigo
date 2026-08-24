@@ -2,7 +2,7 @@
 
 ## Estado comprobado de Fase 0 y Fase 1A
 
-La base de control de Fase 0 está aplicada en Supabase y las Edge Functions `kapso_inbound_webhook` y `agent_tool_gateway` están desplegadas con kill switches apagados. Kapso entrega inbound v2 al webhook y conserva separado el callback de estados. Fase 1A agregó el cliente start/resume, el bind de ejecución, una RPC mínima para resolver resume y `agent_get_capabilities`; el Agent Node y sus tools aún no están activos.
+La base de control de Fase 0 está aplicada en Supabase y las Edge Functions `kapso_inbound_webhook` y `agent_tool_gateway` están desplegadas con kill switches apagados. Kapso entrega inbound v2 al webhook y conserva separado el callback de estados. Fase 1A agregó el cliente start/resume, el bind de ejecución, `agent_get_capabilities` y los wrappers de workflow. El Draft de Kapso ya conecta `get_capabilities` y el Function Node de cierre; producción sigue inactiva hasta el E2E inbound real.
 
 Esta estrategia no usa Supabase Branching ni requiere plan Pro. Las migraciones persistentes se aplicaron de forma aditiva; las pruebas de comportamiento posteriores usaron fixtures reservados dentro de transacciones con `ROLLBACK`.
 

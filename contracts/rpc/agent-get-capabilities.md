@@ -9,7 +9,7 @@ Devolver acciones permitidas y reason codes sin exponer políticas o estados int
 
 ## Entrada externa
 
-Modelo: `{}`. Interno: `(session_id uuid) -> jsonb`.
+Modelo: `{}`. Wrapper service-only: `(provider_message_id text, kapso_execution_id text) -> jsonb`. Query interna: `(session_id uuid) -> jsonb`.
 
 ## Contexto inyectado
 
@@ -21,14 +21,16 @@ Sesión/turno/relación sellados por gateway.
 
 ## Estado de implementación
 
-Fase 1A implementa la variante estrictamente read-only: valida una sesión vigente,
+Fase 1A implementa y despliega la variante estrictamente read-only: valida una sesión vigente,
 deriva contexto público/tenant, estado activo, scheduling, próxima cita, pago
 pendiente y perfil aprobado, y devuelve booleans/reason codes sin IDs. La emisión
-de option handles queda diferida hasta habilitar las tools consumidoras.
+de option handles queda diferida hasta habilitar las tools consumidoras. La ruta
+`/tools/capabilities` ya está conectada como Function Tool en el Draft de Kapso.
 
 ## Escribe
 
-Cero escrituras de dominio. Fase 1A tampoco emite option handles.
+Cero escrituras de dominio. El wrapper sí reclama/finaliza una llamada técnica y
+sella el resultado redactado para replay; Fase 1A no emite option handles.
 
 ## Validaciones
 
@@ -40,7 +42,8 @@ Derivar booleans para scheduling, acciones sobre cita existente, perfil, proof/r
 
 ## Transacción/locks/idempotencia
 
-Query consistente; emisión técnica estable/idempotente.
+Una lectura por `provider_message_id + kapso_execution + get_capabilities`.
+Un retry exacto devuelve el `redacted_result` sellado y no aumenta el presupuesto.
 
 ## Salida redactada
 
