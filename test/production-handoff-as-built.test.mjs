@@ -120,7 +120,7 @@ test('registra el runbook runtime cometido y protege las rutas Flutter reales', 
   assert.doesNotMatch(task8, /--\s+lib\s+test\s+supabase\/functions/i);
 });
 
-test('congela el avance real de agent-phase-1a y el gate de Waiting descubierto por E2E', async () => {
+test('congela el avance real de agent-phase-1a y separa el fix Waiting del E2E pendiente', async () => {
   const [status, handoff, workflow, inventory, lock] = await Promise.all([
     read('docs/IMPLEMENTATION_STATUS.md'),
     read('docs/PRODUCTION_HANDOFF.md'),
@@ -129,16 +129,18 @@ test('congela el avance real de agent-phase-1a y el gate de Waiting descubierto 
     read('references.lock.json').then(JSON.parse),
   ]);
 
-  assert.match(status, /codex\/agent-phase-1a[\s\S]*5564c91[\s\S]*161ab11[\s\S]*d6d1e01/i);
+  assert.match(status, /codex\/agent-phase-1a[\s\S]*5564c91[\s\S]*161ab11[\s\S]*d6d1e01[\s\S]*8c0a0f0/i);
   assert.match(status, /3 nodos[\s\S]*2 aristas[\s\S]*get_capabilities[\s\S]*committed/i);
-  assert.match(status, /Waiting[\s\S]*TURN_BUSY[\s\S]*agent_mark_inbound_waiting/i);
+  assert.match(status, /TURN_BUSY[\s\S]*correcci[oó]n[\s\S]*\/workflow\/waiting[\s\S]*desplegad/i);
+  assert.match(status, /sync_waiting[\s\S]*agenda-psi-mark-inbound-waiting[\s\S]*Draft/i);
   assert.match(status, /AGENT_INBOUND_ENABLED=false[\s\S]*AGENT_WORKFLOW_ENABLED=false[\s\S]*Draft/i);
 
   for (const text of [handoff, workflow, inventory]) {
-    assert.match(text, /get_capabilities[\s\S]*Waiting[\s\S]*TURN_BUSY/i);
-    assert.match(text, /agent_mark_inbound_waiting/i);
+    assert.match(text, /get_capabilities[\s\S]*sync_waiting[\s\S]*enter_waiting/i);
+    assert.match(text, /\/workflow\/waiting[\s\S]*agent_mark_inbound_waiting/i);
+    assert.match(text, /E2E[\s\S]*(pendiente|falta)/i);
   }
 
   assert.equal(lock.repositories.agenda_psi_v2.branch, 'codex/agent-phase-1a');
-  assert.equal(lock.repositories.agenda_psi_v2.commit, 'd6d1e0158adb95e80081f4444071b81908591dda');
+  assert.equal(lock.repositories.agenda_psi_v2.commit, '8c0a0f02a683d0c69b0e863bf58611dee775f0a9');
 });

@@ -1,6 +1,6 @@
 {
   "deployment_enabled": false,
-  "blocking_gate": "REAL_INBOUND_E2E_PENDING",
+  "blocking_gate": "WAIT_RESUME_COMPLETE_E2E_PENDING",
   "provider_model_id": null,
   "reasoning_effort": "medium",
   "max_iterations": 16,
@@ -15,6 +15,17 @@
     {
       "name": "get_capabilities",
       "kapso_function": "agenda-psi-complete-inbound",
+      "input_schema": {
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      },
+      "draft_connected": true,
+      "production_enabled": false
+    },
+    {
+      "name": "sync_waiting",
+      "kapso_function": "agenda-psi-mark-inbound-waiting",
       "input_schema": {
         "type": "object",
         "properties": {},

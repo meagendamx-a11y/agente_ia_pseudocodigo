@@ -15,8 +15,8 @@
     },
     "agenda_psi_v2": {
       "branch": "codex/agent-phase-1a",
-      "commit": "d6d1e0158adb95e80081f4444071b81908591dda",
-      "purpose": "phase-1a-runtime-and-e2e-evidence"
+      "commit": "8c0a0f02a683d0c69b0e863bf58611dee775f0a9",
+      "purpose": "phase-1a-runtime-waiting-fix-and-e2e-evidence"
     }
   },
   "legacy_agent_functions": [

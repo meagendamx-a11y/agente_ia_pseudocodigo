@@ -2,7 +2,7 @@
 
 ## Estado comprobado de Fase 0 y Fase 1A
 
-La base de control de Fase 0 está aplicada en Supabase y las Edge Functions `kapso_inbound_webhook` y `agent_tool_gateway` están desplegadas con kill switches apagados. Kapso entrega inbound v2 al webhook y conserva separado el callback de estados. Fase 1A agregó el cliente start/resume, el bind de ejecución, `agent_get_capabilities` y los wrappers de workflow. El E2E real ya comprobó `get_capabilities`, entrega y `Waiting`; también reprodujo `TURN_BUSY` porque `enter_waiting` no sincroniza por sí solo `agent_mark_inbound_waiting`. Producción continúa inactiva hasta corregir y verificar wait/resume/complete.
+La base de control de Fase 0 está aplicada en Supabase y las Edge Functions `kapso_inbound_webhook` y `agent_tool_gateway` están desplegadas con kill switches apagados. Kapso entrega inbound v2 al webhook y conserva separado el callback de estados. Fase 1A agregó el cliente start/resume, el bind de ejecución, `agent_get_capabilities` y los wrappers de workflow. El E2E real ya comprobó `get_capabilities`, entrega y `Waiting`; también reprodujo `TURN_BUSY` porque `enter_waiting` no sincroniza por sí solo `agent_mark_inbound_waiting`. La corrección `/workflow/waiting` + `sync_waiting` ya está desplegada y conectada en Draft. Producción continúa inactiva hasta verificar wait/resume/complete después del fix.
 
 Esta estrategia no usa Supabase Branching ni requiere plan Pro. Las migraciones persistentes se aplicaron de forma aditiva; las pruebas de comportamiento posteriores usaron fixtures reservados dentro de transacciones con `ROLLBACK`.
 
@@ -27,6 +27,7 @@ El baseline se captura dinámicamente antes y después desde catálogos, version
 - La versión desplegada contiene start API `202`, resume API `200`, recuperación service-only del execution sellado y bind posterior; ese código no corre mientras `AGENT_WORKFLOW_ENABLED=false`.
 - La identidad de admisión no verificada se envía explícitamente como `p_kapso_contact_id=null`, `p_business_portfolio_id=null` y `p_business_scoped_user_id=null`; no se inventan equivalencias entre BSUID, portfolio o contacto.
 - Task 7 toma `new URL(request.url).pathname` como frontera canónica y despacha solo mediante un mapa exacto de rutas. Supabase elimina el prefijo público `/functions/v1` antes de `Deno.serve`, por lo que el prefijo interno verificado es `/agent_tool_gateway`; una prueba de regresión fija esta diferencia.
+- La ruta fija `/workflow/waiting` exige el bearer compartido, `application/json` y el contexto correlacionado; llama únicamente `agent_mark_inbound_waiting` y falla cerrada con DTO redactado.
 - Las dos funciones nuevas conservan archivos `deno.lock` reales, generados por Deno con integridad; no son placeholders editados a mano.
 - Sender, callback de estados, Flutter, Marketplace, outbox y recursos quedan fuera de este cambio.
 
@@ -40,8 +41,8 @@ Cada turno admite 8 llamadas útiles; `complete_inbound` usa el ordinal 9 técni
 
 1. **Checkpoint DB — completado para Fase 1A.** Migraciones aditivas aplicadas; ACL/owner y pruebas transaccionales verificadas.
 2. **Checkpoint Edge — completado y apagado.** Slugs desplegados, secretos base cargados y humo seguro validado; las banderas siguen en `false`.
-3. **Checkpoint Kapso Draft — completado e inactivo.** API Trigger y Agent Node están conectados y guardados; la prueba sintética confirmó `send_notification_to_user -> complete_task` sin dejar `Waiting`.
-4. **Checkpoint E2E/activación — parcial y apagado.** El inbound repetido verificó admisión/start/bind, `get_capabilities` committed, entrega WhatsApp y `Waiting`. El follow-up reprodujo `TURN_BUSY`: Kapso esperó, pero Supabase conservó el turno `active` porque falta llamar `agent_mark_inbound_waiting`. El turno de prueba se cerró con la RPC correlacionada existente y producción volvió a quedar apagada.
+3. **Checkpoint Kapso Draft — completado e inactivo.** API Trigger, Agent Node y Function Node están conectados y guardados. El Agent Node tiene `get_capabilities` y `sync_waiting`; la Function privada `agenda-psi-mark-inbound-waiting` no tiene endpoint público y usa un secreto cifrado.
+4. **Checkpoint E2E/activación — parcial y apagado.** El inbound previo verificó admisión/start/bind, `get_capabilities` committed, entrega WhatsApp y `Waiting`, y reprodujo `TURN_BUSY`. El fix está listo, pero todavía falta demostrar `sync_waiting` → `waiting_external` → resume → `complete_task` en una ejecución real. El turno anterior se cerró y producción volvió a quedar apagada.
 
 No se combinan checkpoints por conveniencia y no basta cambiar un prompt o JSON para autorizar el siguiente.
 
@@ -58,7 +59,7 @@ Medir contadores agregados de 401/4xx/5xx, latencia p95, replay/rate-limit, clai
 
 ## Gates aún pendientes
 
-- Conectar `sync_waiting` a `agent_mark_inbound_waiting` antes de `enter_waiting` y repetir wait/resume/complete hasta Function Node/RPC.
+- Repetir un E2E controlado y demostrar `get_capabilities` → `sync_waiting` → `enter_waiting` → resume → `complete_task` hasta Function Node/RPC.
 - Fijar `provider_model_id` y completar las verificaciones restantes de `whatsapp_context` e invocation identity para las tools posteriores.
 - Ejecutar advisors finales después de cada migración de tools.
 - Corrección/prueba del reminder online y correlación `patient_resource_delivery` outbox→provider message→batch, fuera de Fase 0.

@@ -8,7 +8,7 @@ Define la implementación futura del agente de WhatsApp de Agenda PSI sobre Kaps
 
 - Fuentes históricas fijadas por commit y SHA-256.
 - Contratos futuros service-only, sin acceso del modelo a tablas ni IDs internos.
-- Inventario autenticado de Kapso y primer inbound real verificados hasta `get_capabilities`, entrega y `Waiting`; el resume sigue bloqueado hasta sincronizar `agent_mark_inbound_waiting` antes de `enter_waiting`.
+- Inventario autenticado de Kapso y primer inbound real verificados hasta `get_capabilities`, entrega y `Waiting`. La sincronización `sync_waiting` → `agent_mark_inbound_waiting` ya está implementada, desplegada y conectada en Draft; falta el E2E wait/resume/complete posterior al fix.
 - Ningún artefacto de este repositorio debe ejecutarse directamente contra producción.
 
 ## Comandos

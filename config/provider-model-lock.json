@@ -24,7 +24,7 @@
     "draft_agent_node_configured": true,
     "draft_get_capabilities_connected": true,
     "draft_completion_function_connected": true,
-    "note": "gpt-5.6-luna quedó guardado en el Agent Node del Draft. Test mode confirmó send_notification_to_user y luego complete_task, pero sustituyó el input por un mensaje sintético y dejó phone_number en null. get_capabilities y el Function Node de cierre ya están conectados en Draft; siguen apagados en producción hasta un E2E inbound real."
+    "note": "gpt-5.6-luna quedó guardado en el Agent Node del Draft. Test mode confirmó send_notification_to_user y luego complete_task, pero sustituyó el input por un mensaje sintético y dejó phone_number en null. Un inbound real confirmó get_capabilities, entrega y Waiting; sync_waiting ya está conectada en Draft. Producción sigue apagada hasta verificar wait/resume/complete después del fix."
   },
   "manual_fallback_order": ["gpt-5.2", "gpt-5"]
 }

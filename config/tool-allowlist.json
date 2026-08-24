@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "agent_node_enabled": false,
-  "blocking_gate": "REAL_INBOUND_E2E_PENDING",
+  "blocking_gate": "WAIT_RESUME_COMPLETE_E2E_PENDING",
   "agent_node": [
     {"operation":"get_capabilities","route":"/tools/capabilities","method":"POST","input":{},"output":"capabilities","mutation_cost":0,"turn_states":["active"],"timeout_ms":10000,"tool_call_key":"provider_message_id + kapso_execution + get_capabilities"},
     {"operation":"select_relationship","route":"/tools/relationship/select","method":"POST","input":{"relationship_token":"string"},"output":"relationship_selection","mutation_cost":0,"turn_states":["active"],"timeout_ms":10000,"tool_call_key":"kapso_execution + verified_provider_invocation"},
@@ -32,6 +32,7 @@
     {"operation":"attach_payment_proof","route":"/media/payment-proof","method":"POST","input":{"appointment_token":"string","media_ordinal":"integer"},"output":"proof_result","mutation_cost":1,"turn_states":["active"],"timeout_ms":10000,"tool_call_key":"provider_message_id + media_ordinal"}
   ],
   "workflow_internal": [
+    {"operation":"mark_inbound_waiting","route":"/workflow/waiting","method":"POST","input":{},"output":"waiting","mutation_cost":0,"turn_states":["active"],"timeout_ms":10000,"tool_call_key":"provider_message_id + kapso_execution + mark_inbound_waiting"},
     {"operation":"open_booking_flow","route":"/workflow/open-booking-flow","method":"POST","input":{"service_token":"string?"},"output":"flow_opened","mutation_cost":0,"turn_states":["active"],"timeout_ms":10000,"tool_call_key":"kapso_execution + open_booking_flow"},
     {"operation":"send_fixed_response","route":"/workflow/fixed-response","method":"POST","input":{"response_key":"allowlisted_enum"},"output":"response","mutation_cost":0,"turn_states":["active"],"timeout_ms":10000,"tool_call_key":"kapso_execution + fixed_response"},
     {"operation":"complete_inbound","route":"/workflow/complete","method":"POST","input":{},"output":"completion","mutation_cost":0,"turn_states":["completing"],"timeout_ms":10000,"tool_call_key":"kapso_execution + complete_inbound"}

@@ -29,19 +29,27 @@ test('uses an honest stable cost envelope and blocks unverified provider config'
   assert.equal(config.max_tokens, 2048);
   assert.equal(config.prompt_cache_ttl, '5m');
   assert.equal(config.message_delivery_mode, 'tool_only');
-  assert.equal(config.blocking_gate, 'REAL_INBOUND_E2E_PENDING');
+  assert.equal(config.blocking_gate, 'WAIT_RESUME_COMPLETE_E2E_PENDING');
   assert.equal(config.completion_function_node, 'agenda-psi-complete-inbound');
   assert.deepEqual(config.custom_domain_tools.map(tool => ({
     name: tool.name,
     kapso_function: tool.kapso_function,
     draft_connected: tool.draft_connected,
     production_enabled: tool.production_enabled,
-  })), [{
-    name: 'get_capabilities',
-    kapso_function: 'agenda-psi-complete-inbound',
-    draft_connected: true,
-    production_enabled: false,
-  }]);
+  })), [
+    {
+      name: 'get_capabilities',
+      kapso_function: 'agenda-psi-complete-inbound',
+      draft_connected: true,
+      production_enabled: false,
+    },
+    {
+      name: 'sync_waiting',
+      kapso_function: 'agenda-psi-mark-inbound-waiting',
+      draft_connected: true,
+      production_enabled: false,
+    },
+  ]);
   const capabilitiesTool = allowlist.agent_node.find(
     tool => tool.operation === 'get_capabilities',
   );
@@ -49,6 +57,20 @@ test('uses an honest stable cost envelope and blocks unverified provider config'
     capabilitiesTool.tool_call_key,
     'provider_message_id + kapso_execution + get_capabilities',
   );
+  const waitingTool = allowlist.workflow_internal.find(
+    tool => tool.operation === 'mark_inbound_waiting',
+  );
+  assert.deepEqual(waitingTool, {
+    operation: 'mark_inbound_waiting',
+    route: '/workflow/waiting',
+    method: 'POST',
+    input: {},
+    output: 'waiting',
+    mutation_cost: 0,
+    turn_states: ['active'],
+    timeout_ms: 10000,
+    tool_call_key: 'provider_message_id + kapso_execution + mark_inbound_waiting',
+  });
   assert.deepEqual(config.enabled_default_tools.sort(), [
     'complete_task',
     'enter_waiting',
@@ -60,6 +82,14 @@ test('uses an honest stable cost envelope and blocks unverified provider config'
   assert.doesNotMatch(JSON.stringify(allowlist),
     /sandbox|repository|\bMCP\b|web_search|file_search|computer_use|code_interpreter|app_integration|handoff/i);
   assert.equal(fixtures.length, 37);
+});
+
+test('synchronizes Supabase before Kapso Waiting and fails closed', async () => {
+  const prompt = await readFile('config/system-prompt.phase1.es-MX.txt', 'utf8');
+
+  assert.match(prompt, /pregunta[^\n]*send_notification_to_user[\s\S]*sync_waiting[\s\S]*enter_waiting/i);
+  assert.match(prompt, /solo si sync_waiting devuelve[^\n]*ok=true[^\n]*status=waiting[\s\S]*enter_waiting/i);
+  assert.match(prompt, /sync_waiting falla[\s\S]*no llames enter_waiting[\s\S]*complete_task/i);
 });
 
 test('crisis and review messages do not append the ordinary closing', async () => {
