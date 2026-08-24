@@ -14,8 +14,9 @@
       "commit": "b2e38ee6a8109c86e537aa1a628868a45f095b30"
     },
     "agenda_psi_v2": {
-      "commit": "d26b6283c4ddbc169ef1078317a2008eb67a72af",
-      "purpose": "audit-evidence-only"
+      "branch": "codex/agent-phase-1a",
+      "commit": "d6d1e0158adb95e80081f4444071b81908591dda",
+      "purpose": "phase-1a-runtime-and-e2e-evidence"
     }
   },
   "legacy_agent_functions": [

@@ -8,7 +8,7 @@ Define la implementación futura del agente de WhatsApp de Agenda PSI sobre Kaps
 
 - Fuentes históricas fijadas por commit y SHA-256.
 - Contratos futuros service-only, sin acceso del modelo a tablas ni IDs internos.
-- Inventario autenticado de Kapso parcial: proyecto, target, webhooks y disponibilidad de Luna verificados; configuración y tools siguen deshabilitadas hasta cumplir el preflight E2E.
+- Inventario autenticado de Kapso y primer inbound real verificados hasta `get_capabilities`, entrega y `Waiting`; el resume sigue bloqueado hasta sincronizar `agent_mark_inbound_waiting` antes de `enter_waiting`.
 - Ningún artefacto de este repositorio debe ejecutarse directamente contra producción.
 
 ## Comandos
@@ -26,6 +26,6 @@ Consulta `docs/PRODUCTION_HANDOFF.md` antes de convertir estos contratos en migr
 - 26 decisiones y 37 escenarios trazados.
 - 13 funciones legacy clasificadas 8 rewrite / 3 replace / 2 omit.
 - WhatsApp Flow de seis pantallas con éxito posterior al commit.
-- Configuración fail-closed mientras el preflight vivo de Kapso siga pendiente.
+- Configuración fail-closed mientras el E2E wait/resume/complete siga pendiente.
 
-Documentos de entrada: `docs/AGENT_WHATSAPP_SPEC.md`, `docs/ARCHITECTURE.md` y `docs/FUNCTION_MATRIX.md`. Seguridad: `docs/SECURITY.md`. Implementación/validación futura: `docs/CORE_DEPENDENCIES.md`, `docs/TEST_PLAN.md` y `docs/PRODUCTION_HANDOFF.md`.
+Documentos de entrada: `docs/AGENT_WHATSAPP_SPEC.md`, `docs/ARCHITECTURE.md` y `docs/FUNCTION_MATRIX.md`. Seguridad: `docs/SECURITY.md`. Estado comprobado del runtime: `docs/IMPLEMENTATION_STATUS.md`. Implementación/validación: `docs/CORE_DEPENDENCIES.md`, `docs/TEST_PLAN.md` y `docs/PRODUCTION_HANDOFF.md`.

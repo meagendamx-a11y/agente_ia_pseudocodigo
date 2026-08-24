@@ -2,7 +2,7 @@
 
 ## Estado comprobado de Fase 0 y Fase 1A
 
-La base de control de Fase 0 está aplicada en Supabase y las Edge Functions `kapso_inbound_webhook` y `agent_tool_gateway` están desplegadas con kill switches apagados. Kapso entrega inbound v2 al webhook y conserva separado el callback de estados. Fase 1A agregó el cliente start/resume, el bind de ejecución, `agent_get_capabilities` y los wrappers de workflow. El Draft de Kapso ya conecta `get_capabilities` y el Function Node de cierre; producción sigue inactiva hasta el E2E inbound real.
+La base de control de Fase 0 está aplicada en Supabase y las Edge Functions `kapso_inbound_webhook` y `agent_tool_gateway` están desplegadas con kill switches apagados. Kapso entrega inbound v2 al webhook y conserva separado el callback de estados. Fase 1A agregó el cliente start/resume, el bind de ejecución, `agent_get_capabilities` y los wrappers de workflow. El E2E real ya comprobó `get_capabilities`, entrega y `Waiting`; también reprodujo `TURN_BUSY` porque `enter_waiting` no sincroniza por sí solo `agent_mark_inbound_waiting`. Producción continúa inactiva hasta corregir y verificar wait/resume/complete.
 
 Esta estrategia no usa Supabase Branching ni requiere plan Pro. Las migraciones persistentes se aplicaron de forma aditiva; las pruebas de comportamiento posteriores usaron fixtures reservados dentro de transacciones con `ROLLBACK`.
 
@@ -32,7 +32,7 @@ El baseline se captura dinámicamente antes y después desde catálogos, version
 
 ## Sobre de costo y abuso
 
-Hay cero tráfico LLM de producción. Las pruebas sintéticas del Draft consumieron `$0.0016` en total; la prueba final aprobada costó `$0.0006` con 4,096 tokens. `gpt-5.6-luna` está configurado, pero su `provider_model_id` interno y el E2E real siguen no verificados; no hay fallback automático. El sobre congelado es `max_tokens=2048`, `max_iterations=16`, `reasoning=medium` y `prompt_cache_ttl=5m`.
+Hay cero tráfico LLM permanente de producción. Las pruebas sintéticas del Draft consumieron `$0.0016` en total; la prueba final aprobada costó `$0.0006` con 4,096 tokens y el inbound real observado costó `$0.0008`. `gpt-5.6-luna` está configurado y respondió en el E2E, pero su `provider_model_id` interno sigue no verificado; no hay fallback automático. El sobre congelado es `max_tokens=2048`, `max_iterations=16`, `reasoning=medium` y `prompt_cache_ttl=5m`.
 
 Cada turno admite 8 llamadas útiles; `complete_inbound` usa el ordinal 9 técnico y no amplía ese presupuesto. El gateway permite 1 reintento de transporte, nunca un reintento semántico automático de una mutación.
 
@@ -41,7 +41,7 @@ Cada turno admite 8 llamadas útiles; `complete_inbound` usa el ordinal 9 técni
 1. **Checkpoint DB — completado para Fase 1A.** Migraciones aditivas aplicadas; ACL/owner y pruebas transaccionales verificadas.
 2. **Checkpoint Edge — completado y apagado.** Slugs desplegados, secretos base cargados y humo seguro validado; las banderas siguen en `false`.
 3. **Checkpoint Kapso Draft — completado e inactivo.** API Trigger y Agent Node están conectados y guardados; la prueba sintética confirmó `send_notification_to_user -> complete_task` sin dejar `Waiting`.
-4. **Checkpoint E2E/activación — parcial y apagado.** Un inbound real verificó admisión/start/bind y permitió detectar aristas faltantes. Las aristas, el secreto y la ruta Edge ya están corregidos; la Function privada cerró un inbound correlacionado. Falta repetir el inbound para probar tool, entrega y cierre en la misma ejecución antes de habilitar producción.
+4. **Checkpoint E2E/activación — parcial y apagado.** El inbound repetido verificó admisión/start/bind, `get_capabilities` committed, entrega WhatsApp y `Waiting`. El follow-up reprodujo `TURN_BUSY`: Kapso esperó, pero Supabase conservó el turno `active` porque falta llamar `agent_mark_inbound_waiting`. El turno de prueba se cerró con la RPC correlacionada existente y producción volvió a quedar apagada.
 
 No se combinan checkpoints por conveniencia y no basta cambiar un prompt o JSON para autorizar el siguiente.
 
@@ -58,10 +58,11 @@ Medir contadores agregados de 401/4xx/5xx, latencia p95, replay/rate-limit, clai
 
 ## Gates aún pendientes
 
-- Preflight Kapso real: `provider_model_id`, start/resume, `whatsapp_context`, invocation identity y cierre hasta Function Node/RPC.
+- Conectar `sync_waiting` a `agent_mark_inbound_waiting` antes de `enter_waiting` y repetir wait/resume/complete hasta Function Node/RPC.
+- Fijar `provider_model_id` y completar las verificaciones restantes de `whatsapp_context` e invocation identity para las tools posteriores.
 - Ejecutar advisors finales después de cada migración de tools.
 - Corrección/prueba del reminder online y correlación `patient_resource_delivery` outbox→provider message→batch, fuera de Fase 0.
 
 ## Publicación de esta guía
 
-El runtime de Fase 1A vive en la rama aislada `codex/agent-phase-1a`. Esta guía registra el estado observado, pero no autoriza por sí sola activar Kapso, las tools o las banderas de producción.
+El runtime de Fase 1A vive en la rama aislada `codex/agent-phase-1a`, congelada en `references.lock.json`. `docs/IMPLEMENTATION_STATUS.md` enumera commits, evidencia E2E, rollback y siguiente gate. Esta guía no autoriza por sí sola activar Kapso, las tools o las banderas de producción.

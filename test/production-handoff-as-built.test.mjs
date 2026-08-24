@@ -119,3 +119,26 @@ test('registra el runbook runtime cometido y protege las rutas Flutter reales', 
   assert.match(task8, /flutter_application_1\/lib[\s\S]*flutter_application_1\/test/i);
   assert.doesNotMatch(task8, /--\s+lib\s+test\s+supabase\/functions/i);
 });
+
+test('congela el avance real de agent-phase-1a y el gate de Waiting descubierto por E2E', async () => {
+  const [status, handoff, workflow, inventory, lock] = await Promise.all([
+    read('docs/IMPLEMENTATION_STATUS.md'),
+    read('docs/PRODUCTION_HANDOFF.md'),
+    read('docs/KAPSO_WORKFLOW.md'),
+    read('docs/KAPSO_INVENTORY.md'),
+    read('references.lock.json').then(JSON.parse),
+  ]);
+
+  assert.match(status, /codex\/agent-phase-1a[\s\S]*5564c91[\s\S]*161ab11[\s\S]*d6d1e01/i);
+  assert.match(status, /3 nodos[\s\S]*2 aristas[\s\S]*get_capabilities[\s\S]*committed/i);
+  assert.match(status, /Waiting[\s\S]*TURN_BUSY[\s\S]*agent_mark_inbound_waiting/i);
+  assert.match(status, /AGENT_INBOUND_ENABLED=false[\s\S]*AGENT_WORKFLOW_ENABLED=false[\s\S]*Draft/i);
+
+  for (const text of [handoff, workflow, inventory]) {
+    assert.match(text, /get_capabilities[\s\S]*Waiting[\s\S]*TURN_BUSY/i);
+    assert.match(text, /agent_mark_inbound_waiting/i);
+  }
+
+  assert.equal(lock.repositories.agenda_psi_v2.branch, 'codex/agent-phase-1a');
+  assert.equal(lock.repositories.agenda_psi_v2.commit, 'd6d1e0158adb95e80081f4444071b81908591dda');
+});

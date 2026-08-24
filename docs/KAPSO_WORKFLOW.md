@@ -7,7 +7,7 @@ number webhook -> kapso_inbound_webhook -> atomic admission
   admitted/resumed -> API Trigger -> Function variables -> Agent Node
     -> get_capabilities -> Function privada -> gateway
     -> tools futuros | WhatsApp Flow | media adapter
-    -> pregunta: send_notification_to_user -> enter_waiting
+    -> pregunta: send_notification_to_user -> sync_waiting -> enter_waiting
     -> respuesta final: send_notification_to_user -> complete_task
        -> Function Node -> agent_complete_inbound_from_workflow
   replay/rate_limited/rejected -> respuesta fija/ACK, sin Agent Node
@@ -21,13 +21,13 @@ Solo el webhook/gateway inyecta referencias de sesión, turno, ejecución y mens
 
 ## Espera y cierre
 
-El texto directo del asistente queda interno. `send_notification_to_user` entrega cada mensaje; después de un envío exitoso, `enter_waiting` sella `waiting_external` si se hizo una pregunta y `complete_task` avanza al cierre si la respuesta fue final. Un inbound verificado reanuda el mismo turno. El Function Node privado `agenda-psi-complete-inbound` llama `agent_complete_inbound_from_workflow` para cerrar y finalizar técnicamente el turno.
+El texto directo del asistente queda interno. `send_notification_to_user` entrega cada mensaje. Si se hizo una pregunta, una Function Tool fija debe llamar primero `agent_mark_inbound_waiting`; solo después puede ejecutarse `enter_waiting`. El built-in de Kapso no sella `waiting_external` en Supabase. Si la sincronización falla, el agente no debe entrar a espera y debe cerrar de forma segura. `complete_task` avanza al Function Node privado `agenda-psi-complete-inbound`, que llama `agent_complete_inbound_from_workflow`.
 
 ## Preflight obligatorio
 
-Estado al 2026-08-23: **Draft configurado con primera tool y cierre técnico; repetición del E2E real pendiente**. Ya se verificaron proyecto, target, webhooks activos y el workflow `d4ab8c62-f138-4869-a501-19e60c4483ff` con dos aristas persistidas: API Trigger (Start) → Agent Node `gpt-5.6-luna` → Function Node privado `agenda-psi-complete-inbound`. El nodo usa temperatura `0`, reasoning `medium`, `max_iterations=16`, `max_tokens=2048`, salida directa interna, `send_notification_to_user`, `enter_waiting`, `complete_task` y una Function Tool `get_capabilities` con input cerrado `{}`.
+Estado al 2026-08-23: **Draft configurado con primera tool y cierre técnico; wait/resume pendiente**. Ya se verificaron proyecto, target, webhooks y el workflow `d4ab8c62-f138-4869-a501-19e60c4483ff` con dos aristas persistidas: API Trigger (Start) → Agent Node `gpt-5.6-luna` → Function Node privado `agenda-psi-complete-inbound`. El nodo usa temperatura `0`, reasoning `medium`, `max_iterations=16`, `max_tokens=2048`, `send_notification_to_user`, `enter_waiting`, `complete_task` y una Function Tool `get_capabilities` con input cerrado `{}`.
 
-El primer inbound controlado verificó webhook, admisión, start de Kapso, variables y bind de ejecución. Descubrió que el Draft tenía cero aristas y terminaba en `start`; se corrigió y se comprobó tras recarga que conserva exactamente dos. La prueba posterior llegó a Agent Node y `complete_task` avanzó al Function Node. También detectó y corrigió dos fallos de integración: secreto gateway desincronizado (`401`) y pathname interno de Supabase incorrecto (`404`). Una invocación correlacionada desde la Function privada devolvió `200`, marcó el inbound procesado y dejó el turno `completed`. Falta repetir el inbound real para comprobar `get_capabilities`, entrega WhatsApp y cierre completo dentro de una sola ejecución viva.
+El primer inbound controlado verificó webhook, admisión, start de Kapso, variables y bind de ejecución; también descubrió las aristas faltantes, el secreto desincronizado (`401`) y el pathname interno incorrecto (`404`). Después de corregirlos, un segundo inbound real llegó al Agent Node, ejecutó `get_capabilities` con outcome `committed`, envió la respuesta de WhatsApp y quedó en `Waiting`. El follow-up fue rechazado como `TURN_BUSY` porque el turno de Supabase seguía `active`: falta conectar `agent_mark_inbound_waiting` antes de `enter_waiting`. El turno controlado se cerró después con `agent_complete_inbound_from_workflow` y los kill switches volvieron a `false`.
 
 La prueba API Call previa terminó `Completed` en 4 s: envió soporte con `send_notification_to_user` y, tras éxito, llamó `complete_task` en la siguiente iteración. Costó `$0.0006` y consumió 4,096 tokens en dos llamadas. El arnés sustituyó el mensaje por `Hello, I need assistance.` y expuso `context.phone_number=null`; por tanto no demuestra `initial_data`, start/resume real ni `whatsapp_context`. `get_capabilities` no depende de un invocation ID del modelo: el servidor sella una sola lectura por `provider_message_id + kapso_execution`. Las demás tools directas siguen bloqueadas hasta definir una identidad estable de invocación/retry. Kill switches y activación de producción continúan apagados.
 
