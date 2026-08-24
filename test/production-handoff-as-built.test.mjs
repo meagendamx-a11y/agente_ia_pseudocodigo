@@ -10,17 +10,22 @@ const section = (text, start, end) => {
   return text.slice(from, to === -1 ? undefined : to);
 };
 
-test('congela el estado real y el arnés rollback-only de Fase 0', async () => {
+test('distingue el plan rollback-only de Fase 0 del estado desplegado de Fase 1A', async () => {
   const [handoff, plan] = await Promise.all([
     read('docs/PRODUCTION_HANDOFF.md'),
     read('docs/superpowers/plans/2026-08-22-whatsapp-agent-foundation.md'),
   ]);
   const task8 = section(plan, '### Task 8:', '## Deferred Plans');
 
+  assert.match(task8, /Fase 0[\s\S]*(implementad|código)[\s\S]*(rama|worktree)/i);
+  assert.match(task8, /no (?:está |fue )?(?:aplicad|desplegad|registrad)[\s\S]*(Supabase|producción|Edge|Kapso)/i);
+  assert.match(handoff, /Fase 0[\s\S]*aplicada en Supabase[\s\S]*Edge Functions[\s\S]*desplegadas[\s\S]*(apagados|false)/i);
+  assert.match(handoff, /Fase 1A[\s\S]*start\/resume[\s\S]*agent_get_capabilities/i);
+
+  assert.match(task8, /Supabase Branching[\s\S]*plan Pro[\s\S]*(no (?:se )?requiere|sin contratar)/i);
+  assert.match(handoff, /no usa Supabase Branching[\s\S]*ni requiere plan Pro/i);
+
   for (const text of [handoff, task8]) {
-    assert.match(text, /Fase 0[\s\S]*(implementad|código)[\s\S]*(rama|worktree)/i);
-    assert.match(text, /no (?:está |fue )?(?:aplicad|desplegad|registrad)[\s\S]*(Supabase|producción|Edge|Kapso)/i);
-    assert.match(text, /Supabase Branching[\s\S]*plan Pro[\s\S]*(no (?:se )?requiere|sin contratar)/i);
     assert.match(text, /statement_timeout\s*=\s*'30s'/i);
     assert.match(text, /lock_timeout\s*=\s*'5s'/i);
     assert.match(text, /baseline[\s\S]*dinámic[\s\S]*75[\s\S]*(observad|referencia|no.*gate)/i);
@@ -61,10 +66,13 @@ test('separa los checkpoints y congela el sobre de costo sin PII', async () => {
   ]);
   const task8 = section(plan, '### Task 8:', '## Deferred Plans');
 
+  assert.match(task8, /checkpoint[\s\S]*migración persistente[\s\S]*checkpoint[\s\S]*Edge[\s\S]*secret[\s\S]*checkpoint[\s\S]*Kapso/i);
+  assert.match(handoff, /checkpoint DB[\s\S]*completado[\s\S]*checkpoint Edge[\s\S]*secret[\s\S]*checkpoint Kapso Draft/i);
+  assert.match(task8, /cero[\s\S]*(LLM|modelo)[\s\S]*Kapso[\s\S]*Fase 0/i);
+  assert.match(handoff, /cero tráfico LLM/i);
+
   for (const text of [handoff, task8]) {
-    assert.match(text, /checkpoint[\s\S]*migración persistente[\s\S]*checkpoint[\s\S]*Edge[\s\S]*secret[\s\S]*checkpoint[\s\S]*Kapso/i);
-    assert.match(text, /cero[\s\S]*(LLM|modelo)[\s\S]*Kapso[\s\S]*Fase 0/i);
-    assert.match(text, /gpt-5\.6-luna[\s\S]*(preferid|no verificad|sin verificar)/i);
+    assert.match(text, /gpt-5\.6-luna[\s\S]*(preferid|no verificad|sin verificar|selector autenticado)/i);
     assert.match(text, /sin fallback automático|no (?:hay|usa|permite) fallback automático/i);
     assert.match(text, /max_tokens[^\n]*2048[\s\S]*max_iterations[^\n]*16[\s\S]*reasoning[^\n]*medium[\s\S]*(?:cache|prompt_cache_ttl)[^\n]*5m/i);
     assert.match(text, /8 (?:llamadas|claims|tools) útiles[\s\S]*(?:completion|complet)[^\n]*ordinal 9/i);
@@ -86,7 +94,7 @@ test('separa los checkpoints y congela el sobre de costo sin PII', async () => {
     },
     {
       model: 'gpt-5.6-luna',
-      verified: 'blocked_unverified',
+      verified: 'inventory_verified_e2e_pending',
       fallback: null,
       maxTokens: 2048,
       maxIterations: 16,

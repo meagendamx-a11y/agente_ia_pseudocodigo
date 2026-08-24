@@ -14,7 +14,10 @@ test('uses an honest stable cost envelope and blocks unverified provider config'
     assert.match(modelLock.provider_model_id, /\S/);
     assert.equal(config.provider_model_id, modelLock.provider_model_id);
   } else {
-    assert.equal(modelLock.verification_status, 'blocked_unverified');
+    assert.ok([
+      'blocked_unverified',
+      'inventory_verified_e2e_pending',
+    ].includes(modelLock.verification_status));
     assert.equal(modelLock.provider_model_id, null);
     assert.equal(config.provider_model_id, null);
     assert.equal(config.deployment_enabled, false);

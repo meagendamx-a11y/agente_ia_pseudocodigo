@@ -8,7 +8,7 @@ Define la implementación futura del agente de WhatsApp de Agenda PSI sobre Kaps
 
 - Fuentes históricas fijadas por commit y SHA-256.
 - Contratos futuros service-only, sin acceso del modelo a tablas ni IDs internos.
-- Validación autenticada de Kapso pendiente: la configuración permanece bloqueada y las tools deben seguir deshabilitadas hasta cumplir el preflight E2E.
+- Inventario autenticado de Kapso parcial: proyecto, target, webhooks y disponibilidad de Luna verificados; configuración y tools siguen deshabilitadas hasta cumplir el preflight E2E.
 - Ningún artefacto de este repositorio debe ejecutarse directamente contra producción.
 
 ## Comandos
@@ -22,7 +22,7 @@ Consulta `docs/PRODUCTION_HANDOFF.md` antes de convertir estos contratos en migr
 
 ## Inventario
 
-- 23 RPC service-only, 3 contratos Edge, 4 helpers privados y 1 worker.
+- 26 RPC service-only, 3 contratos Edge, 4 helpers privados y 1 worker.
 - 26 decisiones y 37 escenarios trazados.
 - 13 funciones legacy clasificadas 8 rewrite / 3 replace / 2 omit.
 - WhatsApp Flow de seis pantallas con éxito posterior al commit.

@@ -1,19 +1,19 @@
 {
   "semantic_model": "gpt-5.6-luna",
   "provider_model_id": null,
-  "verification_status": "blocked_unverified",
-  "selection_mode": "preferred_unverified",
+  "verification_status": "inventory_verified_e2e_pending",
+  "selection_mode": "preferred_visible_in_authenticated_selector",
   "automatic_fallback": null,
   "supports_custom_sampling": null,
-  "observed_at": "2026-08-22T00:00:00-06:00",
+  "observed_at": "2026-08-23T19:30:00-06:00",
   "evidence": {
-    "kapso_authenticated_inventory": false,
+    "kapso_authenticated_inventory": true,
     "api_trigger_first_input_semantics": false,
     "api_trigger_resume_semantics": false,
     "stable_tool_invocation_id_on_retry": false,
     "send_complete_function_order": false,
     "flow_nfm_reply_serialization": false,
-    "note": "La superficie disponible abrió login; no se inventaron IDs ni se habilitaron tools."
+    "note": "gpt-5.6-luna aparece en el selector autenticado de Agent Node. El provider_model_id interno y la semántica E2E siguen sin fijarse; no se habilitaron tools."
   },
   "manual_fallback_order": ["gpt-5.2", "gpt-5"]
 }

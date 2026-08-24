@@ -24,7 +24,7 @@ los wrappers que siguen siendo contrato de implementación.
 | 6 | `agent_select_relationship` | contrato pendiente | command | tokens/links | sesión/control | Seleccionar relación opaca. |
 | 7 | `sweep_expired_agent_sessions` | contrato pendiente | cron | sesiones/turnos | control | Expirar capacidades. |
 | 8 | `purge_whatsapp_inbound` | contrato pendiente | cron | control expirado | control | Retención acotada. |
-| 9 | `agent_get_capabilities` | contrato pendiente | query | relación/políticas | tokens técnicos | Capacidades seguras. |
+| 9 | `agent_get_capabilities` | SQL as-built parcial | query | sesión/relación/profesional/perfil/citas/pagos | nada | Capacidades y reason codes redactados; handles diferidos. |
 | 10 | `agent_list_services` | contrato pendiente | query | servicios/precios/series | tokens técnicos | Servicios y precio efectivo. |
 | 11 | `agent_get_booking_eligibility` | contrato pendiente | query | series/políticas | nada dominio | Elegibilidad. |
 | 12 | `agent_get_availability` | contrato pendiente | query | horarios/bloqueos/citas | tokens técnicos | Slots vigentes. |

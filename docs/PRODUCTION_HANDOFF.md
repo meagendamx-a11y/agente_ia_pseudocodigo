@@ -1,10 +1,10 @@
 # Handoff de implementación, rollout y rollback
 
-## Estado comprobado de Fase 0
+## Estado comprobado de Fase 0 y Fase 1A
 
-El código de Fase 0 está implementado en una rama Git/worktree de implementación. No fue aplicado en Supabase producción, las Edge Functions nuevas no fueron desplegadas y el webhook/Agent Node no fue registrado ni activado en Kapso. Los contratos SQL de Tasks 2–4 sí están sincronizados en esta guía; esto no equivale a un deploy.
+La base de control de Fase 0 está aplicada en Supabase y las Edge Functions `kapso_inbound_webhook` y `agent_tool_gateway` están desplegadas con kill switches apagados. Kapso entrega inbound v2 al webhook y conserva separado el callback de estados. Fase 1A agregó el cliente start/resume, el bind de ejecución, una RPC mínima para resolver resume y `agent_get_capabilities`; el Agent Node y sus tools aún no están activos.
 
-Esta estrategia no usa Supabase Branching ni plan Pro: no se requiere contratar ninguno para validar Fase 0. La prueba remota autorizada fue un batch transaccional que terminó en `ROLLBACK`; cualquier cambio persistente requiere otro checkpoint.
+Esta estrategia no usa Supabase Branching ni requiere plan Pro. Las migraciones persistentes se aplicaron de forma aditiva; las pruebas de comportamiento posteriores usaron fixtures reservados dentro de transacciones con `ROLLBACK`.
 
 ## Evidencia rollback-only
 
@@ -23,7 +23,8 @@ El baseline se captura dinámicamente antes y después desde catálogos, version
 
 ## Fronteras Edge as-built
 
-- Task 6, con workflow deshabilitado, responde HTTP `200` con `{ok:true,status:'admitted_no_workflow'}` y no llama a Kapso.
+- Task 6, con workflow deshabilitado, responde HTTP `200` con `{ok:true,status:'admitted_no_workflow'}` y no llama al workflow de Kapso.
+- La versión desplegada contiene start API `202`, resume API `200`, recuperación service-only del execution sellado y bind posterior; ese código no corre mientras `AGENT_WORKFLOW_ENABLED=false`.
 - La identidad de admisión no verificada se envía explícitamente como `p_kapso_contact_id=null`, `p_business_portfolio_id=null` y `p_business_scoped_user_id=null`; no se inventan equivalencias entre BSUID, portfolio o contacto.
 - Task 7 toma `new URL(request.url).pathname` como frontera canónica y despacha solo mediante un mapa exacto de rutas. El contrato se define sobre ese pathname canónico, no sobre interpretaciones previas de la forma original de la URL.
 - Las dos funciones nuevas conservan archivos `deno.lock` reales, generados por Deno con integridad; no son placeholders editados a mano.
@@ -31,15 +32,16 @@ El baseline se captura dinámicamente antes y después desde catálogos, version
 
 ## Sobre de costo y abuso
 
-Hay cero tráfico LLM y cero llamadas a Kapso en Fase 0. `gpt-5.6-luna` es el modelo preferido, pero sigue no verificado en Kapso; no hay fallback automático. El sobre congelado es `max_tokens=2048`, `max_iterations=16`, `reasoning=medium` y `prompt_cache_ttl=5m`.
+Hay cero tráfico LLM del agente. `gpt-5.6-luna` ya aparece en el selector autenticado, pero sigue sin fijarse su `provider_model_id` interno ni pasar el E2E; no hay fallback automático. El sobre congelado es `max_tokens=2048`, `max_iterations=16`, `reasoning=medium` y `prompt_cache_ttl=5m`.
 
 Cada turno admite 8 llamadas útiles; `complete_inbound` usa el ordinal 9 técnico y no amplía ese presupuesto. El gateway permite 1 reintento de transporte, nunca un reintento semántico automático de una mutación.
 
 ## Checkpoints de producción separados
 
-1. **Checkpoint DB — migración persistente.** Repetir baseline dinámico, revisar el diff SQL, aplicar la migración y ejecutar pruebas/advisors. Esto no autoriza Edge ni Kapso.
-2. **Checkpoint Edge — deploy y secretos.** Desplegar cada slug nuevo deshabilitado, cargar secretos server-side y verificar `deno.lock`; esto no autoriza registro ni activación en Kapso.
-3. **Checkpoint Kapso — registro y activación.** Completar el inventario autenticado, fijar IDs no secretos, registrar webhook/Agent Node en un número de prueba y activar por allowlist. Requiere autorización independiente de los dos checkpoints anteriores.
+1. **Checkpoint DB — completado para Fase 1A.** Migraciones aditivas aplicadas; ACL/owner y pruebas transaccionales verificadas.
+2. **Checkpoint Edge — completado y apagado.** Slugs desplegados, secretos base cargados y humo seguro validado; las banderas siguen en `false`.
+3. **Checkpoint Kapso Draft — en curso.** Inventario autenticado y Draft vacío observados; falta guardar API Trigger/Agent Node sin activarlo.
+4. **Checkpoint E2E/activación — pendiente.** Probar start/resume, contexto, invocation identity y cierre con un número de prueba antes de habilitar allowlist/tools.
 
 No se combinan checkpoints por conveniencia y no basta cambiar un prompt o JSON para autorizar el siguiente.
 
@@ -56,11 +58,11 @@ Medir contadores agregados de 401/4xx/5xx, latencia p95, replay/rate-limit, clai
 
 ## Gates aún pendientes
 
-- Preflight Kapso autenticado: modelo/IDs, start/resume, invocation identity, send/complete y Flow.
-- Apply persistente de migración y advisors sobre el schema ya visible.
-- Deploy deshabilitado de ambos slugs y carga de secretos.
+- Guardar la configuración Draft del Agent Node/API Trigger sin activarla.
+- Preflight Kapso: `provider_model_id`, start/resume, `whatsapp_context`, invocation identity y send/complete.
+- Ejecutar advisors finales después de cada migración de tools.
 - Corrección/prueba del reminder online y correlación `patient_resource_delivery` outbox→provider message→batch, fuera de Fase 0.
 
 ## Publicación de esta guía
 
-El runtime quedó en commits locales, incluido el runbook `82b603c`, y esta sincronización contractual se comete localmente después de sus pruebas. Ninguno de esos commits hace `push`, deploy, apply persistente ni registro en Kapso. La publicación o integración posterior requiere la elección explícita del propietario.
+El runtime de Fase 1A vive en la rama aislada `codex/agent-phase-1a`. Esta guía registra el estado observado, pero no autoriza por sí sola activar Kapso, las tools o las banderas de producción.

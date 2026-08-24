@@ -1,6 +1,6 @@
 # Inventario y preflight Kapso
 
-Observado: 2026-08-22 (America/Mexico_City).
+Observado: 2026-08-23 (America/Mexico_City).
 
 ## Estado verificable
 
@@ -10,10 +10,10 @@ Observado: 2026-08-22 (America/Mexico_City).
 | Webhooks/payload | documentación disponible | <https://docs.kapso.ai/docs/platform/webhooks/overview> |
 | Start/resume API | documentación disponible | <https://docs.kapso.ai/docs/workflows/start-and-resume-via-api> |
 | Dynamic Flow/data endpoint | documentación disponible | <https://docs.kapso.ai/docs/whatsapp/flows/static-vs-dynamic> |
-| Cuenta/workspace autenticado | bloqueado | La superficie de navegador disponible abrió `/users/sign_in`. |
-| Número/webhook/target real | no verificado | No se inspeccionó un workspace autenticado. |
-| Workflow/Flow ID y versión | no verificado | No se inventan valores. |
-| `provider_model_id` para Luna | no verificado | `null` en el lock. |
+| Cuenta/workspace autenticado | verificado | Proyecto `Agenda Psi`, ID `7cacfa3c-18f3-42c7-9623-22503fb947c7`, plan Free. |
+| Número/webhook/target real | verificado parcialmente | Target `1189669584231262`; webhook inbound v2 y callback de estados activos. |
+| Workflow/Flow ID y versión | Draft parcial | Workflow vacío Draft `d4ab8c62-f138-4869-a501-19e60c4483ff`; ningún Flow disponible. |
+| `gpt-5.6-luna` en selector | disponible | Visible bajo OpenAI; el `provider_model_id` interno aún no se ha fijado. |
 | Semántica primer input/resume | no verificado | Gate E2E. |
 | Tool invocation ID estable en retry | no verificado | Gate obligatorio para tools directas. |
 | `auto_send -> complete_task -> Function Node` | no verificado | Gate E2E. |
@@ -22,7 +22,7 @@ Observado: 2026-08-22 (America/Mexico_City).
 
 ## Consecuencia
 
-`config/agent-node.json.deployment_enabled=false` y `tool-allowlist.json.agent_node_enabled=false`. Ninguna tool de Agent Node se habilita hasta completar todos los checks con un número/workflow de prueba. Flow/media pueden implementarse únicamente después de validar su propia identidad idempotente.
+`config/agent-node.json.deployment_enabled=false` y `tool-allowlist.json.agent_node_enabled=false`. La autenticación y el inventario básico ya no bloquean; sí bloquean la activación la semántica API Trigger/resume, la identidad idempotente de tools y el E2E de cierre. Flow/media requieren su propio gate.
 
 ## Preflight reproducible
 

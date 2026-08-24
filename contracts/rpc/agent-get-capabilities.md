@@ -19,9 +19,16 @@ Sesión/turno/relación sellados por gateway.
 
 `agent_sessions`, `whatsapp_links`, `patients`, professional policies, citas y perfil público.
 
+## Estado de implementación
+
+Fase 1A implementa la variante estrictamente read-only: valida una sesión vigente,
+deriva contexto público/tenant, estado activo, scheduling, próxima cita, pago
+pendiente y perfil aprobado, y devuelve booleans/reason codes sin IDs. La emisión
+de option handles queda diferida hasta habilitar las tools consumidoras.
+
 ## Escribe
 
-Cero escrituras de dominio; puede emitir option handles técnicos de relación/perfil.
+Cero escrituras de dominio. Fase 1A tampoco emite option handles.
 
 ## Validaciones
 
