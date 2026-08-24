@@ -5,16 +5,24 @@
   "selection_mode": "configured_in_inactive_authenticated_draft",
   "automatic_fallback": null,
   "supports_custom_sampling": null,
-  "observed_at": "2026-08-23T19:30:00-06:00",
+  "observed_at": "2026-08-23T20:48:18-06:00",
   "evidence": {
     "kapso_authenticated_inventory": true,
     "api_trigger_first_input_semantics": false,
     "api_trigger_resume_semantics": false,
     "stable_tool_invocation_id_on_retry": false,
     "send_complete_function_order": false,
+    "draft_send_notification_complete_task_order": true,
+    "draft_tool_delivery_test": {
+      "status": "completed",
+      "duration_seconds": 4,
+      "cost_usd": 0.0006,
+      "tokens": 4096,
+      "llm_calls": 2
+    },
     "flow_nfm_reply_serialization": false,
     "draft_agent_node_configured": true,
-    "note": "gpt-5.6-luna quedó guardado en el Agent Node del Draft. El provider_model_id interno y la semántica E2E siguen sin fijarse; no se habilitaron custom/domain tools."
+    "note": "gpt-5.6-luna quedó guardado en el Agent Node del Draft. Test mode confirmó send_notification_to_user y luego complete_task, pero sustituyó el input por un mensaje sintético y dejó phone_number en null. El provider_model_id interno y la semántica E2E real siguen sin fijarse; no se habilitaron custom/domain tools."
   },
   "manual_fallback_order": ["gpt-5.2", "gpt-5"]
 }

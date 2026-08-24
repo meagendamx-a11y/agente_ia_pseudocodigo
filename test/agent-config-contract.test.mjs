@@ -28,8 +28,12 @@ test('uses an honest stable cost envelope and blocks unverified provider config'
   assert.equal(config.max_iterations, 16);
   assert.equal(config.max_tokens, 2048);
   assert.equal(config.prompt_cache_ttl, '5m');
-  assert.equal(config.message_delivery_mode, 'auto_send_assistant_text');
-  assert.deepEqual(config.enabled_default_tools.sort(), ['complete_task', 'enter_waiting']);
+  assert.equal(config.message_delivery_mode, 'internal_only');
+  assert.deepEqual(config.enabled_default_tools.sort(), [
+    'complete_task',
+    'enter_waiting',
+    'send_notification_to_user',
+  ]);
   assert.equal(modelLock.automatic_fallback, null);
   assert.match(responses.rate_limit_notice, /55 64 37 00 81[\s\S]*911[\s\S]*800 911 2000/);
   assert.match(responses.unknown_outcome, /no pude confirmar[\s\S]*no lo intentar[eé] de nuevo autom[aá]ticamente/i);

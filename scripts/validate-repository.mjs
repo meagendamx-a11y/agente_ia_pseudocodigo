@@ -100,7 +100,8 @@ const model = await parseJson('config/provider-model-lock.json');
 const allowlist = await parseJson('config/tool-allowlist.json');
 if (agent && model && allowlist) {
   if (agent.reasoning_effort !== 'medium' || agent.max_iterations !== 16 || agent.max_tokens !== 2048 || agent.prompt_cache_ttl !== '5m') fail('agent-node: envelope no aprobado');
-  if (JSON.stringify([...agent.enabled_default_tools].sort()) !== JSON.stringify(['complete_task', 'enter_waiting'])) fail('agent-node: default tools incorrectas');
+  if (agent.message_delivery_mode !== 'internal_only') fail('agent-node: entrega directa debe permanecer interna');
+  if (JSON.stringify([...agent.enabled_default_tools].sort()) !== JSON.stringify(['complete_task', 'enter_waiting', 'send_notification_to_user'])) fail('agent-node: default tools incorrectas');
   if (model.automatic_fallback !== null) fail('provider lock: fallback automático prohibido');
   if (model.verification_status !== 'verified_e2e' && !(model.provider_model_id === null && agent.deployment_enabled === false && allowlist.agent_node_enabled === false)) fail('provider no verificado debe fallar cerrado');
   const visible = JSON.stringify(allowlist);

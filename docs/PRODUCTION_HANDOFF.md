@@ -32,7 +32,7 @@ El baseline se captura dinámicamente antes y después desde catálogos, version
 
 ## Sobre de costo y abuso
 
-Hay cero tráfico LLM del agente. `gpt-5.6-luna` ya aparece en el selector autenticado, pero sigue sin fijarse su `provider_model_id` interno ni pasar el E2E; no hay fallback automático. El sobre congelado es `max_tokens=2048`, `max_iterations=16`, `reasoning=medium` y `prompt_cache_ttl=5m`.
+Hay cero tráfico LLM de producción. Las pruebas sintéticas del Draft consumieron `$0.0016` en total; la prueba final aprobada costó `$0.0006` con 4,096 tokens. `gpt-5.6-luna` está configurado, pero su `provider_model_id` interno y el E2E real siguen no verificados; no hay fallback automático. El sobre congelado es `max_tokens=2048`, `max_iterations=16`, `reasoning=medium` y `prompt_cache_ttl=5m`.
 
 Cada turno admite 8 llamadas útiles; `complete_inbound` usa el ordinal 9 técnico y no amplía ese presupuesto. El gateway permite 1 reintento de transporte, nunca un reintento semántico automático de una mutación.
 
@@ -40,7 +40,7 @@ Cada turno admite 8 llamadas útiles; `complete_inbound` usa el ordinal 9 técni
 
 1. **Checkpoint DB — completado para Fase 1A.** Migraciones aditivas aplicadas; ACL/owner y pruebas transaccionales verificadas.
 2. **Checkpoint Edge — completado y apagado.** Slugs desplegados, secretos base cargados y humo seguro validado; las banderas siguen en `false`.
-3. **Checkpoint Kapso Draft — en curso.** Inventario autenticado y Draft vacío observados; falta guardar API Trigger/Agent Node sin activarlo.
+3. **Checkpoint Kapso Draft — completado e inactivo.** API Trigger y Agent Node están conectados y guardados; la prueba sintética confirmó `send_notification_to_user -> complete_task` sin dejar `Waiting`.
 4. **Checkpoint E2E/activación — pendiente.** Probar start/resume, contexto, invocation identity y cierre con un número de prueba antes de habilitar allowlist/tools.
 
 No se combinan checkpoints por conveniencia y no basta cambiar un prompt o JSON para autorizar el siguiente.
@@ -58,8 +58,7 @@ Medir contadores agregados de 401/4xx/5xx, latencia p95, replay/rate-limit, clai
 
 ## Gates aún pendientes
 
-- Guardar la configuración Draft del Agent Node/API Trigger sin activarla.
-- Preflight Kapso: `provider_model_id`, start/resume, `whatsapp_context`, invocation identity y send/complete.
+- Preflight Kapso real: `provider_model_id`, start/resume, `whatsapp_context`, invocation identity y cierre hasta Function Node/RPC.
 - Ejecutar advisors finales después de cada migración de tools.
 - Corrección/prueba del reminder online y correlación `patient_resource_delivery` outbox→provider message→batch, fuera de Fase 0.
 

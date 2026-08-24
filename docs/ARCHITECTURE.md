@@ -8,7 +8,7 @@ Kapso number webhook (whatsapp.message.received v2)
            -> agent_tool_gateway -> service-only wrapper -> redacted DTO
            -> WhatsApp Flow -> data endpoint -> create commit
            -> media adapter -> private receipt -> attach proof
-        -> assistant text -> complete_task -> Function Node -> complete RPC
+        -> send_notification_to_user -> complete_task -> Function Node -> complete RPC
      -> replay/rate-limited/rejected: ACK/copia fija; sin LLM
 
 Rail independiente sin cambios:
