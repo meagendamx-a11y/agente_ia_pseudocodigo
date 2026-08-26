@@ -1,18 +1,18 @@
 # Los ocho textos fijos
 
-Borrador para aprobación de Gael. Corte: 2026-08-26.
+Segunda versión, con las correcciones de Gael del 2026-08-26.
 
 Seis los compone el servidor y el modelo sólo escoge el código. El de crisis vive **literal
 en el prompt**, porque si dependiera de una llamada de red y del presupuesto de ocho, un
 `TOOL_BUDGET_EXCEEDED` en un mensaje de crisis sería silencio en el peor momento del
 producto. El octavo lo manda el borde de entrada, antes de que el agente exista.
 
-**Reglas de redacción que se siguieron:**
+**Reglas de redacción:**
 - Nada de género en la paciente. Hay pacientes hombres en producción, así que ni «activa»
-  ni «activo»: se rodea.
+  ni «activo» aplicados a ella: se rodea.
 - Nada de género en la profesional. Se usa su nombre de pila, nunca «él» ni «ella».
-- Ningún plazo escrito a mano. Si un texto llevara horas, saldrían de la ficha.
-- Sin disculpas largas ni «lamento informarte». Cálido y breve.
+- Ningún plazo escrito a mano, salvo las 24 h del prepago, que es un valor fijo del producto.
+- Sin disculpas largas. Cálido y breve.
 
 ---
 
@@ -22,13 +22,14 @@ producto. El octavo lo manda el borde de entrada, antes de que el agente exista.
 un recado a su profesional, hablar con una persona, o cualquier cosa que el agente no puede
 hacer y no es de dinero.
 
-> Eso no lo puedo ver desde aquí. Si necesitas ayuda de nuestro equipo, escríbenos al
-> 55 64 37 00 81: https://wa.me/525564370081
+> Eso no lo puedo ver desde aquí. Si necesitas ayuda de nuestro equipo, escríbenos por aquí:
+> https://wa.me/525564370081
 >
 > Yo te sigo ayudando con tus citas y con hacerle llegar tu comprobante a {profesional}.
 
 **Después:** la gestión sigue abierta.
 **Compone el servidor:** `{profesional}` = nombre de pila.
+**Cambio de esta versión:** se quitó el número escrito; sólo va el enlace.
 
 ---
 
@@ -43,7 +44,8 @@ hacer y no es de dinero.
 > Yo te ayudo con tus citas y con hacerle llegar tu comprobante.
 
 **Después:** la gestión sigue abierta.
-**Compone el servidor:** `{profesional}` = nombre de pila.
+**Compone el servidor:** `{profesional}` = nombre de pila, dos veces. Se repite el nombre a
+propósito en vez de decir «con ella»: puede haber profesionales hombres.
 
 **Ojo:** este texto **no** se usa para «ya te mandé el comprobante, ¿ya quedó?». Ese caso
 tiene datos y se contesta con el expediente: el comprobante está en revisión.
@@ -52,14 +54,14 @@ tiene datos y se contesta con el expediente: el comprobante está en revisión.
 
 ## 3 · `no_te_reconocemos`
 
-**Cuándo.** El teléfono no tiene ninguna relación con ninguna profesional.
+**Cuándo.** El teléfono no tiene ninguna relación con ninguna profesional. Nunca fue paciente.
 
 > Hola. Este número es el asistente de Agenda Psi, y desde aquí sólo puedo ayudar a
 > pacientes que ya están con un psicólogo o psicóloga de la plataforma.
 >
 > Si estás buscando uno, aquí puedes ver quiénes están disponibles: https://agendapsi.mx
 
-**Después:** la gestión cierra. No hay conversación que continuar.
+**Después:** la gestión cierra.
 
 ---
 
@@ -68,52 +70,53 @@ tiene datos y se contesta con el expediente: el comprobante está en revisión.
 **Cuándo.** El mismo teléfono está vinculado con dos o más profesionales. Hoy no pasa con
 nadie en producción; el texto existe para el día que pase.
 
-> Veo que estás con {lista}. ¿Con quién es lo que necesitas?
+> Veo que estás con más de una profesional: {lista}. ¿De cuál quieres que revisemos tus citas?
 
 **Después:** la gestión sigue abierta.
-**Compone el servidor:** `{lista}` = los nombres de pila unidos con «y» — «Araceli y
-Miranda», «Araceli, Miranda y Ana».
+**Compone el servidor:** `{lista}` = los nombres de pila unidos con «y».
+
+**Y hay una segunda salida, sin preguntar.** Si ella nombra una cita concreta —«la del
+jueves a las 7»— el servidor resuelve a qué profesional pertenece esa cita y sella esa
+relación para el resto de la gestión, sin gastar este texto. Preguntar es el camino de
+respaldo, no el primero.
 
 ---
 
-## 5 · `dada_de_baja`
+## 5 · `paciente_inactivo`
 
 **Cuándo.** El teléfono sí está vinculado, pero la relación ya no está activa.
 
-> Ahorita no tienes una relación activa con {profesional}, así que desde aquí no puedo
-> ayudarte a mover ni a crear citas. Si quieres retomar, escríbele directamente.
+> Por ahora no apareces como paciente activo con {profesional}, así que desde aquí no puedo
+> ayudarte con tus citas.
 >
-> Y si estás buscando psicólogo o psicóloga, aquí puedes ver quiénes están disponibles:
-> https://agendapsi.mx
+> Escríbele directamente para que te reactive, y en cuanto lo haga te sigo apoyando por aquí.
 
 **Después:** la gestión cierra.
 **Compone el servidor:** `{profesional}` = nombre de pila.
+
+**Cambio de esta versión:** antes este texto mandaba al directorio. Ya no. Quien fue paciente
+y quiere volver necesita que la reactiven, no buscar a alguien más. El directorio se queda
+sólo en el texto 3, para quien nunca fue paciente. El corte queda limpio: **nunca fue
+paciente → directorio; fue y ya no → que la reactiven.**
 
 ---
 
 ## 6 · `sin_horarios`
 
-**Cuándo.** La profesional no tiene ni un hueco en los próximos sesenta días —
-normalmente porque todavía no ha guardado su horario.
-
-**Sustituye a `agenda_cerrada`.** Con la decisión de dejar de consultar el interruptor de
-«mis pacientes pueden agendar solas», ya no existe el caso de «no te deja agendar». Lo que
-sí puede pasar es que no haya nada que ofrecer.
+**Cuándo.** La profesional no tiene ni un hueco en los próximos sesenta días — normalmente
+porque todavía no ha guardado su horario.
 
 > Ahorita {profesional} no tiene horarios abiertos para las próximas semanas. Lo mejor es
 > que le escribas directamente para que te dé un espacio.
 
 **Después:** la gestión sigue abierta.
-**Compone el servidor:** `{profesional}` = nombre de pila.
 
 ---
 
 ## 7 · Crisis
 
 **Cuándo.** Señal de riesgo para ella o para alguien más. Va **sola y primero**: no se
-mezcla con la gestión y no lleva la pregunta de cierre.
-
-Este texto **no cambia** — es el que ya está aprobado y desplegado.
+mezcla con la gestión y no lleva la pregunta de cierre. Este texto no cambia.
 
 > Si necesitas ayuda inmediata: Agenda Psi no es un servicio de emergencias. Si tú o alguien
 > más se encuentra en peligro, llama al 911. Para recibir apoyo en salud mental, comunícate
@@ -126,11 +129,8 @@ Este texto **no cambia** — es el que ya está aprobado y desplegado.
 
 ## 8 · `vas_muy_rapido`
 
-**Cuándo.** Ella pasó alguno de los topes de tráfico. Lo manda el borde de entrada, antes
-de que el agente arranque, y como mucho **uno cada quince minutos** por teléfono.
-
-Es el único mensaje que sale cuando el agente no corre, así que tiene que invitar a
-reintentar. Si dice «espera» sin decir qué hacer, ella se queda mirando la pantalla.
+**Cuándo.** Pasó alguno de los topes de tráfico. Lo manda el borde de entrada, antes de que
+el agente arranque, y como mucho **uno cada quince minutos** por teléfono.
 
 > Recibí varios mensajes seguidos y necesito un momento para ponerme al día. Espérame un
 > minuto y escríbeme otra vez, por favor.
@@ -139,43 +139,71 @@ reintentar. Si dice «espera» sin decir qué hacer, ella se queda mirando la pa
 
 ---
 
-# Tres frases más que hay que aprobar
+# Las frases que salen de una operación
 
-No son textos fijos —salen de una operación, no de un código— pero son las que más se van a
-repetir y no deberían improvisarse.
+No son textos fijos —los compone el servidor como parte de un resultado— pero son las que
+más se van a repetir.
 
-## La reseña, antes de pedirla
+## La reseña
 
-Gael pidió que quede claro qué se publica de su nombre.
+El agente **no la pide**: la pide la plantilla que Gael manda a mano
+(`patient_review_request`), que ya trae la petición completa: cuántas estrellas y, si quiere,
+un comentario para el perfil.
 
-> Claro. Antes de que la escribas: de tu nombre sólo se muestran las iniciales, nunca
-> completo. ¿Del uno al cinco, cómo calificarías tu experiencia con {profesional}?
+**Puede llegar en uno o en varios mensajes.** Ella puede mandar «5 estrellas» y después el
+comentario, o las dos cosas juntas. Si falta la calificación, el agente la pide; el
+comentario es opcional y nunca se insiste.
 
-Y al recibirla, el texto que ya está aprobado:
+**Al cerrar:**
 
-> Perfecto, muchas gracias por tu reseña.
+> Listo, te agradecemos mucho que compartieras esto. Tu nombre queda anónimo: en su perfil
+> sólo se muestran tus iniciales.
+>
+> Nos ayuda a que más personas encuentren buenas profesionales en nuestro directorio.
+> ¡Gracias!
 
-## El comprobante que llega tarde
+## El prepago, al terminar de agendar
 
-Cuando el prepago ya venció y la cita se canceló sola. Ningún camino del sistema reabre un
-cobro cerrado, así que hay que decirlo sin rodeos y ofrecer la salida.
+Sustituye al texto del comprobante que llegaba tarde, que se elimina.
 
-> Esa cita ya se canceló porque no alcanzó a llegar el comprobante. Mándale la foto
-> directamente a {profesional} para que ella la revise, y si quieres te busco un horario
-> nuevo ahora mismo.
-
-**Ojo con el género:** «para que ella la revise» sólo sirve con profesionales mujeres. La
-forma neutra: «para que la revise».
+> Listo, aparté tu cita del {día} a las {hora}. Para confirmarla necesito tu comprobante de
+> pago — mándamelo por aquí. Si no llega en 24 horas, la cita se cancela.
 
 ## La cita con dinero adentro que quiere cancelar
 
-> Esa cita ya tiene tu pago, así que no la puedo cancelar desde aquí. Lo que sí puedo es
-> moverla a otro día — tu pago se va con ella, y tu comprobante también.
+Sin recurrencia — sólo se puede mover:
 
-Y cuando además tiene una próxima cita del mismo servicio:
+> Esa cita ya tiene tu pago, así que no la puedo cancelar desde aquí. Lo que sí puedo es
+> moverla a otro día: tu pago se va con ella, y tu comprobante también.
+
+Con recurrencia o con una próxima cita del mismo servicio — las dos salidas:
 
 > Esa cita ya tiene tu pago, así que no la puedo cancelar desde aquí. Puedo moverla a otro
 > día, o pasar tu pago a tu cita del {día}. ¿Cuál prefieres?
+
+---
+
+# El prepago, de punta a punta
+
+Queda así, con la corrección de Gael:
+
+1. **Agenda por formulario, normal.** La cita nace sin confirmar y el reloj de 24 h empieza
+   a correr desde que agenda, no 26 h antes de la cita.
+2. **El agente le pide el comprobante por chat**, con la consecuencia dicha desde el
+   principio: si no llega en 24 h, se cancela.
+3. **Si no llega, un trabajo programado la cancela** y libera el horario.
+4. **Si después quiere otra cita, el formulario le pide la foto adentro.** No hay ventana de
+   gracia ni se reabre la cita vieja: empieza de cero, pero esta vez con el comprobante
+   dentro del formulario.
+
+La condición para pedir la foto dentro del formulario: que esa paciente tenga al menos una
+cita cancelada por prepago vencido. Es una consulta, y la resuelve el servidor al armar la
+primera pantalla.
+
+**Se hace con un solo formulario, no con dos.** El endpoint de datos decide a qué pantalla
+va después de la de horarios: si le toca subir comprobante, la manda a la pantalla de la
+foto; si no, cierra. Un solo formulario publicado, un solo permiso de Meta, un solo worker.
+Dos formularios costarían dos publicaciones y dos workers, y sólo quedan dos libres.
 
 ---
 
@@ -185,7 +213,11 @@ Y cuando además tiene una próxima cita del mismo servicio:
 2. **`sin_horarios` necesita saber que no hay ni un hueco en el horizonte.** Sale de la
    misma consulta barata que pinta el calendario: si devuelve la lista vacía, es ese caso.
 3. **`vas_muy_rapido` necesita un envío desde el borde** que hoy no existe: la admisión
-   marca el rechazo y ahí se acaba, así que ella no recibe nada. Es un POST más, y va en la
-   misma tanda.
-4. **La frase de la reseña con iniciales** obliga a que el agente pregunte antes de
-   registrar, no después. Va en el prompt como paso previo.
+   marca el rechazo y ahí se acaba, así que ella no recibe nada. Es un POST más.
+4. **`elige_profesional` necesita resolver una cita contra dos relaciones** para poder tomar
+   el camino corto. Hoy no hay ningún teléfono con dos, así que no se ejercita.
+5. **La reseña por partes** obliga a que el agente sepa cuándo tiene lo suficiente para
+   registrar: con la calificación basta.
+6. **La pantalla del comprobante dentro del formulario** obliga a bajar y descifrar el
+   archivo desde los servidores de WhatsApp. Es la rutina que no existe hoy, y es el único
+   trabajo nuevo de peso que sale de esta ronda de correcciones.
