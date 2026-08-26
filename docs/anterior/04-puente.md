@@ -541,7 +541,7 @@ su maquinaria. Lo que sigue nombra archivo y sección.
 
 | Qué | Dónde |
 |---|---|
-| **El documento del formulario, entero** — las dos pantallas, el Flow JSON, la función de datos, las tres rutas del servidor, el calendario barato de 60 días, el cierre, el ciclo de publicación y la lista de comprobación de Meta | `docs/diseno/04-formulario.md` (1 400+ líneas) |
+| **El documento del formulario, entero** — las dos pantallas, el Flow JSON, la función de datos, las tres rutas del servidor, el calendario barato de 60 días, el cierre, el ciclo de publicación y la lista de comprobación de Meta | `docs/diseno/04-horarios.md` (1 400+ líneas) |
 | **La herramienta `abrir_formulario`** con su descripción y su esquema | `02-herramientas.md` §1.3 |
 | **La operación `open_booking_flow`** y su ruta `/workflow/open-booking-flow` | `02` §5.1, `06` §3.3, `agent_tool_gateway/handler.ts` (`FUTURE_AGENT_ROUTES`) |
 | **Las cuatro operaciones de `flow_data_exchange`** del portero (`flow_list_services`, `flow_get_eligibility`, `flow_get_availability`, `flow_create_appointment`) y la superficie entera | `private.agent_claim_tool_call`, `02` §5.1 |
@@ -615,7 +615,7 @@ Esto es lo importante de la lista:
    webhook contestan 422 a cualquier lote, y eso apaga el webhook entero en quince minutos.
    Y hay una palanca gratis que se puede mover antes: subir el `message_debounce_seconds` del
    workflow, que ya está encendido.
-5. **Se va todo el formulario menos la espera.** `04-formulario.md` completo, dos Workers,
+5. **Se va todo el formulario menos la espera.** `04-horarios.md` completo, dos Workers,
    dos Flows, seis operaciones del portero —las cuatro de `flow_data_exchange`, más
    `open_booking_flow` y la maniobra `cancel_then_open_booking_flow`— y una migración que ya
    no hay que escribir; pero

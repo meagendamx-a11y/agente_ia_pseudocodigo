@@ -1,139 +1,644 @@
-# 03 — Modelo de dinero y políticas
+# 03 · El dinero y las políticas
 
-Esto no describe el sistema: dice qué hay que escribir. Cada celda de cada tabla
-corresponde a líneas de una migración concreta. Lo que no está aquí, no se hace.
+Corte: 2026-08-26. Base auditada: Supabase `ssyzfeadyrczlzjbvxyl` («Agenda PSI V2»), sólo
+lectura. Cada afirmación de este documento se comprobó contra el esquema desplegado, contra
+el cuerpo de las funciones vivas o contra las filas reales de producción.
 
-Substrato: `docs/hallazgos-auditoria-agente.md`. Todo lo que se cita de la base
-está verificado contra `ssyzfeadyrczlzjbvxyl` el 2026-08-25/26.
+**Este archivo reemplaza por completo al anterior.** El anterior describía el dinero de un
+agente que agendaba y reprogramaba por formulario de WhatsApp, y que daba el cambio tardío
+por imposible. Las dos cosas cambiaron.
+
+**Manda sobre este documento** `docs/anterior/01-decisiones-del-ensayo.md`. Lo verificado
+vive en `docs/reglas/10-reglas-finales.md`, `13-decision-tardia.md` y `14-pasar-pago.md`, y
+aquí se reusa sin repetir la evidencia línea por línea.
+
+**Tres cosas de `10-reglas-finales.md` quedaron desfasadas y aquí se corrigen**, porque el
+repositorio se movió después de que se escribieron:
+
+1. **R21 dice que congelar «es exactamente lo que hace el modo `charge_old`».** No lo es: ese
+   modo nunca escribe `late_change_decision`, que es la única columna que el agente añade. §1.7.
+2. **§3 renglón 4 y §4 choque 2 dan por inexistente el `GRANT DELETE ON payment_proofs`.** Ya
+   está escrito en la migración de fundamento. §4.6.
+3. **§3 renglón 12 pone el cerrojo «~línea 1129».** Ahí la cita ya está cancelada. §2.1.
 
 ---
 
-## 0. Las cinco reglas que mandan sobre todo lo demás
+## Lo que cambió respecto de todo lo escrito antes
 
-1. **Una cita con dinero adentro no se cancela.** Se ofrece moverla. (La
-   decisión del dueño dice «moverla **o** trasladar el pago a la próxima cita».
-   Lo segundo no se puede armar con este esquema: §6, decisión pendiente #6.)
-2. **Al mover, el dinero siempre viaja con la paciente.** Comprobante incluido.
-3. **Un comprobante recibido queda pendiente de revisión.** El agente nunca dice
-   «pagado» ni «aprobado». Acreditar, condonar y cobrar son del profesional.
-4. **En prepago la cita nace sin confirmar**, el comprobante se pide al agendar,
-   y si no llega, un trabajo la cancela.
-5. **Ningún texto que ve la paciente lleva un número de horas escrito a mano.**
-   Sale siempre de la fila de políticas de su profesional.
+| # | Antes | Ahora |
+|---|---|---|
+| 1 | Los cambios tardíos se bloqueaban o se ignoraban | **Se permiten los dos** —cancelar y reprogramar—. Se avisa antes y se pregunta |
+| 2 | Reprogramar tarde arrastraba el dinero a la cita nueva | **Reprogramar tarde congela el dinero** en la cita vieja y abre la decisión de cobro. La cita nueva va aparte, con su propio pago |
+| 3 | Reprogramar no mencionaba dinero nunca | **Reprogramar a tiempo sí mueve el dinero**, comprobante incluido, y se le dice |
+| 4 | Pasar el pago a la próxima cita se dio por imposible | **Se construye.** Se ofrece junto con reprogramar, cuando la cita tiene una próxima del mismo servicio |
+| 5 | «{Profesional} va a decidir si te cobra» | **A la paciente no se le dice que la profesional decide. Se le dice que se cobra** |
+| 6 | El agente pedía comprobante siempre | **Cobrar desde el agente sólo aplica con cobro por adelantado.** Si cobra después, el agente no menciona pago al agendar |
 
-### Vocabulario: «hay dinero adentro»
+---
 
-Es una condición sobre dos tablas, y es la misma en todas partes:
+## 0. Las reglas del dinero, en una página
+
+**R-A · «Hay dinero adentro» tiene una definición exacta y una sola:**
 
 ```sql
 p.status = 'credited'
 OR EXISTS (SELECT 1 FROM public.payment_proofs pp WHERE pp.payment_id = p.id)
 ```
 
-Una petición sellada sin archivo (`proof_requested_at IS NOT NULL` y cero filas
-en `payment_proofs`) **no** cuenta. Se pidió el dinero, no llegó: no hay nada
-que cuidar.
+Una petición de comprobante sellada **sin archivo no es dinero**. Esta definición se usa en
+el cerrojo de cancelar y en pasar el pago, y tiene que ser la misma en las dos: si difieren,
+aparece una cita que no se puede cancelar y tampoco se puede pasar, o sea un callejón.
 
-### Los cinco estados en que el agente puede encontrar un pago
+**R-B · Los cinco estados en que el agente puede encontrar un pago:**
 
-`payments_appointment_id_key UNIQUE (appointment_id)` garantiza **como mucho** un
-pago por cita; que haya exactamente uno lo garantiza la costumbre: toda función
-que crea una cita crea su pago en la misma transacción. Sobre una cita
-`scheduled` ese pago sólo puede estar en uno de estos cinco estados:
+| # | Nombre corto | `payments.status` | `proof_requested_at` | fila en `payment_proofs` | En producción hoy |
+|---|---|---|---|---|---|
+| 1 | Sin costo | `not_applicable` | — | — | **0** |
+| 2 | Pendiente desnudo | `pending` | NULL | no | **3** |
+| 3 | Comprobante pedido | `pending` | NOT NULL | no | **4** |
+| 4 | Comprobante recibido | `pending` | da igual | **sí** | **0** |
+| 5 | Acreditado | `credited` | da igual | da igual | **33** |
 
-| # | Estado | Columnas | Qué significa |
-|---|---|---|---|
-| **A** | Gratis | `status='not_applicable'`, `amount=0` | No hay dinero. Nunca lo habrá. |
-| **B** | Pendiente limpio | `status='pending'`, `proof_requested_at IS NULL`, sin comprobante | Se cobra después y todavía no se ha movido nada. |
-| **C** | Comprobante pedido | `status='pending'`, `proof_requested_at IS NOT NULL`, sin comprobante | Se le pidió y no ha llegado. **No es dinero adentro.** |
-| **D** | Comprobante recibido | `status='pending'`, 1 fila en `payment_proofs` | **Dinero adentro.** En revisión del profesional. |
-| **E** | Acreditado | `status='credited'` | **Dinero adentro.** El profesional ya lo dio por cobrado. |
+Más 1 condonado. Total 41 pagos. **`public.payment_proofs` tiene cero filas en toda la
+historia**: la fila 4 nunca ha ocurrido y no se puede probar contra producción.
 
-`waived` no aparece **mientras la cita sigue en pie**: los tres resolutores del
-profesional exigen que la cita esté `cancelled` o `rescheduled`, así que una cita
-`scheduled` nunca llega ahí. Sí aparece en cuanto la cita se cierra —al cancelar
-a tiempo (§1.3), al mover (§1.4) o al vencer el prepago (§5.3)— y por eso la
-operación de recibir comprobante, que es la única que sigue viva sobre citas
-cerradas, tiene una sexta fila (§1.5).
+**R-C · A tiempo o tarde sale de la fila de la profesional, nunca de una constante:**
+
+```sql
+v_policy_result := CASE
+  WHEN v_appointment.starts_at - v_now
+       >= pg_catalog.make_interval(mins => v_policy.free_change_notice_minutes)
+  THEN 'on_time' ELSE 'late' END;
+```
+
+**R-D · El agente nunca dice «pagado» ni «aprobado».** Dice «recibí tu comprobante». Un
+comprobante recibido queda pendiente de revisión, y revisarlo es de la profesional.
+
+**R-E · A la paciente no se le dice que la profesional decide. Se le dice que se cobra.**
+Que la profesional después condone es asunto interno suyo. La consecuencia hay que aceptarla
+de frente: **si condona, la paciente recibe una sorpresa buena**; si el agente hubiera dicho
+«va a decidir», la paciente se queda con una duda abierta que nadie le va a cerrar, porque
+hoy **ninguna de las tres funciones que resuelven le avisa a la paciente salvo «pedir
+comprobante»** (`13-decision-tardia.md` §5.5).
+
+**R-F · Cobrar desde el agente sólo aplica con `charge_timing = 'before'`.** Con `'after'`
+el agente no pide comprobante, no menciona pago al agendar y no da datos bancarios.
+
+**R-G · El agente abre la decisión de cobro; nunca la cierra.** No se le conceden
+`late_change_decision_resolved_at` ni `_resolved_by`.
+
+**R-H · `charge_reason` se reclasifica siempre que la cita se cierra.** `session` →
+`cancellation` o `reschedule`. **Es la columna que no se puede olvidar:** sin ella la fila
+desaparece de la facturación aunque la profesional cobre. La razón, medida, está en §1.9.
+
+**R-I · Nada se encola en `whatsapp_outbox` mientras la paciente está en la conversación.**
+El agente contesta en el mismo turno. Ver §7.
 
 ---
 
 ## 1. La matriz definitiva
 
-Vista compacta. `→` significa «no se ejecuta; se ofrece esto otro».
+Se lee así: **acción × plazo × estado del pago**. En cada celda, lo mismo en el mismo orden:
+qué pasa con el dinero, qué pasa con la cita, qué función lo hace, qué puede hacer después la
+profesional, y qué se le dice a la paciente.
 
-| Acción \ Pago | **A** gratis | **B** pendiente limpio | **C** comprobante pedido | **D** comprobante recibido | **E** acreditado |
-|---|---|---|---|---|---|
-| **Agendar** | pago `not_applicable` | pago `pending/after` | *(prepago: nace aquí)* | — | — |
-| **Confirmar** | sella `confirmed_at` | sella `confirmed_at` | sella `confirmed_at` | sella `confirmed_at` | sella `confirmed_at` |
-| **Cancelar a tiempo** | cancela, pago intacto | condona | condona | **→ mover** | **→ mover** |
-| **Cancelar tarde** | cancela, pago intacto | abre decisión | abre decisión | **→ mover** | **→ mover** |
-| **Reprogramar** | mueve, nada viaja | el dinero viaja | la petición viaja | comprobante y dinero viajan | el acreditado viaja |
-| **Mandar comprobante** | rechaza: nada que pagar | acepta | acepta | rechaza: ya hay uno | rechaza: ya está cobrada |
+**Lo que toda cita que se cierra sella siempre**, sea cancelada o reprogramada, a tiempo o
+tarde:
 
-Las cinco columnas son los estados posibles sobre una cita **en pie**. Mandar
-comprobante es la única fila que también corre sobre citas cerradas, y ahí
-aparece un sexto estado, `waived`, que la tabla no puede mostrar: está en §1.5.
+```sql
+cancelled_rescheduled_at = now(),
+cancel_reschedule_actor  = 'patient',
+change_policy_result     = 'on_time' | 'late',
+is_editable              = false
+-- starts_at y modality NO se tocan: la tarjeta cerrada conserva hora y modalidad
+```
 
-Y ahora celda por celda.
+`cancelled_rescheduled_at` es obligatorio: sin él, `get_appointment_detail` no puede calcular
+«avisó con tanto tiempo», que es el dato con el que la profesional decide.
 
 ### 1.1 Agendar
 
-Entra por el formulario de WhatsApp (`flow_create_appointment`), no por
-conversación. Función: `public.agent_create_appointment_from_workflow`.
+Una sola variable manda: cómo cobra esa profesional.
 
-El `charge_timing` del pago es **una foto de la política en el momento de
-agendar**, no una lectura viva; es exactamente lo que hace `create_appointment`
-del profesional, y hay que copiarlo.
+| `charge_timing` | El dinero | La cita | Función | Después, la profesional | Qué se le dice |
+|---|---|---|---|---|---|
+| **`after`** (cobra después) | Nace `pending`, `charge_reason='session'`, sin petición de comprobante | `scheduled`. Nace confirmada si empieza dentro de 48 h; si no, la confirma el aviso de 26 h | `agent_create_appointment_from_workflow` | Nada. Cobra al cerrar la sesión, como siempre | Se cierra sin mencionar dinero. «Listo, {nombre}. Aparté tu {servicio} del {día} a las {hora}, {modalidad}, con {profesional}.» |
+| **`before`** (cobra por adelantado) | Nace `pending` **con `proof_requested_at = now()` y `method='transfer'`**. Es la petición sellada que arranca el reloj de 24 h | `scheduled` y **nunca confirmada**: `confirmed_at` y `confirmation_source` en NULL, `is_editable = true`. Ver §3 | la misma | Nada hasta que llegue el comprobante | Se le dan los datos de la transferencia y se le pide el comprobante, **con la consecuencia dicha desde el principio** |
+| **Precio efectivo 0** | Nace `not_applicable`, importe 0 | igual que `after` | la misma | Nada | No se menciona dinero, aunque cobre por adelantado |
 
-| Precio y política | Dinero | Cita | Aviso al profesional |
-|---|---|---|---|
-| `agreed_price = 0` | pago `not_applicable`, `amount=0`, `method=NULL`, `resolved_at=NULL` | `scheduled`, `origin='patient'`, **sin confirmar** | `appointment_created_by_patient` |
-| `charge_timing='after'` | pago `pending`, `charge_reason='session'`, `charge_timing='after'` | idem | idem |
-| `charge_timing='before'` y precio > 0 | pago `pending`, `charge_reason='session'`, `charge_timing='before'`, **`proof_requested_at=now()`**, **`method='transfer'`** | idem | idem |
+El precio efectivo es el de siempre, en tres escalones: `services.is_free` → 0; si no,
+`patient_services.preferential_price`; si no, `services.default_price`. El modelo nunca manda
+importes.
 
-Dos cosas que se sellan siempre, sin ramas, y dos que dejan de escribirse:
+El texto de prepago, aprobado:
 
-```sql
--- La cita del agente NUNCA nace confirmada. Se borra la variable
--- v_born_confirmed del borrador y sus dos ramas, y con ellas las dos
--- columnas: no se escriben en NULL, se omiten del INSERT.
-is_editable = true,
-origin      = 'patient'::public.appointment_origin
-```
+> Listo, Emilio. Aparté tu Psicoterapia individual del miércoles 2 de septiembre a las 12:00,
+> presencial, con Araceli. Son $800.
+>
+> Para confirmarla, transfiere a BBVA, a nombre de Araceli Méndez, CLABE 012180001234567890,
+> y mándame el comprobante por aquí. Si no llega en 24 horas, la cita se cancela y se libera
+> el horario.
 
-**Y salen del permiso.** `20260825000000` concede hoy
-`GRANT INSERT (…, confirmed_at, confirmation_source, …) ON public.appointments`.
-Con `v_born_confirmed` borrado nadie las escribe al crear, así que se quitan de
-esa lista. Siguen en el `GRANT UPDATE`, que es lo que necesitan confirmar (§1.2)
-y cancelar (§1.3). La regla deja de depender de la disciplina de quien escriba la
-función y pasa a ser un permiso que no existe.
+Y si la profesional no llenó sus datos de pago:
 
-Por qué. La cita que nace confirmada es saltada para siempre por
-`cron_appointment_confirmation_26h`, que filtra `AND a.confirmed_at IS NULL`.
-En prepago eso significa que nadie le pide nunca el comprobante. Y de paso
-desaparece el problema de la app: `chk_appointment_confirmed_not_editable`
-volvía no editable una cita que el profesional no reconocía.
-
-El único valor de `appointment_confirmation_source` que el agente escribe es
-`patient_response`, y sólo al confirmar. `patient_booking` queda sin uso — y con
-él queda sin uso `chk_appointment_patient_booking_origin`, que es la restricción
-que exige `confirmed_at = created_at` y `starts_at <= created_at + 48 h`: la
-ventana de 48 h del borrador salía de ahí.
-
-`is_editable = true` no dura para siempre: `cron_appointment_confirmation_26h`
-lo pone en `false` 26 h antes de la sesión, para todas las citas, sean de quien
-sean. Es el comportamiento de hoy y no se toca.
-
-**No se encola ninguna plantilla de WhatsApp.** Ni aquí ni en ninguna otra
-operación. Ver §9.
+> Para confirmarla necesito tu comprobante de pago. Pídele a Araceli los datos para la
+> transferencia y mándame el comprobante por aquí. Si no llega en 24 horas, la cita se cancela.
 
 ### 1.2 Confirmar
 
-Función: `public.agent_confirm_appointment_from_workflow`.
+| Caso | El dinero | La cita | Función | Qué se le dice |
+|---|---|---|---|---|
+| Cobra después | No se toca | `confirmed_at = now()`, `confirmation_source='patient_response'`, `is_editable=false` | `agent_confirm_appointment_from_workflow` | «Listo, tu cita del {día} a las {hora} quedó confirmada.» |
+| Cobra por adelantado | No se toca | **No se confirma** | ninguna: el agente contesta pidiendo el comprobante | Decir «sí voy» **no confirma**. Se le piden los datos y el comprobante. Lo que confirma es el archivo |
 
-**Confirmar no toca el dinero. Nunca. En ningún estado.** Es un acto de
-asistencia, no de pago.
+### 1.3 Mandar el comprobante
+
+| Qué pasa | Detalle |
+|---|---|
+| El dinero | **No cambia de estado.** Sigue `pending`. Entra una fila en `payment_proofs`, y eso es todo. «Comprobante recibido» ≠ «pagado» |
+| La cita | Si sigue viva y en el futuro, **queda confirmada**: `confirmed_at=now()`, `confirmation_source='patient_response'`, `is_editable=false`. Ver §3.3 |
+| Función | `agent_attach_payment_proof_from_workflow` |
+| Requisitos | El cobro está `pending`, ya se le pidió el comprobante (`proof_requested_at` no nulo) y no hay archivo. Si nadie lo pidió: `PROOF_NOT_REQUESTED`. Si ya hay uno: `PROOF_ALREADY_ATTACHED`, y no hay forma de reemplazarlo |
+| Después, la profesional | Lo revisa: **acreditar** o **condonar**. La base admite **un solo comprobante por cobro, para siempre** (`payment_proofs_payment_id_key UNIQUE (payment_id)`) |
+| Qué se le dice | «Listo, recibí tu comprobante. Tu cita del miércoles 2 a las 12:00 ya quedó confirmada.» |
+
+**Siempre se confirma a qué cita pertenece antes de pegarlo**, aunque haya una sola pendiente.
+Una foto equivocada queda pegada para siempre.
+
+### 1.4 Cancelar **a tiempo**
+
+| Estado del pago | El dinero | La cita | Función | Después, la profesional | Qué se le dice a la paciente |
+|---|---|---|---|---|---|
+| **1 · Sin costo** | No se toca. Sigue `not_applicable` | `cancelled`, `on_time`. `confirmed_at` y `confirmation_source` a NULL **juntos** | `agent_cancel_appointment_from_workflow` | Nada. Tarjeta `resolution_mode='free'`, sin badge y sin botones | «Listo, cancelé tu cita del {día} a las {hora}. No te queda ningún cobro pendiente por ella.» |
+| **2 · Pendiente desnudo** | **Se condona:** `status='waived'`, `waive_reason='forgiven'`, `charge_reason='cancellation'`, `resolved_at=now()` | `cancelled`, `on_time` | la misma | Nada. Badge «No cobrada», `action_mode='none'`. No aparece en Cobros | Igual. **No se menciona cobro** |
+| **3 · Comprobante pedido** | Se condona igual. El `waive` **conserva** `proof_requested_at` como evidencia. El trigger `payments_apagar_cobro_au` dispara (`pending`→`waived`) y **cancela los avisos de comprobante que quedaban en cola** | `cancelled`, `on_time` | la misma | Nada | Igual, **más una línea**: «Y ya no hace falta que me mandes el comprobante.» Sin eso manda una foto que caerá en un cobro que ya no existe |
+| **4 · Comprobante recibido** | **No se cancela.** `APPOINTMENT_HAS_MONEY` | Sigue `scheduled`, intacta | el cerrojo de §2 | Nada; no se entera | Las dos salidas del §2.3 |
+| **5 · Acreditado** | **No se cancela.** `APPOINTMENT_HAS_MONEY` | Sigue `scheduled` | el cerrojo de §2 | Nada | Igual que la fila 4 |
+
+### 1.5 Cancelar **tarde**
+
+**Se avisa antes de tocar nada**, y se pregunta:
+
+> Te la cancelo, pero antes te aviso: Araceli pide 24 horas de aviso y ya faltan menos, así
+> que la sesión se te cobra. ¿La cancelo de todos modos?
+
+Y al confirmar ella: «Listo, cancelé tu cita del miércoles 2 a las 12:00.»
+
+**El aviso sólo se da cuando hay algo que cobrar.** Con precio efectivo 0 se cancela sin
+mencionar dinero: decirle «se te cobra» de una sesión de $0 es mentirle.
+
+| Estado del pago | El dinero | La cita | Función | Después, la profesional | Qué se le dice a la paciente |
+|---|---|---|---|---|---|
+| **1 · Sin costo** | **No se abre decisión.** Sigue `not_applicable`. Abrirla mataría la tarjeta: caería en «Revisar» sin botones y las tres funciones que resuelven la rechazan | `cancelled`, `late` | `agent_cancel_appointment_from_workflow` | Nada. Tarjeta `free` | Se cancela **sin mencionar cobro** |
+| **2 · Pendiente desnudo** | **Se congela:** `pending` intacto + `charge_reason='cancellation'` + `late_change_decision='pending'` | `cancelled`, `late` | la misma | Badge «Pendiente de decisión». **[Cobrar]** → Efectivo, Transferencia recibida, o Pedir comprobante. **[No cobrar]** → `waived/forgiven` | El aviso de arriba, y el cierre seco |
+| **3 · Comprobante pedido** | Se congela conservando `proof_requested_at` y `method='transfer'`. El trigger **no** dispara porque `status` no cambia: **los avisos de comprobante en cola sobreviven**, que es lo que se quiere | `cancelled`, `late` | la misma | **[Cobrar]** → Transferencia recibida, o Volver a pedir comprobante. **El efectivo está bloqueado** (`INVALID_PAYMENT_ACTION`). **[No cobrar]** condona | Igual que la fila 2 |
+| **4 · Comprobante recibido** | Se congela con el archivo intacto | `cancelled`, `late` | la misma | **[Cobrar]** → «Acreditar pago», transferencia forzada. **[No cobrar]** condona y **conserva el archivo**. Volver a pedir está bloqueado: `PROOF_ALREADY_ATTACHED` | Igual que la fila 2. **Nunca «pagado»** |
+| **5 · Acreditado** | Se congela: sigue `credited`, importe y método sin tocar, + `charge_reason='cancellation'` + decisión abierta | `cancelled`, `late` | la misma | **[Cobrar]** retiene el prepago. **[No cobrar]** escribe `forgiven` — y ahí está la trampa: el dinero entró de verdad y el registro dice que no se cobró. No hay devolución en el producto | Igual que la fila 2 |
+
+Las dos columnas que se sellan, exactamente:
+
+```sql
+UPDATE public.payments
+   SET charge_reason        = v_new_charge_reason,   -- session -> cancellation
+       late_change_decision = 'pending',
+       updated_at           = v_now
+ WHERE id = v_payment.id
+   AND late_change_decision IS NULL;                 -- no reabrir una decisión ya tomada
+-- precedido de: v_payment.status IN ('pending','credited')
+```
+
+`late_change_decision_resolved_at` y `_resolved_by` se quedan en NULL: lo exigen
+`chk_late_decision_resolution` y `chk_late_decision_resolved_by`, y cerrarlas es de la
+profesional.
+
+### 1.6 Reprogramar **a tiempo** — el dinero viaja
+
+No se pregunta servicio ni modalidad: vienen de la cita que se mueve.
+
+| Estado del pago | El dinero | Las citas | Función | Después, la profesional | Qué se le dice a la paciente |
+|---|---|---|---|---|---|
+| **1 · Sin costo** | Nada que mover. La cita nueva nace con su pago `not_applicable` | Vieja `rescheduled` + `on_time`; nueva `scheduled`, conserva `series_id`, con `rescheduled_from_appointment_id` | `agent_reschedule_appointment_from_workflow` | Nada | «Listo, moví tu cita al {nuevo}. Sigue {modalidad}.» Sin mencionar dinero |
+| **2 · Pendiente desnudo** | **Viaja:** el viejo a `waived` + `waive_reason='carried_forward'`, `charge_reason` se queda en `'session'`; el nuevo nace `pending` con el mismo importe | igual | la misma | Nada. La tarjeta vieja muestra «Pago en la cita nueva» | «… y tu pago se fue con ella.» |
+| **3 · Comprobante pedido** | Viaja, **y la petición tiene que viajar con él** (§1.10, arreglo 2) | igual | la misma | Le sigue faltando el comprobante de la cita nueva | «… y tu pago se fue con ella», y se le sigue pidiendo el comprobante |
+| **4 · Comprobante recibido** | Viaja **con el comprobante**, y la fila se **mueve, no se copia** (§1.10, arreglo 3) | igual | la misma | Revisa el comprobante sobre la cita nueva | «… y tu comprobante también.» Nunca «pagado» |
+| **5 · Acreditado** | Viaja `credited`, con `resolved_at` en el pago nuevo | igual | la misma | Nada. La tarjeta nueva dirá «Pagado» | «… y tu pago se fue con ella.» |
+
+### 1.7 Reprogramar **tarde** — el dinero se congela
+
+Es la regla nueva y la que más cambia. **Se avisa antes de mover, y se pregunta:**
+
+> Perfecto, te ayudo a reprogramarla. Sólo te aviso antes: Araceli pide 24 horas de aviso
+> para cambios y ya faltan menos, así que se cobran las dos sesiones — la del viernes y la
+> nueva.
+>
+> ¿La movemos?
+
+**El cierre no repite el aviso**, porque ya se dio: «Listo, moví tu cita al miércoles 2 de
+septiembre a las 4:00, presencial.»
+
+| Estado del pago | El dinero | Las citas | Función | Después, la profesional | Qué se le dice a la paciente |
+|---|---|---|---|---|---|
+| **1 · Sin costo** | **No se abre decisión.** El viejo sigue `not_applicable` y el nuevo nace `not_applicable` | Vieja `rescheduled` + `late`; nueva `scheduled` | `agent_reschedule_appointment_from_workflow` | Nada | Se mueve **sin mencionar cobro** ni aviso previo |
+| **2 · Pendiente desnudo** | El viejo **se queda `pending`** sobre la cita `rescheduled`, + `charge_reason='reschedule'` + decisión abierta. El nuevo es un pago propio: `pending`, `charge_reason='session'`, `charge_timing` de la política | igual | la misma | Sobre el viejo: **[Cobrar]** Efectivo / Transferencia / Pedir comprobante; **[No cobrar]** condona | El aviso de arriba y el cierre seco |
+| **3 · Comprobante pedido** | Igual, conservando `proof_requested_at` y `method` sobre el viejo. El nuevo nace limpio | igual | la misma | Sobre el viejo: Transferencia o Volver a pedir; efectivo bloqueado | Igual |
+| **4 · Comprobante recibido** | El viejo `pending` **con su archivo** sobre la cita `rescheduled` + decisión abierta. El nuevo nace `pending` | igual | la misma | Sobre el viejo: **[Cobrar]** «Acreditar pago», o **[No cobrar]** condonar | Igual. **Es la celda más dura del sistema:** su dinero se queda en la cita que movió y la sesión nueva se le vuelve a cobrar. Por eso el aviso dice «se cobran las dos sesiones» |
+| **5 · Acreditado** | El viejo sigue `credited` sobre la cita `rescheduled` + `charge_reason='reschedule'` + decisión abierta. El nuevo nace `pending` | igual | la misma | Sobre el viejo: retener el prepago, o condonarlo como `forgiven` | Igual, con la misma dureza |
+
+**Por qué congelar y no arrastrar, en una línea:** si el dinero viaja, la decisión abierta
+**no la puede resolver nadie**. El pago viejo quedaría `waived` (fuera de las tres funciones
+que resuelven) y el nuevo colgaría de una cita `scheduled` (fuera de las tres también).
+Cuatro guardias en cada sitio, verificados uno por uno en `13-decision-tardia.md` §5.1.
+
+**Media parte de congelar ya existe; la otra media no, y hay que decirlo con precisión.** El
+modo `'charge_old'` de `public.reschedule_appointment` —desplegado— sí deja el pago viejo
+sobre la cita `rescheduled` con `charge_reason='reschedule'`, y sí crea el pago nuevo aparte
+con `'session'`. Pero **nunca escribe `late_change_decision`**: el cuerpo entero de
+`reschedule_appointment` no menciona esa columna ni una vez (comprobado sobre `pg_proc`). Ese
+modo no abre una decisión, la resuelve en el acto, porque ahí quien mueve la cita es la
+profesional y elige cobrar, pedir comprobante o diferir en el mismo comando.
+
+Lo que el agente añade es exactamente **una columna: `late_change_decision = 'pending'`**. Y
+esa columna hoy **no la escribe nadie**. La propia `cancel_appointment` lo dice en su
+comentario: «una cita scheduled valida no trae una decision tardia: esa dimension nace al
+cerrar una cita desde la superficie del paciente/sistema». La superficie del paciente es el
+agente, y es la pieza que falta.
+
+Por eso tampoco existe en producción una fila con la forma congelada. Las dos filas cerradas
+con decisión —los pagos `…0016` y `…0009`— la traen ya **resuelta** (`late_change_decision =
+'charge'`, `resolved_by = 'professional'`): son el estado *después* de que la profesional
+decidió, no el que el agente va a dejar. **La forma congelada no se ha visto nunca.**
+
+### 1.8 Pasar el pago a la próxima cita
+
+Es la tercera salida y tiene su propia sección: **§4**.
+
+### 1.9 La columna que no se puede olvidar: `charge_reason`
+
+`get_billing_day` y `get_billing_month` clasifican cada fila con dos banderas y **filtran por
+las dos**:
+
+```sql
+((a.status='attended'    AND pay.charge_reason='session')
+ OR (a.status='no_show'     AND pay.charge_reason='no_show')
+ OR (a.status='cancelled'   AND pay.charge_reason='cancellation')
+ OR (a.status='rescheduled' AND pay.charge_reason='reschedule'))  AS earns,
+
+(pay.late_change_decision IS NULL
+ OR (a.status IN ('cancelled','rescheduled')
+     AND pay.late_change_decision='charge'))                      AS late_ok
+```
+
+Dos lecturas, las dos importantes:
+
+1. **Mientras la decisión está `pending`, `late_ok` es falso.** La fila no está en Cobros, no
+   suma al total pendiente y no pinta marcador. Es deliberado, pero significa que **Cobros no
+   es el camino para encontrar la decisión**: se llega tocando la tarjeta del día.
+2. **Si `charge_reason` se queda en `'session'` sobre una cita cerrada, `earns` es falso para
+   siempre.** Y aquí está la trampa fina: **`credit_appointment_payment`, en su rama de pago
+   `pending`, no toca `charge_reason`**. Si el agente no lo reclasificó, la profesional pulsa
+   [Cobrar] → Efectivo, el pago queda `credited` + `charge`, la tarjeta dice «Pagado»… y la
+   fila **no aparece nunca en Cobros ni suma al ingreso**. Sin error y sin aviso.
+
+Por eso R-H: **el agente sella `charge_reason` en el mismo acto en que abre la decisión.** No
+hay conflicto con las tres funciones que resuelven después: `waive` respeta el valor ya
+puesto, `request_proof` lo sobrescribe con el mismo, y `credit` en la rama del prepago acepta
+explícitamente que ya coincida.
+
+### 1.10 Lo que falta en las funciones escritas para que esta matriz sea cierta
+
+Las cinco mutaciones del agente **están escritas y sin desplegar** (migración
+`supabase/migrations/20260825003000_agent_citas_mutaciones.sql`). En `pg_proc` hay 13
+funciones `agent_*` desplegadas —nueve en `public`, cuatro en `private`— y **las 13 son de
+plomería: cero operaciones de dominio.** El inventario completo, con lo que ya se corrigió y
+lo que sigue abierto, vive en **§8**; aquí sólo lo que toca a esta matriz.
+
+**Ya corregido en el archivo, sin aplicar:**
+
+- El cerrojo `APPOINTMENT_HAS_MONEY` en cancelar, en el sitio correcto (§2).
+- El bloque de dinero de reprogramar, partido en dos: a tiempo arrastra, tarde congela con
+  `charge_reason='reschedule'` y `late_change_decision='pending'` (§1.7).
+- La petición de comprobante viaja siempre al mover a tiempo. Antes se copiaba con
+  `CASE WHEN v_old_has_proof THEN … END`, así que una petición sellada sin archivo se perdía y
+  nadie volvía a pedirla.
+- El comprobante **se mueve, no se copia**. Dos filas sobre el mismo `storage_object_path`
+  eran una bomba: la limpieza de Storage borra **por ruta** y nunca cuenta cuántas filas la
+  referencian. Es el mismo defecto que arrastra la `reschedule_appointment` desplegada, que
+  sigue copiando.
+- Los dos `INSERT INTO public.whatsapp_outbox` de cancelar y reprogramar, retirados (§7).
+
+**Lo que sigue abierto:**
+
+| # | Arreglo | Dónde |
+|---|---|---|
+| 1 | **Sellar la petición de prepago al agendar.** El `INSERT INTO public.payments` de crear sigue mandando `method` en NULL y sin `proof_requested_at` | §3.1 |
+| 2 | **Que la cita de prepago no nazca confirmada.** `v_born_confirmed` sigue sin el `AND NOT v_prepay` | §3.3 |
+| 3 | **Confirmar la cita al pegar el comprobante** | §3.3 |
+| 4 | **Los avisos 4 y 5 siguen en blanco**, ahora por nombres de clave equivocados y no por falta del nombre de la paciente | §6.4 |
+
+---
+
+## 2. El cerrojo: una cita con dinero adentro no se cancela
+
+### 2.1 La condición, en columnas reales
+
+```sql
+IF v_reason IS NULL
+   AND v_policy_result = 'on_time'::public.change_policy_result
+   AND (v_payment.status = 'credited'::public.payment_status
+        OR EXISTS (SELECT 1 FROM public.payment_proofs AS proof
+                    WHERE proof.payment_id = v_payment.id)) THEN
+  v_reason := 'APPOINTMENT_HAS_MONEY';
+END IF;
+```
+
+**Dónde va, exactamente, porque aquí es fácil equivocarse y sale caro.** En
+`agent_cancel_appointment_from_workflow` (migración `20260825003000`) el orden real es este:
+
+| # | Qué pasa ahí |
+|---|---|
+| 1 | Guardias de la cita: no existe, no es cancelable, ya empezó. Cada una sella `v_reason` |
+| 2 | Se carga la política, se calcula `v_policy_result` y se carga `v_payment … FOR UPDATE` |
+| **3** | **Aquí va el cerrojo** — última línea del bloque `IF v_reason IS NULL` |
+| 4 | `IF v_reason IS NOT NULL THEN` → devuelve `applied:false` sin tocar nada |
+| 5 | `UPDATE public.appointments … status='cancelled'` |
+| 6 | La matriz económica |
+
+**«Antes de la matriz económica» no alcanza: para cuando la matriz corre, la cita ya está
+cancelada.** El `UPDATE` que la cierra va antes, en el paso 5. Un cerrojo puesto entre el 5 y
+el 6 sellaría `v_reason` en un punto donde ya nadie lo lee: la función devolvería el rechazo y
+la cita quedaría `cancelled` de todos modos, con el dinero colgando — que es justo lo que el
+cerrojo existe para impedir.
+
+**El sitio correcto es el paso 3: inmediatamente después del `SELECT … INTO v_payment … FOR
+UPDATE`**, todavía dentro del `IF v_reason IS NULL`, para que la salida caiga sola por el
+`IF v_reason IS NOT NULL` del paso 4. Así está escrito hoy en el archivo.
+
+Tres decisiones dentro de esas seis líneas:
+
+- **«Dinero adentro» se define igual que en pasar el pago** (R-A). Si las dos definiciones no
+  coinciden, aparece la cita que no se puede cancelar y tampoco se puede pasar.
+- **Sólo muerde `on_time`.** Cancelar tarde con dinero adentro **sí tiene salida honesta**:
+  se congela y decide la profesional. Ese camino no pierde un peso y no hay por qué cerrarlo.
+- **El motivo se llama `APPOINTMENT_HAS_MONEY`**, no «no se puede»: el agente lo lee y ofrece
+  las dos salidas.
+
+### 2.2 Qué tapa el cerrojo: dos fugas vivas, no hipótesis
+
+Sin él, la matriz económica de cancelar resuelve el dinero con dos ramas y nada más
+—«a tiempo + pendiente» condona, «tarde + hay dinero» congela— y se le escapan dos casos:
+
+| Caso | Qué pasaría sin cerrojo | Consecuencia |
+|---|---|---|
+| **A tiempo + comprobante recibido** | Cae en la rama de condonar: `waived/forgiven` | La paciente transfirió de verdad y el registro dice «no se cobró» |
+| **A tiempo + prepago acreditado** | **No cae en ninguna rama** | El pago se queda `credited` con `charge_reason='session'` colgando de una cita `cancelled`. `earns` es falso: **no aparece en Cobros ni como acreditado ni como pendiente**. Desaparece sin que nadie lo haya condonado, y **ninguna función de la profesional lo puede reabrir** |
+
+### 2.3 Qué se le ofrece a la paciente
+
+Sin próxima cita del mismo servicio — una sola salida:
+
+> Esa cita ya tiene tu pago, así que no la puedo cancelar desde aquí. Lo que sí puedo es
+> moverla a otro día: tu pago se va con ella, y tu comprobante también.
+
+Con una próxima del mismo servicio — las dos salidas, juntas:
+
+> Esa cita ya tiene tu comprobante, así que no la puedo cancelar desde aquí. Puedo moverla a
+> otro día, o pasar tu pago a tu cita del martes 8. ¿Cuál prefieres?
+
+La primera línea cambia según el estado: «ya mandaste tu comprobante» (fila 4) o «ya está
+pagada» (fila 5).
+
+**Si insiste**, el agente no cede y da la salida real:
+
+> Entiendo, pero cancelarla no está de mi lado. Escríbele a Araceli y ella la cancela desde
+> su app. Si prefieres moverla, dime y te busco otro día.
+
+### 2.4 El límite que crea el cerrojo, dicho sin maquillaje
+
+Una paciente **a tiempo**, con dinero adentro, **sin próxima cita del mismo servicio** y
+**sin hueco libre al cual moverse**, se queda sin ninguna salida por WhatsApp. Tiene que
+hablar con su profesional. Es consecuencia directa de la regla, no un defecto.
+
+---
+
+## 3. Prepago completo
+
+Aplica sólo cuando `professional_appointment_policies.charge_timing = 'before'` y el precio
+efectivo es mayor que cero. **Hoy es una profesional de cinco: Araceli**, con 12 pacientes
+activos de los 17 activos de la base (18 en total, uno inactivo).
+
+El circuito completo son cuatro piezas. **Una ya está escrita y sin aplicar**: el reloj de
+24 h, en `supabase/migrations/20260826005000_agente_prepago_24h.sql`. **Las otras tres siguen
+sin escribirse**: sellar la petición al agendar, nacer sin confirmar, y confirmar al pegar el
+comprobante. Las tres son ediciones dentro de funciones que ya existen.
+
+### 3.1 Se sella la petición al agendar
+
+Es una edición sobre el `INSERT` que ya está escrito en
+`20260825003000_agent_citas_mutaciones.sql` (líneas 477-490), que hoy no manda `method` ni
+`proof_requested_at`. Se le añaden dos columnas y nada más:
+
+```sql
+INSERT INTO public.payments (
+  appointment_id, professional_id, amount, status, method,
+  charge_reason, charge_timing, proof_requested_at, resolved_at
+) VALUES (
+  v_appointment_id, v_turn.professional_id, v_amount,
+  v_payment_status,                                                -- NO 'pending' a secas
+  CASE WHEN v_prepay THEN 'transfer'::public.payment_method END,   -- lo exige el CHECK
+  'session'::public.charge_reason,
+  v_policy.charge_timing,
+  CASE WHEN v_prepay THEN v_now END,                               -- arranca el reloj
+  NULL
+);
+-- v_prepay := v_policy.charge_timing = 'before' AND v_amount > 0
+```
+
+**`v_payment_status` se conserva tal cual, y no es un detalle.** Esa variable ya vale
+`not_applicable` cuando el importe es 0 y `pending` cuando no. Escribir `'pending'` a secas
+rompería `chk_payment_not_applicable_amount`, que exige `(status = 'not_applicable') =
+(amount = 0)`: la primera sesión gratis reventaría el `INSERT`. El `CASE` de `v_prepay` ya
+excluye el importe 0, así que las dos columnas nuevas quedan en NULL en ese caso y ningún
+CHECK se toca.
+
+Tres cosas que no son adorno:
+
+1. **`proof_requested_at` es el reloj.** No hay ninguna otra columna que diga cuándo empezó a
+   correr el plazo de 24 h. Si no se sella, el trabajo de §3.2 no tiene de dónde contar.
+2. **`method='transfer'` va obligado**, no elegido: `chk_payment_proof_requested_transfer`
+   dice `(proof_requested_at IS NULL) OR (method='transfer')`. Sin él, el `INSERT` revienta.
+3. **Es también lo que habilita el comprobante.** `agent_attach_payment_proof_from_workflow`
+   rechaza con `PROOF_NOT_REQUESTED` cualquier archivo sobre un cobro que nadie pidió. Sin
+   este sello, la paciente manda la foto y el agente la rechaza.
+
+Las tres columnas están en el `GRANT INSERT` del agente sobre `payments`
+(`20260825000000_agent_dominio_fundamento.sql`): `proof_requested_at` y `method` incluidas.
+**No hace falta ningún
+permiso nuevo.**
+
+**Los datos bancarios ya existen en la base y están vacíos.** `public.professionals` tiene
+`payment_bank_name`, `payment_account_holder` y `payment_clabe_or_account` —verificado en
+`information_schema`— y **las cinco profesionales las tienen en NULL**. Corrige la decisión 4
+del ensayo, que las daba por inexistentes: no hay que crear las columnas, hay que **llenarlas
+desde el perfil y leerlas en el expediente del agente**. Eso ya está escrito y sin aplicar en
+`20260826001000_agente_datos_de_pago.sql`, que las declara con `IF NOT EXISTS` y las mete en
+`get_professional_info` / `update_professional_info`. Cuando estén vacías, el agente usa el
+texto de respaldo de §1.1.
+
+### 3.2 El trabajo que cancela a las 24 h
+
+**No existía, y ya está escrito.** El archivo es
+`supabase/migrations/20260826005000_agente_prepago_24h.sql`, la función es
+`public.cron_prepay_autocancel(p_batch integer DEFAULT 200)`, y **no está aplicada**.
+
+Lo que había antes, verificado sobre la base: en `cron.job` hay siete trabajos y ninguno
+cancela prepagos vencidos; el único candidato por nombre, `public.cron_prepay_proof_request`,
+**está retirado en el cuerpo** —levanta un `WARNING` y devuelve 0— y **ni siquiera está
+registrado en cron**.
+
+Y no puede colgarse de `public.jobs`: **esa tabla no tiene consumidor**. Hoy hay 14 trabajos
+pendientes sin tocar y no existe ni `claim_jobs_batch` ni `dispatch_jobs` en `pg_proc`.
+
+Se escribió como los barredores que ya funcionan, copiando la forma de
+`public.cron_sweep_past_pending`: `SECURITY DEFINER`, `search_path` vacío, lote,
+`FOR UPDATE … SKIP LOCKED` y re-chequeo bajo el lock.
+
+**La selección, tal como quedó:**
+
+```sql
+SELECT …
+  FROM public.appointments AS appointment
+  JOIN public.payments     AS payment ON payment.appointment_id = appointment.id
+ WHERE appointment.status       = 'scheduled'
+   AND appointment.origin       = 'patient'   -- una cita de la profesional no se autocancela
+   AND appointment.confirmed_at IS NULL       -- una cita confirmada ya no la mata el reloj
+   AND appointment.starts_at    > v_now       -- y una que ya empezó, tampoco
+   AND payment.status             = 'pending'
+   AND payment.charge_timing      = 'before'
+   AND payment.proof_requested_at IS NOT NULL
+   AND payment.proof_requested_at + interval '24 hours' <= v_now
+   AND NOT EXISTS (SELECT 1 FROM public.payment_proofs pp WHERE pp.payment_id = payment.id)
+ ORDER BY payment.proof_requested_at
+ LIMIT p_batch
+   FOR UPDATE OF appointment, payment SKIP LOCKED
+```
+
+`appointment.starts_at > v_now` es lo que cierra el borde de una profesional que bajara su
+anticipación mínima por debajo de 24 h: la sesión que ya empezó no la toca el reloj, la
+recoge el barredor de citas vencidas. Hoy tampoco puede pasar —la única que cobra por
+adelantado pide 2 880 minutos, o sea 48 h—, pero el guardia no cuesta nada.
+
+**El efecto: la cita primero, el pago después, y el aviso al final.**
+
+```sql
+UPDATE public.appointments
+   SET status = 'cancelled', is_editable = false,
+       cancelled_rescheduled_at = v_now,
+       cancel_reschedule_actor  = 'system',   -- no la canceló la paciente, la canceló el reloj
+       updated_at = v_now
+ WHERE id = v_row.appointment_id AND status = 'scheduled';
+CONTINUE WHEN NOT FOUND;                       -- el ancla contra el doble procesado
+
+UPDATE public.payments
+   SET status = 'waived', waive_reason = 'forgiven',
+       charge_reason = CASE WHEN charge_reason = 'session'
+                            THEN 'cancellation' ELSE charge_reason END,
+       resolved_at = v_now, updated_at = v_now
+ WHERE id = v_row.payment_id AND status = 'pending';
+```
+
+**El orden entre esos dos `UPDATE` da igual, y conviene decirlo para que nadie invente una
+regla que no existe.** Los dos disparadores se persiguen la misma fila de la cola por caminos
+distintos: `appointments_apagar_avisos_au` la cancela por `appointment_id` —`appointment_
+confirmation_prepay` está en su lista—, y `payments_apagar_cobro_au` la degrada por
+`payment_id` a `appointment_confirmation_request`. En cualquiera de los dos órdenes la cola
+queda limpia: si va primero el pago, la fila se degrada y el segundo disparador la cancela;
+si va primero la cita, se cancela y el segundo ya no la toca porque exige `NOT cancelled`.
+Se puso la cita primero por otra razón, más útil: su `UPDATE` con `AND status = 'scheduled'`
+es el candado de idempotencia del ciclo.
+
+**Lo que sí tiene un orden obligatorio es el aviso a la paciente: va al final**, después de
+los dos `UPDATE`. Encolado antes, los mismos disparadores lo tocarían.
+
+```sql
+INSERT INTO public.whatsapp_outbox
+      (to_phone, send_mode, template_key, payload, status, dedup_key, scheduled_at)
+SELECT patient.phone, 'template', 'appointment_cancelled',
+       jsonb_build_object(
+         'patient_first_name',      patient.first_name,
+         'professional_first_name', professional.first_name,
+         'starts_at',               v_row.starts_at,
+         'timezone',                professional.timezone,
+         'patient_id',              v_row.patient_id,
+         'appointment_id',          v_row.appointment_id),
+       'queued', 'appointment_cancelled:' || v_row.appointment_id::text, v_now
+  …
+ON CONFLICT (dedup_key) DO NOTHING;
+```
+
+Se insertan **campos semánticos**, nunca `variables` a mano: el trigger
+`tg_outbox_variables_bi` las materializa y `chk_outbox_variables` valida el conteo exacto
+—cuatro para `appointment_cancelled`, comprobado dentro de `private.wa_payload_ok`—.
+
+**No se abre decisión de cobro.** No hubo sesión perdida ni aviso tardío: la cita nunca llegó
+a existir de verdad. Se condona y se libera el horario.
+
+**Aquí sí se encola la plantilla**, y es la única excepción a R-I: la paciente **no está en
+la conversación** —pasaron 24 horas— así que el eco no existe y el silencio sí sería un
+problema.
+
+**El aviso a la profesional es la única pieza sin decidir, y las dos salidas son malas.** El
+archivo escrito usa un tipo nuevo, `appointment_cancelled_unpaid`, con las cinco claves del
+§6. `notifications.type` es `text` sin CHECK, así que la base lo acepta; el problema es que el
+renderizador de la app no lo conoce y lo pinta como «Nueva notificación · Hay una
+actualización reciente en tu cuenta». La alternativa es reusar
+`appointment_cancelled_by_patient`, que sí pinta tarjeta pero dice «{paciente} canceló su
+cita», que es mentira: la canceló el reloj. **Tarjeta en blanco pero honesta, o tarjeta legible
+pero falsa.** La app es intocable esta ronda, así que no hay tercera. Queda como decisión del
+dueño; el archivo escogió la honesta.
+
+**El registro en cron**, con la misma cadencia que los otros barredores:
+
+```sql
+SELECT cron.schedule(
+  'cron_prepay_autocancel',
+  '*/5 * * * *',
+  $$ select public.cron_prepay_autocancel(200); $$
+);
+```
+
+Cada cinco minutos, así que el corte real es 24 h más cinco minutos como mucho. Y las 24 h se
+escriben literales: es un valor fijo del producto, no un plazo de la profesional (única
+excepción a «ningún plazo se escribe a mano»).
+
+### 3.3 Por qué la cita de prepago nunca nace confirmada
+
+Tres razones, y las tres apuntan al mismo sitio:
+
+1. **De producto: el comprobante es lo que confirma.** Decir «sí voy» no confirma nada cuando
+   la profesional cobra por adelantado. Si la cita naciera confirmada, el cierre aprobado
+   —«Tu cita del miércoles 2 a las 12:00 ya quedó confirmada»— sería falso: ya lo estaba.
+2. **De base: una cita confirmada no se puede editar.**
+   `chk_appointment_confirmed_not_editable` dice `(confirmed_at IS NULL) OR (is_editable =
+   false)`. Nacer confirmada y morir por falta de pago 24 horas después es una contradicción
+   escrita en la propia fila.
+3. **De restricción: la ventana de `patient_booking` es angosta.**
+   `chk_appointment_patient_booking_origin` sólo admite ese origen de confirmación cuando el
+   origen es `patient` o `recurring_series`, `rescheduled_from_appointment_id` es NULL,
+   `confirmed_at = created_at` **y** `starts_at <= created_at + 48 h`. Como quien cobra por
+   adelantado exige 48 h de anticipación, la ventana y la política se tocan **exactamente en
+   el borde**: una cita agendada justo a las 48 h nacería confirmada y **el aviso de 26 h
+   nunca le pediría nada**. Es un caso estrecho; las razones 1 y 2 bastan solas.
+
+**El arreglo, una línea** en `agent_create_appointment_from_workflow`, donde se calcula
+`v_born_confirmed`:
+
+```sql
+v_born_confirmed := v_starts_at <= v_now + interval '48 hours' AND NOT v_prepay;
+```
+
+**Y el otro lado del mismo circuito: pegar el comprobante confirma la cita.** Hoy
+`agent_attach_payment_proof_from_workflow` escribe una sola cosa de dominio, la prueba, y deja
+la cita sin confirmar. Falta:
 
 ```sql
 UPDATE public.appointments
@@ -143,1376 +648,479 @@ UPDATE public.appointments
        updated_at          = v_now
  WHERE id = v_appointment.id
    AND status = 'scheduled'::public.appointment_status
+   AND starts_at > v_now
    AND confirmed_at IS NULL;
 ```
 
-Consecuencia que la paciente tiene que oír en prepago: **confirmar no salva la
-cita**. Lo único que la salva es el comprobante. Si confirma y no manda nada, el
-trabajo de §5 la cancela igual. Y confirmar la saca de
-`cron_appointment_confirmation_26h`, que filtra `AND a.confirmed_at IS NULL`:
-después de confirmar, el único aviso que le queda es el que el agente ya le dio
-en el chat. En prepago eso no cambia nada —el plazo de 24 h vence antes de que el
-cron de 26 h llegue— pero explica por qué el mensaje del agente al agendar tiene
-que llevar el vencimiento escrito.
+Las cuatro columnas están concedidas en el `GRANT UPDATE` sobre `appointments`
+(`20260825000000_agent_dominio_fundamento.sql`). `patient_response` **no tiene** la
+restricción de las 48 h: es el
+valor correcto aquí. Y el guardia `status='scheduled'` es indispensable, porque el
+comprobante de un cargo tardío llega sobre una cita ya `cancelled` y esa no se confirma.
 
-Aviso: `appointment_confirmed`.
+### 3.4 Lo que pasa después de que el reloj la mató
 
-### 1.3 Cancelar
+**No hay ventana de gracia y la cita vieja no se reabre.** Si la paciente vuelve a escribir,
+agenda de cero. La cita muerta queda `cancelled` con su pago condonado, así que no arrastra
+ninguna deuda.
 
-Función: `public.agent_cancel_appointment_from_workflow`. Es la única operación
-del agente que cierra una cita sin abrir otra, y por eso es donde vive el
-cerrojo (§2).
+---
 
-| Pago | A tiempo (`on_time`) | Tarde (`late`) |
-|---|---|---|
-| **A** gratis | cita `cancelled`; **el pago no se toca** | cita `cancelled`; **el pago no se toca** |
-| **B** pendiente limpio | `waived/forgiven` + `charge_reason='cancellation'` | `late_change_decision='pending'` + `charge_reason='cancellation'` |
-| **C** comprobante pedido | igual que B (el trigger cancela la petición en cola) | igual que B |
-| **D** comprobante recibido | **CERROJO** | **CERROJO** |
-| **E** acreditado | **CERROJO** | **CERROJO** |
+## 4. Pasar el pago a la próxima cita
 
-El efecto sobre la cita es el mismo en las tres filas que sí ejecutan:
+> «Pasar el pago a la próxima cita lo podemos dejar así de simple: o paso el link del
+> comprobante y lo asigno a la próxima sesión, o le pongo a esa sesión el estado acreditado.»
+
+No son dos operaciones: son las dos formas que puede tener el mismo dinero al viajar. **Una
+sola función cubre las dos**, y el resultado dice cuál ocurrió para que el modelo no lo
+adivine.
+
+### 4.1 Cuándo se ofrece
+
+Junto con reprogramar, **sólo cuando hay a dónde pasarlo**. La regla del dueño dice «cuando
+la cita tiene recurrencia»; en la base eso se traduce a la regla de «tu próxima sesión» que
+el producto ya tiene escrita y desplegada en `public.get_next_scheduled_appointment`. Esto es
+lo que ese cuerpo dice, literal:
 
 ```sql
-UPDATE public.appointments
-   SET status                   = 'cancelled'::public.appointment_status,
-       is_editable              = false,
-       confirmed_at             = NULL,
-       confirmation_source      = NULL,
-       cancelled_rescheduled_at = v_now,          -- obligatorio, ver §3
-       cancel_reschedule_actor  = 'patient'::public.actor_type,
-       change_policy_result     = v_policy_result,
-       updated_at               = v_now
- WHERE id = v_appointment.id
-   AND status = 'scheduled'::public.appointment_status;
+WHERE a.professional_id = v_professional_id   -- el actor, nunca del cliente
+  AND a.patient_id      = p_patient_id
+  AND a.service_id      = p_service_id
+  AND a.status          = 'scheduled'
+  AND a.starts_at       > now()
+ORDER BY a.starts_at, a.id
+LIMIT 1
 ```
 
-Y el pago, en la rama a tiempo (celdas **B** y **C**):
+El agente la reusa con **un solo cambio**: `starts_at > v_old.starts_at` en vez de
+`> now()`, para no ofrecer como destino una cita que cae antes que la que se está cancelando.
+El `professional_id` sale del turno sellado, igual que ahí sale del actor.
+
+**No se exige `series_id`.** Exigirlo dejaría la operación muerta al nacer: hay **cero filas
+en `public.recurrence_series` y cero citas con `series_id`** en producción. Y la regla del
+mismo servicio sigue siendo cierta para las series el día que existan: dos citas de la misma
+serie son, por construcción, dos citas del mismo servicio.
+
+**La paciente no escoge el destino: lo resuelve el servidor.** No es una simplificación, es
+lo único que funciona con la regla R12: la lista de citas próximas se colapsa por serie con
+`DISTINCT ON (COALESCE(series_id, id))`, así que de una serie **sólo la más próxima lleva
+identificador** y «la del 8» no tendría renglón que señalar. Ese colapso **ya está escrito**
+en `agent_list_upcoming_appointments_from_workflow` —en el conteo y en el ciclo, que es lo que
+impide que `truncated` mienta— y sin aplicar, como todo lo demás. Además, resolver el destino
+en el servidor borra cuatro motivos de rechazo y el modelo no puede equivocarse de cita porque
+no elige.
+
+**Lo que se pierde:** si tiene dos citas futuras y quería la segunda, la respuesta es que eso
+lo ve con su profesional.
+
+### 4.2 La función
+
+**Ya está escrita y sin aplicar**, en
+`supabase/migrations/20260826004000_agente_pasar_el_pago.sql`.
+
+```
+public.agent_carry_payment_forward_from_workflow(
+  p_provider_message_id text,
+  p_kapso_execution_id  text,
+  p_appointment_handle  uuid   -- la cita que se cancela: la que trae el dinero
+) RETURNS jsonb
+```
+
+Un solo identificador, del mismo tipo que confirmar y cancelar. Operación en el portero:
+`carry_payment_forward`, superficie `agent_node`, mutación, turno `active`. Ruta del gateway:
+`/tools/payments/carry-forward`.
+
+**Diez motivos de rechazo:**
+
+| `reason` | Cuándo |
+|---|---|
+| `OPTION_EXPIRED` | el identificador ya no sirve (caduca a los 15 minutos y tiene que nacer en el mismo turno) |
+| `APPOINTMENT_NOT_FOUND` | no es de esta paciente con esta profesional |
+| `APPOINTMENT_NOT_CANCELLABLE` | no está `scheduled` |
+| `APPOINTMENT_ALREADY_STARTED` | ya empezó |
+| `PATIENT_INACTIVE` | la paciente ya no está activa |
+| `LATE_CHANGE` | no hay tiempo mínimo. Tarde no se pasa el pago: eso lo resuelve la decisión de cobro |
+| `NO_MONEY_TO_CARRY` | la cita no tiene dinero adentro: entonces se cancela y ya |
+| `NO_TARGET` | no hay ninguna cita futura viva del mismo servicio. Se ofrece mover |
+| `TARGET_HAS_MONEY` | la próxima ya tiene dinero suyo o una decisión abierta |
+| `AMOUNT_MISMATCH` | los importes no coinciden (§4.4) |
+
+### 4.3 La fusión de los dos pagos, paso por paso
+
+El destino **ya nació con su pago**, y `payments_appointment_id_key UNIQUE (appointment_id)`
+no deja insertar un segundo. Así que trasladar es **fusionar en su sitio**.
+
+| # | Qué | Cómo |
+|---|---|---|
+| **1** | La cita vieja se cierra | `cancelled`, `on_time`, actor `patient`, `is_editable=false`, `cancelled_rescheduled_at=now()`. Conserva hora y modalidad. `confirmed_at` y `confirmation_source` a NULL **juntos** |
+| **2** | El comprobante **cambia de dueño** | `DELETE` de la fila vieja y `INSERT` sobre el pago destino. **No un `UPDATE` del `payment_id`**: el disparador `payment_proofs_degradar_prepago_ai` es AFTER INSERT, y es el que degrada el `appointment_confirmation_prepay` que la cita destino tuviera en cola. Con un `UPDATE` no dispararía y a la paciente le llegaría una petición del dinero que acaba de mover |
+| **3** | El pago del destino se **fusiona** | Conserva su `id` y su `appointment_id` —los dos únicos campos que no pueden cambiar— y adopta `status`, `method`, `proof_requested_at` y `resolved_at` del que viaja |
+| **4** | El pago viejo se cierra | `waived` + `waive_reason='carried_forward'` + `charge_reason` reclasificado a `'cancellation'` + `resolved_at=now()` |
+| **5** | El rastro | Dos asientos enlazados en `payment_events`, `event_type='carried_forward'`, con `carried_to_payment_id` / `carried_from_payment_id`. Son las mismas claves que usa `reschedule_appointment` en su modo `'carry'`: no hay que inventar ninguna columna |
+| **6** | A la profesional | Aviso `appointment_cancelled_by_patient`, con el dato del traslado en el `payload` esperando a que la app lo pinte |
+
+**El paso 3 se escribe con cuatro columnas, no con seis:**
 
 ```sql
 UPDATE public.payments
-   SET status        = 'waived'::public.payment_status,
-       waive_reason  = 'forgiven'::public.waive_reason,
-       charge_reason = 'cancellation'::public.charge_reason,
-       resolved_at   = v_now,                     -- obligatorio, ver abajo
-       updated_at    = v_now
- WHERE id = v_payment.id
+   SET status             = v_old_pay.status,
+       method             = v_old_pay.method,
+       proof_requested_at = v_old_pay.proof_requested_at,
+       resolved_at        = v_old_pay.resolved_at,
+       updated_at         = v_now
+ WHERE id = v_target_pay.id
    AND status = 'pending'::public.payment_status;
 ```
 
-`resolved_at` no es opcional: `chk_payment_resolved_at` dice
-`(status IN ('credited','waived')) = (resolved_at IS NOT NULL)`, así que un
-`waived` sin fecha revienta el `UPDATE`. Y `chk_payment_waive_reason` exige
-`waive_reason` por el mismo motivo. Los dos se sellan en el mismo `UPDATE` o no
-se sella ninguno.
+**`amount` y `charge_timing` no se tocan a propósito.** No están en el `GRANT UPDATE` del
+agente sobre `payments`, y no hace falta abrirlos: `AMOUNT_MISMATCH` ya obligó a que los
+importes sean idénticos, y el `charge_timing` del destino es de la misma política y de la
+misma profesional. **Es un permiso menos y un cerrojo gratis:** ninguna operación del agente
+cambia el importe de un cobro.
 
-La celda **A** (gratis) merece una frase: `not_applicable` no entra en ninguno
-de los tres resolutores del profesional (`waive` y `credit` exigen `pending` o
-`credited`). Si el agente le escribiera `late_change_decision='pending'`,
-`get_appointment_detail` la marcaría `v_inconsistent := true` —la rama
-`ELSIF v_pay.late_change_decision = 'pending' THEN v_inconsistent := true`, la
-que recoge todo lo que no es `pending` ni `credited`— y el profesional vería una
-tarjeta «Revisar» sin un solo botón. Por eso: **si el pago es `not_applicable`,
-no se escribe ni una columna del pago.**
+Y hay que decirlo al revés también: **el pago del destino no se condona.**
+`waived/forgiven` significa «no se cobró», y aquí sí se cobró, sólo que antes. Además no se
+puede condonar y luego insertar otro —`UNIQUE (appointment_id)`—, y un pago `waived` sobre una
+cita `scheduled` deja a `mark_appointment_attended` sin salida (`INVALID_PAYMENT_STATE`).
 
-**Una corrección sobre el borrador.** Hoy abre la decisión tardía cuando
-`v_payment.status IN ('pending','credited')`. **Se quita `'credited'`.** Con el
-cerrojo puesto, un pago acreditado no llega nunca a esta función; dejar la rama
-escrita es una segunda puerta al mismo error que §2 cierra. La condición queda
-como la de §3.1: `status = 'pending'`, y nada más.
+Ninguna restricción se rompe, y la razón es que **las columnas viajan por parejas**: `status`
+con `resolved_at` (`chk_payment_resolved_at`), y `proof_requested_at` con `method`
+(`chk_payment_proof_requested_transfer`). El origen ya cumplía las dos.
 
-Lo que ve el profesional en la rama a tiempo, verificado en
-`get_appointment_detail`: `resolution_mode='resolved'`, `badge='not_charged'`,
-`action_mode='none'`. Una tarjeta cerrada que dice «No cobrada» y no le pide
-nada. Es correcto: no hay nada que decidir.
+### 4.4 Si los importes no coinciden
 
-Aviso al profesional: `appointment_cancelled_by_patient`.
+Se rechaza con `AMOUNT_MISMATCH` y el agente ofrece mover, que traslada el dinero completo sin
+tocar importes. **No hay tercera salida barata: el esquema no tiene renglón de saldo.** Entre
+las 38 tablas de `public` no hay ni una columna de saldo, y las dos cuentas salen mal:
 
-### 1.4 Reprogramar
+- Viajan 800 a una sesión de 1 000 → la paciente cree que no debe nada y **debe 200 que nadie
+  le va a cobrar**.
+- Viajan 1 000 a una sesión de 800 → o se cobran 1 000 por una sesión de 800, o **200 se
+  evaporan sin asiento**.
 
-Función: `public.agent_reschedule_appointment_from_workflow`. Cierra la vieja
-como `rescheduled` y crea la nueva con `rescheduled_from_appointment_id`, en una
-sola transacción y una sola mutación. Copia exacta del modo `carry` de
-`reschedule_appointment` del profesional, con **una corrección**.
+En producción el caso no existe: **las 16 combinaciones de paciente + servicio tienen un solo
+precio y un solo importe cobrado.**
 
-| Pago viejo | Pago viejo queda | Pago nuevo nace |
+### 4.5 Qué se le dice a la paciente
+
+| Cómo viajó | El texto |
+|---|---|
+| `credited` | «Listo, cancelé tu cita del {viejo} y tu pago quedó acreditado en tu sesión del {nuevo}. {Profesional} ya recibió el aviso.» |
+| `proof_received` | «Listo, cancelé tu cita del {viejo} y pasé tu comprobante a tu sesión del {nuevo}. {Profesional} lo va a revisar.» |
+
+En la segunda **no aparecen «pagado» ni «aprobado»**. La rama sale del campo `carried_state`
+del resultado, no de lo que el modelo crea que pasó.
+
+### 4.6 Los dos permisos sin los que revienta — y ya están escritos
+
+| Permiso | Por qué | Estado |
 |---|---|---|
-| **A** gratis | `not_applicable`, sin tocar | `not_applicable`, `amount=0` |
-| **B** pendiente limpio | `waived/carried_forward`, `resolved_at=now()` | `pending`, `charge_reason='session'`, mismo `amount`, mismo `charge_timing` |
-| **C** comprobante pedido | igual | igual, **más `proof_requested_at` y `method='transfer'`** ← la corrección |
-| **D** comprobante recibido | igual | igual, **más la fila de `payment_proofs` copiada** |
-| **E** acreditado | igual | `credited`, mismo `method`, `resolved_at=now()` |
+| `GRANT SELECT ON public.payment_proofs` | Para leer la fila que va a mover | `20260825000000`, **escrito, sin aplicar** |
+| `GRANT DELETE ON public.payment_proofs` | El paso 2 mueve la fila. Sin él la función aborta con `insufficient_privilege` **después** de cancelar la cita, y la transacción entera se va atrás: la paciente recibe un error | `20260825000000`, **escrito, sin aplicar** |
 
-**El orden importa y es fácil de romper.** El pago viejo se lee entero a un
-registro (`v_old_payment`) **con `FOR UPDATE`** —es el cuarto escritor que se
-pelea por el mismo dinero, junto con cancelar (§2.1), adjuntar (§1.5) y vencer
-(§5.3), y sin el candado un comprobante que llegue a mitad de la maniobra se
-queda en el pago viejo, que acaba `waived`— y **antes** de pasarlo a
-`waived/carried_forward`. El
-pago nuevo copia `status`, `method`, `amount` y `proof_requested_at` de esa foto,
-no de la fila ya escrita; si se leyera después, la cita nueva nacería con un pago
-`waived` y el dinero desaparecería en el mismo movimiento que debía trasladarlo.
-Es exactamente lo que hace el modo `carry` del profesional.
+**Corrige lo que decían los documentos anteriores.** `10-reglas-finales.md` §3 renglón 4 y §4
+choque 2 dan el `DELETE` por inexistente. Ya no lo es: se añadió a la migración de fundamento,
+con su comentario de por qué —«el único `DELETE` de toda la superficie del agente»— y con la
+razón exacta de por qué un `UPDATE` no sirve. Lo que falta no es escribirlo: es **aplicarlo**,
+igual que todo lo demás de esa migración.
 
-La cita nueva nace igual que la del formulario: sin `confirmed_at` ni
-`confirmation_source` —no se escriben—, `is_editable = true`,
-`origin = 'patient'`, y `rescheduled_from_appointment_id` apuntando a la vieja.
-(La función del profesional la crea con `is_editable = false` y heredando
-`v_old.origin`; el agente no copia ninguna de las dos cosas.)
-
-**Y con el mismo `agreed_price` de la vieja**, como hace el modo `carry` del
-profesional. No es cosmético: el pago nuevo copia `v_old_payment.amount`, y
-`get_appointment_detail` abre con
-`v_inconsistent := v_pay.amount IS DISTINCT FROM a.agreed_price`. Un precio de
-servicio que cambió entre una cita y otra dejaría al profesional una tarjeta
-«Revisar» sin un solo botón sobre una cita perfectamente sana. Mover no
-renegocia el precio.
-
-**El pago viejo NO reclasifica `charge_reason`.** Se queda en `session` y eso es
-correcto: el dinero no se quedó ahí, se fue. La tarjeta cerrada lo dice sola —
-`get_appointment_detail` pinta `badge='payment_in_new_appointment'` cuando ve
-`waived` + `carried_forward`.
-
-**La corrección (celda C).** `reschedule_appointment` del profesional copia
-`proof_requested_at` sólo `WHEN v_old_has_proof`. Una petición sin archivo se
-pierde, y `tg_payments_apagar_cobro` mata el aviso en cola. En el mundo del
-agente eso rompe el prepago: agenda, se le pide el comprobante, mueve la cita
-antes de mandarlo, y la cita nueva queda sin petición y sin vencimiento. La
-función del agente copia `proof_requested_at` **siempre que el pago viejo lo
-tenga**, con archivo o sin él:
-
-```sql
-INSERT INTO public.payments (
-  appointment_id, professional_id, amount, status, method,
-  charge_reason, charge_timing, proof_requested_at, resolved_at
-) VALUES (
-  v_new_appointment_id, v_turn.professional_id, v_old_payment.amount,
-  v_old_payment.status, v_old_payment.method,
-  'session'::public.charge_reason, v_old_payment.charge_timing,
-  v_old_payment.proof_requested_at,      -- <- sin el CASE WHEN v_old_has_proof
-  CASE WHEN v_old_payment.status = 'credited'::public.payment_status
-       THEN v_now END
-);
-```
-
-`chk_payment_proof_requested_transfer` queda satisfecho porque `method` viaja del
-pago viejo, donde ya era `'transfer'`.
-
-**El reloj del prepago no se reinicia al mover.** El vencimiento cuelga de
-`proof_requested_at`, que viaja tal cual. Mover no compra tiempo.
-
-Aviso: `appointment_rescheduled_by_patient`.
-
-### 1.5 Mandar comprobante
-
-Función: `public.agent_attach_payment_proof_from_workflow`, superficie **`agent_node`**
-—hoy el portero sólo la autoriza en `media_adapter`, que es una superficie que nadie ocupa;
-quien decide que una imagen es un comprobante es el agente, y el agente vive en `agent_node`
-(`02-herramientas.md` §5.2, cambio 2)—. El archivo no lo escribe el modelo: lo baja y lo
-guarda `kapso_inbound_webhook` al admitir el mensaje, y el gateway lo recupera por el
-`provider_message_id`.
-
-Es la **única** operación del agente que sigue viva sobre una cita ya cerrada, y
-por eso su matriz tiene seis filas, no cinco: aquí sí se puede encontrar un pago
-`waived`.
-
-| Pago | Qué hace |
-|---|---|
-| **A** gratis | Rechaza. «Esa cita no tiene costo.» |
-| **B** pendiente limpio | Acepta |
-| **C** comprobante pedido | Acepta |
-| **D** ya hay comprobante | Rechaza. «Ya recibí uno.» |
-| **E** acreditado | Rechaza. «Esa ya quedó cobrada.» |
-| **F** condonado (`waived`) | Rechaza, con la respuesta de abajo |
-
-La fila **F** es la que no puede quedar en silencio. Se llega a ella por tres
-caminos, y el tercero es el que duele: canceló a tiempo (§1.3), movió la cita
-(§1.4, el pago viejo queda `carried_forward` y el bueno es el de la cita nueva),
-o **se le venció el prepago y el trabajo de §5.3 canceló la cita**. Ese tercer
-caso es una paciente que ya hizo la transferencia y tardó en mandar la foto:
-manda el comprobante y la cita ya no existe.
-
-> Esa cita ya se canceló porque no llegó el comprobante a tiempo, así que no
-> puedo registrarlo aquí. Si ya hiciste la transferencia, mándale la foto a
-> [profesional] directamente para que la revise. Y si quieres, te busco horario
-> para una cita nueva.
-
-Es lo único honesto que se puede decir con lo que hay: la cita está cerrada, el
-pago está condonado, y ninguna función del profesional reabre un `waived`
-(`waive`, `credit` y `request_proof` exigen `pending` o `credited`). **Decisión
-pendiente #7**, en §10.
-
-Aceptar es **una sola escritura de dominio**, con el pago bloqueado:
-
-```sql
-SELECT payment.*
-  INTO v_payment
-  FROM public.payments AS payment
- WHERE payment.appointment_id = v_appointment.id
- FOR UPDATE;                       -- el mismo candado que usan §2.1 y §5.3
-
-INSERT INTO public.payment_proofs
-  (payment_id, storage_object_path, mime_type, size_bytes, checksum)
-VALUES (v_payment.id, v_path, v_mime, v_size, v_checksum);
-
-INSERT INTO public.payment_events
-  (payment_id, event_type, from_status, to_status, actor, command_id, metadata)
-VALUES (v_payment.id, 'proof_attached',
-        'pending'::public.payment_status, 'pending'::public.payment_status,
-        'patient'::public.actor_type, v_command_id,
-        pg_catalog.jsonb_build_object('surface', 'agent'));
-```
-
-`payment_events.event_type` es `text` sin `CHECK`: el vocabulario es una
-costumbre, no una restricción. Lo desplegado usa seis nombres —`payment_credited`,
-`payment_waived`, `proof_requested`, `charge_retained`, `carried_forward`,
-`late_decision_resolved`—. El agente añade dos: `proof_attached` aquí y
-`late_change_pending` en §3.2. Son deliberados y no rompen nada; lo que no se
-vale es inventar un séptimo para lo mismo que ya tiene nombre.
-
-El `FOR UPDATE` necesita el `GRANT UPDATE` sobre `payments` —Postgres lo exige
-para bloquear una fila, aunque no se escriba—, y ya está concedido a nivel de
-columna en `20260825000000`, que lo dice con todas sus letras: «este UPDATE
-habilita el FOR UPDATE sobre payments». No se recorte ese permiso.
-
-**Aun así, el agente no escribe ni una columna de `payments`.** No sella
-`proof_requested_at`, no fuerza `method`, no cambia `status`. Motivo: el pago
-sigue pendiente de revisión, y `credit_appointment_payment` ya fuerza
-`method='transfer'` por su cuenta cuando ve un comprobante. El trigger
-`tg_payment_proofs_degradar_prepago_ai` degrada solo la plantilla de prepago que
-estuviera en cola.
-
-**El caso que no se puede olvidar:** una cita ya `cancelled` o `rescheduled`
-sigue aceptando comprobante si el profesional pidió uno al resolver una decisión
-tardía (`request_appointment_payment_proof` dejó `status='pending'` y
-`proof_requested_at` sellado, y mandó `request_late_payment_proof`). La
-operación no filtra por estado de la cita: filtra por estado del pago.
-
-Aviso: `payment_proof_received`, **sin monto** (§8.3).
-
-### 1.6 Lo que hay que borrar
-
-`cancel_then_open_booking_flow` es, según la auditoría, la única ruta del sistema
-por la que el dinero de una paciente se evapora: cancela, crea una cita nueva con
-un pago limpio, y el dinero viejo se queda atrás. Reprogramar hace lo mismo y
-además traslada el dinero.
-
-**Se borra la operación y con ella toda la maquinaria de saga**: `saga_state` con
-sus cuatro valores, `mutation_limit` variable, la reserva del ordinal 8 y el
-guardia `tool_call_count > 3`. Consecuencia directa:
-`flow_create_appointment` deja de exigir
-`saga_state='awaiting_replacement_create' AND mutation_limit=2 AND
-committed_mutation_count=1`, que es lo que hoy hace que agendar normal se
-rechace con `MUTATION_BLOCKED`.
-
-**Son dos funciones, no una.** `private.agent_claim_tool_call` es la que lee la
-maquinaria; `private.agent_finalize_tool_call` es la que la escribe, y el
-borrador no la nombra. En su cuerpo desplegado:
-
-```sql
-saga_state = CASE
-  WHEN p_outcome = 'unknown' THEN 'unknown_blocked'
-  ...
-  WHEN v_claim.surface = 'flow_data_exchange'
-    AND v_claim.operation = 'flow_create_appointment'
-  THEN 'awaiting_replacement_create'
-  ELSE turn_row.saga_state
-END
-```
-
-Esa última rama no tiene condición: **cualquier** `flow_create_appointment` que
-se finalice deja el turno en `awaiting_replacement_create`. Y con el turno ahí,
-el `claim` rechaza con `MUTATION_BLOCKED` toda mutación que no sea otra creación
-por formulario, y baja el presupuesto de 8 a 7 llamadas. O sea: si sólo se toca
-el `claim`, agendar por formulario deja de rechazarse **y a cambio envenena el
-resto del turno**. Las dos funciones se migran juntas o no se migra ninguna.
-
-Con `saga_state` fuera, el guardia `v_turn.saga_state = 'cancel_claimed'` del
-`claim` también desaparece — y con él la duda de si un rechazo del cerrojo
-bloquea el turno. Verificado: `cancel_claimed` sólo lo escribía
-`cancel_then_open_booking_flow`; `cancel_appointment` a secas nunca lo tocó.
+El `DELETE` es seguro: borra la fila que acaba de leer y la vuelve a insertar en la misma
+transacción.
 
 ---
 
-## 2. El cerrojo central
-
-### 2.1 La condición, en columnas reales
-
-Dentro de `public.agent_cancel_appointment_from_workflow`, **después** del
-`SELECT ... FOR UPDATE` sobre `payments` y **antes** del `UPDATE` sobre
-`appointments`:
-
-```sql
-SELECT payment.*
-  INTO v_payment
-  FROM public.payments AS payment
- WHERE payment.appointment_id = v_appointment.id
- FOR UPDATE;
-
-SELECT EXISTS (SELECT 1
-                 FROM public.payment_proofs AS proof
-                WHERE proof.payment_id = v_payment.id)
-  INTO v_has_proof;
-
-IF v_payment.status = 'credited'::public.payment_status OR v_has_proof THEN
-  v_reason := 'MONEY_LOCKED';
-END IF;
-```
-
-Y `v_reason` ya tiene camino en el borrador: la función devuelve
-`{'applied': false, 'reason': v_reason}`, no muta nada, y ella misma se finaliza
-con `private.agent_finalize_tool_call(..., 'rejected_prewrite', ...)`.
-
-Eso está verificado en el cuerpo desplegado de `agent_finalize_tool_call`:
-`committed_mutation_count` sólo sube `WHEN p_outcome = 'committed'`. **La
-mutación del turno no se gasta**, así que la paciente puede mover en el mismo
-turno. Lo que sí se gasta es una de las ocho llamadas del presupuesto —el
-ordinal se reservó en el `claim`, antes de saber que iba a rechazar—, y por eso
-el rechazo no puede ser el camino normal: para eso está el reflejo de §2.2, que
-evita que el modelo intente cancelar lo que se le va a negar.
-
-El candado de fila importa, y funciona por dos razones que van juntas. Una: el
-`FOR UPDATE` se toma **antes** de mirar los comprobantes, y esa mirada es una
-instrucción aparte, con su propia foto —en `READ COMMITTED` cada instrucción de
-la función toma una nueva—, así que ve lo que se acaba de confirmar. Dos: la
-operación de adjuntar comprobante toma **ese mismo candado** antes de insertar
-(§1.5), que es lo que hace que las dos se formen en fila en vez de cruzarse. Sin
-la segunda, la primera no sirve de nada: insertar en `payment_proofs` no toca la
-fila de `payments` y no despierta a nadie.
-
-El mismo par de reglas es el que usa el trabajo de vencimiento del prepago
-(§5.3). Son tres escrituras que se pelean por el mismo dinero —cancelar,
-adjuntar y vencer— y las tres pasan por el candado del pago.
-
-### 2.2 Dónde va el guardia
-
-**La autoridad es la mutación.** Un solo lugar, y es el que decide.
-
-**El reflejo va en el expediente**, que es lo único que el modelo lee antes de
-elegir de qué cita habla: `public.agent_open_case_from_workflow`, la operación
-`open_case` (`02-herramientas.md` §2). Cada cita del expediente lleva dos campos
-que salen de la misma condición:
-
-```sql
--- citas[].dinero_adentro
-payment.status = 'credited'::public.payment_status
-OR EXISTS (SELECT 1 FROM public.payment_proofs pp WHERE pp.payment_id = payment.id)
-```
-
-Cuando eso es cierto, `dinero_adentro` va en `true` y **`cancelar` desaparece de
-`citas[].acciones`**. El modelo no filtra: escoge de la lista que le dieron. Es la
-misma corrección que hace falta para la reseña —no ofrecer lo que se le va a
-negar— y es la razón por la que el expediente entrega acciones y no datos crudos.
-
-Y el mismo expediente trae con qué explicar sin adivinar: `pagos[].estado` con
-sus tres valores (`esperando_comprobante`, `comprobante_en_revision`,
-`por_cobrar`) y `citas[].cambio_a_tiempo` ya resuelto contra la política de esa
-profesional.
-
-**Lo que NO existe, para que nadie lo busque:** una capacidad `cancel_appointment`
-que se pudiera apagar. `agent_get_capabilities` devuelve diez interruptores
-—`schedule_appointment`, `manage_next_appointment`, `view_payment_status`,
-`upload_payment_proof`, `resume_assigned_resources`, `submit_review`,
-`share_professional_profile`, `list_marketplace_professionals`,
-`contact_support`, `crisis_information`— y cancelar, mover y confirmar viven las
-tres dentro de `manage_next_appointment`, que es **por paciente**, mientras que
-el cerrojo es **por cita**: apagarla por dinero apagaría también mover, que es
-justo lo que se le va a ofrecer. Ésa es una de las razones por las que esa
-función se retira entera y la sustituye el expediente
-(`01-arquitectura.md` §8.3).
-
-### 2.3 Qué se le ofrece a la paciente
-
-Respuesta fija, una sola, sin variantes:
-
-> Esa cita ya tiene un pago registrado, así que no puedo cancelarla. Lo que sí
-> puedo hacer es moverla al día y la hora que te acomoden: el pago se va contigo
-> a la cita nueva, sin costo. ¿Te busco horarios?
-
-No lleva número de horas: mover es gratis siempre (§4), así que no hay plazo que
-mencionar. No promete devolución: este producto no las tiene.
-
-Si insiste en cancelar:
-
-> Para cancelarla con el pago de por medio tiene que verlo [profesional]
-> directamente. Yo te la puedo mover cuando quieras.
-
-### 2.4 Los dos casos de dinero muerto, muertos
-
-**Caso 1 — cancelar a tiempo con pago acreditado.** Producía una cita
-`cancelled` con el pago en `credited` / `charge_reason='session'` /
-`late_change_decision=NULL`. Ninguno de los tres resolutores la toma:
-`waive_appointment_payment` exige `late_change_decision='pending'`;
-`credit_appointment_payment` exige `pending`, o `credited` con decisión
-pendiente; `request_appointment_payment_proof` exige `status='pending'`. Y
-desaparecía de Cobros, porque `get_billing_day` clasifica
-
-```sql
-earns = (a.status='attended'   AND pay.charge_reason='session')
-     OR (a.status='no_show'    AND pay.charge_reason='no_show')
-     OR (a.status='cancelled'  AND pay.charge_reason='cancellation')
-     OR (a.status='rescheduled'AND pay.charge_reason='reschedule')
-```
-
-y `cancelled` + `session` da `earns=false`: ni acreditado ni pendiente.
-`get_appointment_detail` la pintaba `resolution_mode='resolved'`, `badge='paid'`,
-`action_mode='none'` — «Pagado» y ningún botón.
-
-Con el cerrojo, `p.status='credited'` dispara el guardia. **La fila nunca nace.**
-
-**Caso 2 — cancelar a tiempo con comprobante recibido.** Caía en la rama
-`on_time + pending` y quedaba `waived/forgiven`: el traspaso ocurrió y el
-registro dice «no se cobró». Además rompía la regla 3: el agente resolvía un
-comprobante que le tocaba revisar al profesional.
-
-Con el cerrojo, `EXISTS(payment_proofs)` dispara el guardia. **La fila nunca
-nace.**
-
-**Y no hay una tercera puerta.** Cancelar es la única operación del agente que
-cierra una cita sin abrir otra. Reprogramar también cierra la vieja, pero deja
-el pago en `waived/carried_forward` apuntando al pago nuevo, que es exactamente
-lo que la tarjeta lee para decir «el pago está en la cita nueva». Eso no es
-dinero muerto: es dinero mudado.
-
-Cero funciones nuevas. Cero migraciones sobre el dominio del profesional.
-
----
-
-## 3. Cancelación tardía
-
-Es **la única forma en todo el sistema de abrir una decisión económica para el
-profesional**. Ocho funciones desplegadas mencionan `late_change_decision`: la
-leen o la resuelven, ninguna la pone en `'pending'`.
-`cancel_appointment` y `reschedule_appointment` escriben `change_policy_result =
-NULL` explícito, con el comentario «esta superficie no evalua anticipacion».
-
-### 3.1 Cuándo se abre
-
-Dos condiciones:
-
-```sql
-v_policy_result = 'late'                              -- avisó fuera de plazo
-AND v_payment.status = 'pending'                      -- ni gratis ni acreditado
-```
-
-`late_change_decision IS NULL` no hace falta comprobarlo: sobre una cita
-`scheduled` nunca puede ser otra cosa, porque los tres resolutores exigen que la
-cita esté `cancelled` o `rescheduled`. Va únicamente en el `WHERE` del `UPDATE`,
-como candado de concurrencia, no en la lista de condiciones.
-
-`v_policy_result` sale de la política, sin redondear:
-
-```sql
-v_policy_result := CASE
-  WHEN v_appointment.starts_at - v_now
-       >= pg_catalog.make_interval(mins => v_policy.free_change_notice_minutes)
-  THEN 'on_time'::public.change_policy_result
-  ELSE 'late'::public.change_policy_result
-END;
-```
-
-`status='credited'` no puede llegar aquí: lo para el cerrojo. `not_applicable`
-se excluye a mano, porque una decisión abierta sobre un pago que no es `pending`
-ni `credited` hace que `get_appointment_detail` marque `v_inconsistent := true`
-y el profesional reciba una tarjeta «Revisar» sin botones.
-
-### 3.2 Qué sella el agente, exactamente
-
-Dos `UPDATE` y un evento. Nada más.
-
-```sql
--- 1) La cita. cancelled_rescheduled_at es obligatorio: sin él la app no puede
---    calcular con cuánta anticipación avisó.
-UPDATE public.appointments
-   SET status                   = 'cancelled'::public.appointment_status,
-       is_editable              = false,
-       confirmed_at             = NULL,
-       confirmation_source      = NULL,
-       cancelled_rescheduled_at = v_now,
-       cancel_reschedule_actor  = 'patient'::public.actor_type,
-       change_policy_result     = 'late'::public.change_policy_result,
-       updated_at               = v_now
- WHERE id = v_appointment.id
-   AND status = 'scheduled'::public.appointment_status;
-
--- 2) El pago. La reclasificacion NO es cosmetica: ver 3.4.
-UPDATE public.payments
-   SET charge_reason        = 'cancellation'::public.charge_reason,
-       late_change_decision = 'pending'::public.late_change_decision,
-       updated_at           = v_now
- WHERE id = v_payment.id
-   AND status = 'pending'::public.payment_status
-   AND late_change_decision IS NULL;
-
--- 3) La huella.
-INSERT INTO public.payment_events
-      (payment_id, event_type, from_status, to_status, actor, command_id, metadata)
-VALUES (v_payment.id, 'late_change_pending',
-        'pending'::public.payment_status, 'pending'::public.payment_status,
-        'patient'::public.actor_type, v_command_id,
-        pg_catalog.jsonb_build_object(
-          'surface', 'agent',
-          'change_policy_result', 'late'));
-```
-
-`late_change_decision_resolved_at` y `_resolved_by` se quedan en `NULL`:
-`chk_late_decision_resolution` sólo exige la fecha cuando la decisión es
-`charge` o `no_charge`.
-
-### 3.3 Qué ve el profesional
-
-`get_appointment_detail` resuelve, verificado en el cuerpo desplegado:
-
-| Campo | Valor |
-|---|---|
-| `resolution_mode` | `late_unpaid` |
-| `badge` | `decision_pending` |
-| `action_mode` | `resolve_late_unpaid` |
-| `change_notice` | `{hours, minutes}` = `starts_at − cancelled_rescheduled_at` |
-
-`change_notice` tiene cuatro condiciones, todas obligatorias: la cita está
-`cancelled` o `rescheduled`, el pago tiene `late_change_decision = 'pending'`,
-`cancelled_rescheduled_at IS NOT NULL`, y la diferencia no es negativa. Las dos
-primeras las cumple esta operación por construcción; la tercera la tiene que
-poner el agente. Si la dejara nula, el profesional vería la decisión sin saber
-con cuánto tiempo avisó. Y si la diferencia saliera negativa —cancelar una cita
-que ya empezó— la tarjeta entera se degrada a «Revisar» sin botones.
-
-### 3.4 Con qué botón la cierra
-
-Dos botones. `action_mode='resolve_late_unpaid'` mapea a dos funciones, y
-mientras la decisión siga abierta la tercera no tiene botón (los modos
-`mark_paid` y `mark_paid_or_request_proof` sólo aparecen cuando
-`late_change_decision` ya no es `pending`).
-
-| Botón | Función | Deja el pago en | En Cobros |
-|---|---|---|---|
-| **Cobrar** | `credit_appointment_payment(p_appointment_id, p_method, p_command_id)` | `credited`, `late_change_decision='charge'` | aparece como **acreditado** |
-| **No cobrar** | `waive_appointment_payment(p_appointment_id, p_command_id)` | `waived/forgiven`, `late_change_decision='no_charge'` | no aparece, y está bien |
-
-Una consecuencia del orden de los parámetros: `p_method` va **en medio**, y no
-es opcional cuando el pago está `pending` (`PAYMENT_METHOD_REQUIRED`). Y si la
-cancelación tardía cayó sobre un pago del estado **C** —prepago, con
-`proof_requested_at` sellado—, `credit_appointment_payment` sólo admite
-`'transfer'`: cualquier otro método muere con `INVALID_PAYMENT_ACTION`. O sea:
-en prepago, [Cobrar] no ofrece efectivo. Es comportamiento de la app, no del
-agente, pero el agente es quien va a empezar a producir esos casos.
-
-**Por qué reclasificar `charge_reason` en el paso 2 es obligatorio.**
-`credit_appointment_payment`, en su rama `status='pending' → 'credited'`, **no
-toca `charge_reason`**. Sólo la rama `credited + decisión pendiente` reclasifica.
-Si el agente hubiera dejado `'session'` sobre una cita `cancelled`, el profesional
-tocaría [Cobrar], la fila quedaría `credited` / `session` / `cancelled`, y
-`earns` daría `false`: **el dinero que acaba de cobrar no aparecería en Cobros.**
-Es el Caso 1 de dinero muerto, entrando por la puerta de atrás.
-
-`waive_appointment_payment` y `request_appointment_payment_proof` sí reclasifican
-solas, pero eso no salva nada: basta que el profesional elija [Cobrar].
-
-**El otro efecto de `late_ok`.** Mientras la decisión sigue abierta,
-`get_billing_day` la excluye deliberadamente de las dos sumas:
-
-```sql
-late_ok = pay.late_change_decision IS NULL
-       OR (a.status IN ('cancelled','rescheduled') AND pay.late_change_decision='charge')
-```
-
-Así que el monto no está en el total pendiente hasta que el profesional decida.
-Eso es correcto, y también es lo que hace que la decisión sea difícil de
-encontrar. Hoy es inofensivo porque nadie las produce. **El agente es lo que va
-a empezar a producirlas, y va a producirlas todas.** No se arregla en esta ronda
-—la app es intocable— pero queda dicho: ver §10.
-
-### 3.5 Qué se le dice a la paciente
-
-El agente **no promete nada sobre el cobro** y **no promete que le avisarán**:
-ninguna función notifica a la paciente cuando el profesional resuelve.
-
-> Listo, tu cita del jueves 27 quedó cancelada. Como avisaste con menos de
-> {plazo}, [profesional] decide si te cobra esa sesión.
-
-`{plazo}` sale de `free_change_notice_minutes` (§7). El texto se arma desde lo
-que devolvió la función (`change_policy_result`, `starts_at_local`), nunca desde
-lo que el modelo cree haber hecho.
-
----
-
-## 4. El cargo por cambio tardío al reprogramar
-
-### 4.1 Veredicto: estructuralmente imposible
-
-No es que falte una función. Es que el esquema no tiene dónde ponerlo.
-
-1. **Con traslado, el pago viejo queda `waived/carried_forward`.** Los tres
-   resolutores exigen `pending` (`request_appointment_payment_proof`), o
-   `pending|credited` (`waive_appointment_payment`), o `pending` / `credited +
-   decisión pendiente` (`credit_appointment_payment`). `waived` no entra en
-   ninguno.
-2. **El pago nuevo vive en una cita `scheduled`.** `waive` y
-   `request_proof` exigen `cancelled|rescheduled` con
-   `INVALID_PAYMENT_STATE`; `credit` exige lo mismo para resolver una decisión
-   tardía.
-3. **`payments_appointment_id_key UNIQUE (appointment_id)`** impide un segundo
-   renglón de cobro sobre la misma cita. No hay dónde escribir «comisión».
-4. **Lo único que existe es `reschedule_appointment(p_mode='charge_old')`**, y
-   cobra **la sesión vieja completa** además de la nueva: dos sesiones, no una
-   comisión. Y sólo lo puede decidir el profesional, en el mismo acto de
-   reprogramar, que es una superficie que la paciente no toca.
-
-### 4.2 Recomendación: mover es siempre gratis
-
-Cero código. La función del agente:
-
-- **no** escribe `late_change_decision` al reprogramar, en ningún caso;
-- **sí** sella `change_policy_result` (`on_time` / `late`) en la cita vieja, como
-  hecho histórico. Hoy no alimenta nada, pero es el único registro de si avisó a
-  tiempo, y es una columna que ya existe.
-
-### 4.3 Consecuencias para los textos que ve la paciente
-
-Cuatro reglas, y son duras:
-
-1. **Al mover, nunca se menciona un plazo.** Ni «avisa con 24 horas», ni «si
-   mueves tarde te pueden cobrar». Mover no cuesta y no abre nada.
-2. **Al cancelar, el plazo sí se menciona**, porque ahí sí decide si se abre el
-   cobro.
-3. **El mismo número significa cosas distintas según la acción.**
-   `free_change_notice_minutes` decide en cancelar y no decide en mover. Los
-   textos no pueden compartir plantilla.
-4. **Cuando el cerrojo bloquea una cancelación, el ofrecimiento de mover va sin
-   condiciones**: «sin costo, sin importar cuándo». Es cierto y es simple.
-
-### 4.4 Si el dueño eligiera lo contrario
-
-Dos caminos, los dos caros:
-
-- **Renglón nuevo.** `payments.appointment_id` es `NOT NULL` y `UNIQUE`. Un
-  cargo por cambio necesitaría romper esa restricción o inventar citas
-  sintéticas de tipo «cargo». Las dos cosas atraviesan Cobros, el calendario y
-  las tarjetas de la app del profesional, que es intocable esta ronda.
-- **Reusar el pago viejo.** Dejarlo `pending` con `charge_reason='reschedule'` y
-  `late_change_decision='pending'`, y que el pago nuevo nazca limpio. Entonces
-  **el dinero no viaja**, que contradice la decisión 3 del dueño; y si la
-  paciente ya había mandado comprobante, el comprobante se queda sobre una cita
-  que no ocurrió.
-
-**Decisión pendiente #1.** Supuesto con el que sigue todo este documento:
-**mover es siempre gratis.**
-
----
-
-## 5. Prepago completo
-
-Hoy sólo Araceli tiene `charge_timing='before'`, y se salva por accidente: pide
-2880 minutos de anticipación, así que sus citas caen fuera de la ventana de 48 h
-del borrador y nunca nacen confirmadas. **El día que baje ese margen a 24 h, el
-prepago deja de pedirse y no da ningún error.** Eso es lo que se desactiva aquí.
-
-### 5.1 Hueco 1 — nadie pide el comprobante al agendar
-
-`create_appointment` lo dice en su propio comentario: «NO se crea
-payment_proofs … ni jobs de comprobante». La petición sólo aparecía 26 h antes
-de la cita, cuando `cron_appointment_confirmation_26h` sella
-`proof_requested_at=now(), method='transfer'` y manda
-`appointment_confirmation_prepay`. El cascarón que debía hacerlo antes,
-`cron_prepay_proof_request`, está retirado —levanta un `RAISE WARNING` y
-devuelve 0— y su comentario ya dice quién debe hacerlo: «la peticion de
-comprobante anticipado la hacen el agente al agendar y la confirmacion de 26 h».
-
-**Lo que sella el agendado, dentro de `agent_create_appointment_from_workflow`:**
-
-```sql
-SELECT policy.charge_timing
-  INTO v_charge_timing
-  FROM public.professional_appointment_policies AS policy
- WHERE policy.professional_id = v_turn.professional_id;
-
-INSERT INTO public.payments (
-  appointment_id, professional_id, amount, status, method,
-  charge_reason, charge_timing, proof_requested_at, resolved_at
-) VALUES (
-  v_appointment_id, v_turn.professional_id, v_agreed_price,
-  CASE WHEN v_agreed_price = 0 THEN 'not_applicable'::public.payment_status
-       ELSE 'pending'::public.payment_status END,
-  CASE WHEN v_agreed_price > 0
-        AND v_charge_timing = 'before'::public.charge_timing
-       THEN 'transfer'::public.payment_method END,
-  'session'::public.charge_reason,
-  v_charge_timing,
-  CASE WHEN v_agreed_price > 0
-        AND v_charge_timing = 'before'::public.charge_timing
-       THEN v_now END,
-  NULL
-)
-RETURNING id INTO v_payment_id;
-
-IF v_charge_timing = 'before'::public.charge_timing AND v_agreed_price > 0 THEN
-  INSERT INTO public.payment_events
-        (payment_id, event_type, from_status, to_status, actor, command_id, metadata)
-  VALUES (v_payment_id, 'proof_requested',
-          'pending'::public.payment_status, 'pending'::public.payment_status,
-          'patient'::public.actor_type, v_command_id,
-          pg_catalog.jsonb_build_object('surface', 'agent',
-                                        'reason', 'prepay_booking'));
-END IF;
-```
-
-El `method='transfer'` no es opcional: `chk_payment_proof_requested_transfer`
-exige `method='transfer'` en cuanto `proof_requested_at` deja de ser nulo.
-
-Y el agente lo pide en el chat, con su propio mensaje, dentro de la sesión
-abierta. El texto lleva el vencimiento calculado, nunca un número escrito a mano.
-
-### 5.2 Hueco 2 — la cita de prepago nacía confirmada
-
-El borrador hace `v_born_confirmed := v_starts_at <= v_now + interval '48 hours'`
-sin mirar `charge_timing`. Y `cron_appointment_confirmation_26h` filtra
-`AND a.confirmed_at IS NULL`. Una cita de prepago nacida confirmada es saltada
-para siempre: nadie le pide el comprobante nunca, y nadie se entera.
-
-**Arreglo: se borra `v_born_confirmed` y sus dos ramas.** La cita del agente
-nunca nace confirmada, ni en prepago ni con cobro después. Es la versión con
-menos código de las dos, y arregla tres cosas de un golpe: el prepago vuelve a
-pedirse, `cron_appointment_confirmation_26h` alcanza siempre a la cita, y el
-profesional deja de ver «Confirmada» sin botón de Editar en una cita que no
-reconoce.
-
-**Consecuencia que hay que aceptar.** Cuando la paciente agenda para dentro de
-menos de 26 h, el cron le manda la plantilla de confirmación (o la de prepago) en
-los siguientes cinco minutos, encima de lo que el agente ya le dijo en el chat.
-
-Y **no hay forma barata de quitarla**. Adelantarse ocupando el `dedup_key` del
-cron (`'appointment_confirmation:' || appointment_id`) no sirve: su
-`ON CONFLICT` no es un `DO NOTHING`, es un `DO UPDATE` que revive la fila
-cancelada y le pisa `template_key` y `payload` mientras no haya salido. La fila
-del agente se reescribe. Quitar la repetición exigiría tocar
-`cron_appointment_confirmation_26h`, que es un cron del producto del profesional.
-
-Es una repetición, no un error, y en prepago hasta ayuda: el texto aprobado de
-`appointment_confirmation_prepay` vuelve a pedir la foto del comprobante, que es
-justo lo que se está esperando. **Decisión pendiente #2.** Supuesto: se acepta.
-
-### 5.3 Hueco 3 — no existe la autocancelación
-
-`cron_prepay_proof_request` es un cascarón retirado y **no está en `cron.job`**.
-Los siete trabajos activos son `cron_sweep_past_pending`, `cron_confirmation_26h`,
-`cron_appointment_reminder_1h`, `purge_command_log`, `purge_whatsapp_outbox`,
-`purge_whatsapp_inbound` y `sender_whatsapp`. Ninguno atiende al agente.
-
-**No se usa `public.jobs`.** El trigger `tg_jobs_solo_recursos_bi` descarta en
-silencio todo `INSERT` cuyo `type` no sea uno de los tres de recursos y limpieza,
-y además **no hay ningún consumidor de `jobs` desplegado**: `claim_jobs_batch` y
-`dispatch_jobs` sólo existen en `referencias/`, no en `pg_proc`. Un trabajo
-puesto ahí no se ejecutaría nunca.
-
-**El trabajo programado, completo.**
-
-```sql
-CREATE FUNCTION public.cron_agent_prepay_expiry(p_batch integer DEFAULT 200)
-RETURNS integer
-LANGUAGE plpgsql
-SECURITY DEFINER
-SET search_path TO ''
-AS $$
-DECLARE
-  v_c     record;
-  v_count integer := 0;
-BEGIN
-  FOR v_c IN
-    SELECT a.id            AS cita,
-           a.starts_at,
-           p.id            AS pago,
-           pat.first_name  AS pac,
-           pat.phone       AS tel,
-           pro.first_name  AS pro,
-           pro.timezone    AS tz
-      FROM public.appointments  a
-      JOIN public.payments      p   ON p.appointment_id = a.id
-      JOIN public.patients      pat ON pat.id = a.patient_id
-      JOIN public.professionals pro ON pro.id = a.professional_id
-     WHERE a.status = 'scheduled'::public.appointment_status
-       AND a.origin = 'patient'::public.appointment_origin
-       AND a.starts_at > now()
-       AND p.charge_timing = 'before'::public.charge_timing
-       AND p.status = 'pending'::public.payment_status
-       AND p.proof_requested_at IS NOT NULL
-       AND NOT EXISTS (SELECT 1 FROM public.payment_proofs pp
-                        WHERE pp.payment_id = p.id)
-       AND now() >= p.proof_requested_at + interval '24 hours'
-     ORDER BY a.starts_at
-     LIMIT p_batch
-     FOR UPDATE OF a SKIP LOCKED
-  LOOP
-    BEGIN
-      -- 0) EL CANDADO DEL PAGO, en su propia instruccion. La seleccion de
-      --    arriba bloqueo la CITA, no el pago: entre esa foto y este momento
-      --    cabe un comprobante entrando por el agente. Si el agente lo esta
-      --    adjuntando ahora mismo, aqui se espera a que termine, porque esa
-      --    operacion toma este mismo candado (1.5).
-      PERFORM 1 FROM public.payments p2 WHERE p2.id = v_c.pago FOR UPDATE;
-
-      -- 1) EL PAGO, y es tambien el guardia. Va antes que la cita: si se
-      --    cancelara primero, un comprobante que llego tarde dejaria una cita
-      --    cerrada con dinero adentro, que es la forma exacta del Caso 2.
-      --    El NOT EXISTS tiene que ir en una instruccion APARTE del candado:
-      --    en READ COMMITTED cada instruccion toma su propia foto, y esta es
-      --    la primera que puede ver el comprobante recien confirmado. Metido
-      --    en el WHERE del PERFORM de arriba no serviria.
-      --    La reclasificacion a 'cancellation' es obligatoria: una fila
-      --    'cancelled' con charge_reason 'session' es exactamente la forma del
-      --    dinero muerto verificado.
-      UPDATE public.payments
-         SET status        = 'waived'::public.payment_status,
-             waive_reason  = 'forgiven'::public.waive_reason,
-             charge_reason = 'cancellation'::public.charge_reason,
-             resolved_at   = now(),
-             updated_at    = now()
-       WHERE id = v_c.pago
-         AND status = 'pending'::public.payment_status
-         AND NOT EXISTS (SELECT 1 FROM public.payment_proofs pp
-                          WHERE pp.payment_id = v_c.pago);
-      IF NOT FOUND THEN
-        CONTINUE;              -- llego el comprobante: no es asunto del cron
-      END IF;
-
-      -- 2) La cita. 'system' porque no la cerro ni ella ni el profesional.
-      --    change_policy_result se queda NULL: no hubo aviso que evaluar.
-      UPDATE public.appointments
-         SET status                   = 'cancelled'::public.appointment_status,
-             is_editable              = false,
-             confirmed_at             = NULL,
-             confirmation_source      = NULL,
-             cancelled_rescheduled_at = now(),
-             cancel_reschedule_actor  = 'system'::public.actor_type,
-             updated_at               = now()
-       WHERE id = v_c.cita
-         AND status = 'scheduled'::public.appointment_status;
-
-      INSERT INTO public.payment_events
-            (payment_id, event_type, from_status, to_status,
-             actor, command_id, metadata)
-      VALUES (v_c.pago, 'payment_waived',
-              'pending'::public.payment_status, 'waived'::public.payment_status,
-              'system'::public.actor_type, gen_random_uuid(),
-              jsonb_build_object('reason', 'prepay_proof_expired'));
-
-      -- 3) El aviso a la paciente, ya con los dos UPDATE hechos y sus triggers
-      --    corridos: private.wa_apagar_avisos_de_cita cancelo confirmacion,
-      --    prepago y recordatorios de ESTA cita. Esta fila no corre peligro en
-      --    ningun orden: esa funcion solo toca cinco template_key y
-      --    'appointment_cancelled' no es una de ellas.
-      --    Se escriben claves SEMANTICAS. El array payload->'variables' NUNCA
-      --    se arma a mano: lo materializa el trigger BEFORE INSERT
-      --    outbox_variables_bi (funcion tg_outbox_variables_bi) y lo cuenta
-      --    chk_outbox_variables.
-      INSERT INTO public.whatsapp_outbox
-            (to_phone, send_mode, template_key, payload, status,
-             dedup_key, scheduled_at)
-      VALUES (v_c.tel::public.e164_phone,
-              'template'::public.outbox_send_mode,
-              'appointment_cancelled',
-              jsonb_build_object(
-                'appointment_id',          v_c.cita,
-                'patient_first_name',      v_c.pac,
-                'professional_first_name', v_c.pro,
-                'starts_at',               v_c.starts_at,
-                'timezone',                v_c.tz),
-              'queued'::public.outbox_status,
-              'agent_prepay_expiry:' || v_c.cita::text,
-              now())
-      ON CONFLICT (dedup_key) DO NOTHING;
-
-      v_count := v_count + 1;
-    EXCEPTION WHEN OTHERS THEN
-      RAISE WARNING 'vencimiento de prepago fallo para la cita %: %',
-                    v_c.cita, sqlerrm;
-    END;
-  END LOOP;
-
-  RETURN v_count;
-END;
-$$;
-```
-
-**Registro en cron**, misma cadencia que los otros tres del dominio:
-
-```sql
-SELECT cron.schedule(
-  'cron_agent_prepay_expiry',
-  '*/5 * * * *',
-  $$select public.cron_agent_prepay_expiry(200);$$
-);
-```
-
-**De quién es esta función: de `postgres`, no del agente.** Va **fuera** del
-bloque `SET ROLE agenda_psi_agent_owner` de las migraciones, igual que los tres
-crons desplegados. No es un detalle de estilo: siendo `SECURITY DEFINER` de
-`postgres` no depende de ninguno de los GRANT del agente, y `cron.schedule` sólo
-lo puede llamar `postgres` de todos modos. Este trabajo no es el agente: corre
-cuando la conversación lleva horas cerrada.
-
-**Y de ahí sale una resta.** `20260825000000` concede hoy
-`GRANT INSERT (to_phone, send_mode, template_key, payload, status, dedup_key,
-scheduled_at) ON public.whatsapp_outbox TO agenda_psi_agent_owner`. Con la regla
-de §9 —el agente no encola ninguna plantilla, nunca— y con este cron siendo de
-`postgres`, **ninguna función de dinero necesita ese permiso**. Se quita del
-inventario de la familia de dinero. Si la familia de recursos lo necesita, que
-lo pida ella y con su motivo escrito.
-
-**Por qué ese `payload` y no otro.** La cola no acepta claves con nombre: el
-`CHECK chk_outbox_variables` llama a `private.wa_payload_ok(template_key,
-payload)`, que exige que `payload->'variables'` sea un **array de cadenas no
-vacías** con el largo exacto de la plantilla —cuatro para `appointment_cancelled`—
-y devuelve `-1` para cualquier clave desconocida, con lo que el `INSERT`
-revienta. Lo que salva a este `INSERT` es el trigger `outbox_variables_bi`, que
-corre **antes** y arma el array a partir de cuatro claves semánticas:
-
-```
-appointment_cancelled →
-  [patient_first_name, professional_first_name,
-   wa_fecha(starts_at, timezone), wa_hora(starts_at, timezone)]
-```
-
-De ahí que el `payload` lleve esas cuatro claves. La quinta, `appointment_id`,
-no la lee el trigger para esta plantilla: va porque es lo único que liga la fila
-de la cola con la cita, y porque es la clave con la que
-`private.wa_apagar_avisos_de_cita` encuentra los avisos de una cita cuando ésta
-cambia de estado. Es la misma forma que usa `cron_appointment_confirmation_26h`.
-
-Si el trigger no reconociera el `template_key`, no armaría nada, el `CHECK`
-fallaría, y el `EXCEPTION WHEN OTHERS` de abajo se tragaría el fallo con un
-`RAISE WARNING`: **la cita no se cancelaría y nadie se enteraría.** Ese bloque
-de excepción es el de los tres crons desplegados y se conserva por eso, pero es
-cómodo y peligroso a partes iguales.
-
-**Y por qué `appointment_cancelled` no miente.** El texto aprobado en Meta es:
-
-> Hola, {{1}} 👋
-> Tu sesión con Psic. {{2}} del {{3}} a las {{4}} fue cancelada.
-> Si quieres agendar otra, escríbeme por aquí.
-
-Está en voz pasiva: no dice que la canceló el profesional. Y termina invitando a
-agendar otra, que es exactamente lo que queremos que pase. Es la única de las 16
-claves que sirve aquí, y sirve bien.
-
-Cuatro cosas de la selección que no son adorno:
-
-- **`a.origin = 'patient'`.** Las citas de prepago que agenda el profesional no
-  se autocancelan. Cambiar eso sería cambiar su producto. Y el origen sobrevive
-  al movimiento: la cita que crea el agente al reprogramar también nace
-  `origin='patient'` (§1.4), así que el reloj la sigue.
-- **`p.proof_requested_at IS NOT NULL`.** El reloj cuelga de la petición, no de
-  la cita. Es lo que hace que mover no compre tiempo (§1.4). Y no se reinicia
-  por detrás: `cron_appointment_confirmation_26h` sólo sella
-  `proof_requested_at` `AND proof_requested_at IS NULL`, así que no pisa la
-  fecha que puso el agente al agendar.
-- **`a.starts_at > now()`, y el plazo es `proof_requested_at + 24 h` a secas.**
-  Aquí el borrador tenía un error de verdad. Ponía
-  `LEAST(proof_requested_at + 24 h, starts_at)` para que una cita cercana no
-  esperara 24 horas. El problema es que `cron_sweep_past_pending` sólo mueve una
-  cita a `past_pending` cuando `ends_at <= now()`: entre que la sesión empieza y
-  que termina, la cita sigue `scheduled`, y con el `LEAST` este trabajo la
-  alcanza y **la cancela con la paciente ya sentada**, mandándole «tu sesión fue
-  cancelada» a mitad de la hora. La versión de arriba no puede hacer eso: no
-  toca una cita que ya empezó. Y la rama que el `LEAST` intentaba cubrir hoy no
-  existe — la única profesional con cobro antes pide 2880 minutos de
-  anticipación, así que ninguna de sus citas nace a menos de 48 h. Un prepago
-  agendado para dentro de pocas horas simplemente no se autocancela: pasa a
-  `past_pending` y lo resuelve el profesional con sus botones de siempre, que es
-  lo que ya ocurre con cualquier cita sin pagar. Ver §10, punto 8.
-- **`FOR UPDATE OF a SKIP LOCKED`.** La misma forma de
-  `cron_appointment_confirmation_26h`; una cita que el agente esté mutando en
-  ese instante se salta y se atiende cinco minutos después. Ojo: `FOR UPDATE OF
-  a` bloquea la cita, **no el pago** — por eso el paso 0 vuelve a leer el pago
-  con su propio candado.
-
-**Lo que este trabajo NO hace: avisarle al profesional.** No hay tipo de
-notificación para «se canceló sola por falta de comprobante», y usar
-`appointment_cancelled_by_patient` sería mentir. Inventar un tipo nuevo obliga a
-tocar la app, que es intocable. La cita desaparece de su agenda y la tarjeta
-cerrada lo explica. Queda nombrado en §10.
-
----
-
-## 6. Trasladar el pago a la próxima cita
-
-**No entra en esta ronda.**
-
-Tres bloqueos verificados, y ninguno se resuelve con una función nueva:
-
-1. `reschedule_appointment` **siempre** crea una cita nueva; no acepta un destino
-   existente.
-2. `payments_appointment_id_key UNIQUE (appointment_id)` obliga a **fusionar** dos
-   pagos, no a insertar otro. Fusionar significa decidir qué pasa con dos montos,
-   dos `charge_timing`, dos comprobantes y una restricción
-   `payment_proofs_payment_id_key UNIQUE (payment_id)` que sólo admite uno.
-3. `get_next_scheduled_appointment` es `authenticated` + `current_professional_id()`:
-   el agente no puede llamarla.
-
-Y sobre todo: **mover ya hace el trabajo.** Reprogramar traslada el monto
-completo, el `charge_timing`, la petición de comprobante y una copia de la fila
-de `payment_proofs`. La diferencia con «pásalo a la próxima» es que la próxima la
-elige ella en el formulario, en el mismo turno.
-
-Cero series de recurrencia activas en producción, así que tampoco hay un caso
-real esperando.
-
-**Qué se le contesta a la paciente**, respuesta fija:
-
-> El pago viaja con esta cita. Si la movemos, se va con ella al día que elijas.
-> Pasarlo a otra cita distinta lo tiene que hacer [profesional]. ¿Te busco
-> horarios para moverla?
-
----
-
-## 7. Las políticas que limitan a la paciente
-
-### 7.1 De dónde salen y cómo se leen
-
-`public.professional_appointment_policies`, PK `professional_id`, **todas las
-columnas `NOT NULL`**. Cada función que la necesita la lee al principio, con el
-resto del contexto; nadie la pasa como parámetro ni la cachea entre turnos:
-
-```sql
-SELECT policy.*
-  INTO v_policy
-  FROM public.professional_appointment_policies AS policy
- WHERE policy.professional_id = v_turn.professional_id;
-IF NOT FOUND THEN
-  RAISE EXCEPTION USING ERRCODE = '55000', MESSAGE = '..._POLICY_MISSING';
-END IF;
-```
-
-**Sin valor por omisión.** La fila nace con el profesional (los cinco de
-producción la tienen); si falta, el dato está roto y hay que enterarse, no seguir
-con un 1440 inventado.
-
-| Columna | Def. | Valores posibles | Qué limita |
-|---|---|---|---|
-| `patient_min_booking_lead_minutes` | 1440 | 0, 360, 720, 1440, 2880 | Desde cuándo arranca el calendario del formulario |
-| `free_change_notice_minutes` | 1440 | 0, 360, 720, 1440 | Si cancelar abre una decisión de cobro |
-| `min_lead_to_change_modality_minutes` | 1440 | 0, 360, 720, 1440 | Hasta cuándo puede cambiar de modalidad |
-| `patient_can_switch_to_online` | false | — | Si puede pasar de presencial a en línea |
-| `patient_can_switch_to_in_person` | false | — | Si puede pasar de en línea a presencial |
-| `charge_timing` | after | before, after | Si la cita nace con petición de comprobante (§5) |
-
-Los tres plazos **no son un número libre**: `chk_policy_minutes_allowed` los
-encierra en esos conjuntos, y `update_appointment_policies` los vuelve a validar
-antes de escribir. Eso significa que sólo hay cinco textos de plazo posibles en
-todo el producto —«6 horas», «12 horas», «24 horas», «48 horas», y **ninguno**—
-y simplifica §7.2 hasta hacerla trivial.
-
-Fuera de esta tabla, en `public.professionals`: `is_patient_scheduling_enabled`
-(el interruptor maestro, que hoy es un pestillo de una sola dirección) y
-`timezone`.
-
-### 7.2 La regla: ningún texto lleva un número fijo
-
-Todo texto que mencione un plazo lo recibe de la fila. Una sola función lo
-convierte a palabras, y es la única que sabe redactar plazos:
-
-```sql
-CREATE FUNCTION private.agent_plazo_legible(p_minutes integer)
-RETURNS text
-LANGUAGE sql
-IMMUTABLE
-AS $$
-  SELECT CASE WHEN p_minutes = 0 THEN NULL
-              ELSE (p_minutes / 60)::text || ' horas'
-         END
-$$;
-```
-
-Dos renglones, porque los valores posibles son cinco y cuatro de ellos son horas
-exactas: 360 → «6 horas», 720 → «12 horas», 1440 → «24 horas», 2880 → «48 horas».
-No hay rama de minutos ni de «1 hora» ni de días: ningún valor permitido las
-necesita.
-
-**El cero es un estado real, no un error.** `free_change_notice_minutes = 0`
-significa que cancelar nunca es tarde; `patient_min_booking_lead_minutes = 0`,
-que puede agendar para dentro de un rato. Cuando la función devuelve `NULL`,
-**la frase del plazo desaparece entera**: «Si necesitas cancelar, avísame y no
-hay ningún cobro de por medio», no «avísame con 0 horas». Ninguna de las cinco
-profesionales tiene un cero hoy, pero la app deja ponerlo y es una rama, no un
-blindaje.
-
-Las operaciones de lectura devuelven el texto ya armado en un campo del
-resultado; **el prompt del modelo nunca ve el número suelto**, para que no pueda
-redondearlo ni «ayudar».
-
-### 7.3 Los valores reales de hoy, y qué implican
-
-| Profesional | Agenda paciente | Anticip. mínima | Aviso cambio | → En línea | → Presencial | Anticip. modalidad | Cobro |
+## 5. Las políticas que limitan a la paciente
+
+Las cinco viven en `public.professional_appointment_policies`, una fila por profesional.
+**Ninguna limita a la profesional: siempre decide.** Gobiernan lo que el agente permite y lo
+que advierte.
+
+| Columna | Qué gobierna | Valores admitidos |
+|---|---|---|
+| `charge_timing` | Si el agente pide comprobante al agendar | `before` \| `after` (default `after`) |
+| `patient_min_booking_lead_minutes` | Con cuánta anticipación puede agendar. Rechazo `LEAD_TIME_NOT_MET` | default 1440. `update_appointment_policies` sólo acepta 0, 360, 720, 1440 o 2880 |
+| `free_change_notice_minutes` | La frontera entre `on_time` y `late` para cancelar y reprogramar | default 1440. Sólo 0, 360, 720 o 1440 |
+| `patient_can_switch_to_online` / `_to_in_person` | Si puede cambiar de modalidad, **por dirección** | booleanos, default `false` |
+| `min_lead_to_change_modality_minutes` | Anticipación mínima para el cambio de modalidad | default 1440. Sólo 0, 360, 720 o 1440 |
+
+### 5.1 Los valores reales de hoy
+
+| Profesional | Cobra | Agendar con | Cambios con | → en línea | → presencial | Modalidad con | Pacientes activos |
 |---|---|---|---|---|---|---|---|
-| Maricruz tes | sí | 1440 | 1440 | no | no | 1440 | después |
-| Araceli | sí | **2880** | 1440 | sí | sí | 1440 | **antes** |
-| Miranda | sí | **2880** | **720** | sí | sí | **720** | después |
-| test | sí | **2880** | 1440 | sí | **no** | 1440 | después |
-| Test | sí | 1440 | 1440 | no | no | 1440 | después |
+| **Araceli** | **por adelantado** | 2 880 min (48 h) | 1 440 min (24 h) | sí | sí | 1 440 min | **12** |
+| **Miranda** | después | 2 880 min (48 h) | **720 min (12 h)** | sí | sí | **720 min** | 1 |
+| **test** | después | 2 880 min (48 h) | 1 440 min (24 h) | sí | **no** | 1 440 min | 1 |
+| **Test** | después | 1 440 min (24 h) | 1 440 min (24 h) | no | no | 1 440 min | 3 |
+| **Maricruz tes** | después | 1 440 min (24 h) | 1 440 min (24 h) | no | no | 1 440 min | 0 |
 
-Lo que esto obliga:
+### 5.2 Qué implica cada renglón
 
-- **Tres de cinco piden 48 h.** El calendario del formulario arranca dos días
-  después para ellas. Un texto que diga «para mañana» está mal para la mayoría.
-- **Miranda tiene 12 h de aviso de cambio.** Cualquier copy que diga «24 horas»
-  le miente a sus pacientes **en la dirección peligrosa**: creen que ya es tarde
-  cuando todavía están a tiempo, y no cancelan. Esta es la razón por la que la
-  regla de §7.2 no es negociable.
-- **Araceli es hoy la única con cobro antes.** Todo el §5 la afecta sólo a ella
-  — y sólo dejará de estar dormido el día que baje su anticipación mínima.
-- **Dos de cinco prohíben ambos cambios de modalidad, y `test` permite → en línea
-  pero no → presencial.** La direccionalidad es real: el texto se arma con el
-  interruptor de la dirección que ella pide, no con uno solo.
-- **Ninguna tiene dirección y liga a la vez.** La operación de ubicación devuelve
-  nulo explícito cuando no hay a dónde mandarla. Nunca inventa.
+1. **Araceli es todo el circuito de prepago.** Es la única con `charge_timing='before'` y
+   tiene 12 de los 17 pacientes activos (18 en total). Todo el §3 existe por ella. En
+   `payments` hay exactamente **2 filas con `charge_timing='before'`**, las dos suyas y las
+   dos `pending` — y las dos cuelgan de citas `past_pending`, no de citas vivas.
+2. **Miranda pide 12 horas, no 24.** Un texto con «24 horas» adentro le miente a su paciente.
+   **Ningún plazo se escribe a mano**: sale de la fila y se dice en horas.
+3. **A dos profesionales no se les menciona el cambio de modalidad**, porque las dos
+   direcciones están en `false`. A `test` sólo se le ofrece «pasar a en línea». El menú es
+   personalizado: si no lo permite, no se nombra.
+4. **`free_change_notice_minutes` admite 0.** Si alguien lo pusiera en cero, todo saldría
+   `on_time` y «sólo con tiempo mínimo» dejaría de significar algo. Hoy no pasa y se deja así.
+5. **El cambio de modalidad no toca dinero nunca.** No hay versión tardía con cargo: o alcanza
+   la anticipación, o no se cambia.
 
-Ejemplos de texto, con la sustitución marcada:
+### 5.3 El agujero: hoy el agente no sabe nada de esto
 
-> Puedo agendarte a partir del {fecha_mínima}, porque [profesional] pide al menos
-> {plazo_anticipación} de anticipación.
+`public.agent_get_capabilities` —desplegada— devuelve diez capacidades booleanas y **ni una
+sola política**: no lleva `charge_timing`, ni los plazos, ni los permisos de modalidad.
+Verificado leyendo su cuerpo completo. Y `agent_list_upcoming_appointments_from_workflow`
+—escrita, sin aplicar— devuelve por cita **seis campos**: `appointment_handle`,
+`service_name`, `starts_at_local`, `modality`, `is_confirmed` e `is_editable`.
 
-> Si necesitas cancelar, avísame con al menos {plazo_aviso} y no hay ningún
-> cobro de por medio.
+**Ninguno de los seis sirve para lo que hace falta.** `is_editable` parece un candado y no lo
+es: se apaga cuando la cita se confirma o cuando se le pide comprobante, no cuando se acabó el
+plazo de aviso. Con esos seis campos el agente no puede saber si el cambio va a ser tardío ni
+si hay dinero adentro.
 
-> Puedo cambiarla a en línea hasta {plazo_modalidad} antes de la sesión.
+**Y eso rompe las reglas nuevas**, porque **el aviso va antes de la mutación**: el agente tiene
+que saber que el cambio va a ser tardío *antes* de tocarlo, y hoy sólo se enteraría por el
+rechazo, cuando ya avisó mal o no avisó.
 
-Y las tres versiones sin plazo, para cuando la política vale 0 (§7.2). No son
-una variante «por si acaso»: son la frase completa cuando el plazo no existe.
+**El arreglo mínimo: cinco campos más por cita en la lista que ya se llama.** Ninguna llamada
+nueva, ningún viaje extra.
 
-> Puedo agendarte desde hoy mismo.
-
-> Si necesitas cancelar, avísame y no hay ningún cobro de por medio.
-
-> Puedo cambiarla a en línea en cualquier momento antes de la sesión.
-
----
-
-## 8. El contrato de avisos al profesional
-
-Arreglo barato y bloqueante. Se hace **entero dentro de las migraciones del
-agente**, sin tocar una línea de la app.
-
-### 8.1 El problema, en una frase
-
-Los dos lectores —la bandeja (`list_notifications`, que devuelve `payload` crudo
-y la app renderiza) y la push (`notificar_push_al_insertar` →
-`notificar-push`)— arman el texto con claves fijas. Las funciones escritas del
-agente escriben `surface`, `command_id`, `starts_at`, `modality`,
-`old_starts_at`, `old_modality`, `change_policy_result`: **cero coincidencias**,
-y nunca el nombre de la paciente. Los seis avisos caerían al texto neutro
-verificado en la función desplegada: **«Nueva notificación / Hay una
-actualización reciente en tu cuenta.»**
-
-### 8.2 La forma exacta de los seis avisos
-
-Verificado contra el cuerpo desplegado de `notificar-push/index.ts` y contra las
-filas reales de `public.notifications`.
-
-| `type` | Claves obligatorias | Si falta una |
+| Campo | Qué es | Para qué |
 |---|---|---|
-| `appointment_created_by_patient` | `patient_first_name`, `patient_last_name`, `appointment_starts_at`, `appointment_ends_at`, `appointment_modality` | texto neutro |
-| `appointment_confirmed` | las mismas cinco | texto neutro |
-| `appointment_cancelled_by_patient` | las mismas cinco | texto neutro |
-| `appointment_rescheduled_by_patient` | `patient_first_name`, `patient_last_name`, `previous_starts_at`, `previous_modality`, `new_starts_at`, `new_modality` | texto neutro |
-| `modality_changed_by_patient` | `patient_first_name`, `patient_last_name`, `appointment_starts_at`, `previous_modality`, `new_modality` | texto neutro |
-| `payment_proof_received` | `patient_first_name`, `patient_last_name`, `appointment_starts_at` | texto neutro |
+| `change_policy_result` | `on_time` o `late`, calculado al leer con la fórmula de R-C | Decidir si hay que avisar antes |
+| `notice_hours` | `free_change_notice_minutes / 60` | Escribir «pide 12 horas» sin inventar el número |
+| `has_money` | la condición de R-A | Saber si cancelar está cerrado y ofrecer las dos salidas |
+| `is_chargeable` | el importe del cobro es mayor que cero | No decir «se te cobra» de una sesión de $0 |
+| `can_carry_payment` | existe una próxima viva del mismo servicio | Ofrecer «pasar tu pago» sólo cuando hay a dónde |
 
-`patient_last_name` puede ser nulo y el lector lo tolera (`nombre()` sólo exige
-`patient_first_name`). Ninguna de las otras claves lo tolera.
-
-**Los seis `INSERT`, listos para pegar.**
-
-```sql
--- 1) Agendó (agent_create_appointment_from_workflow)
-INSERT INTO public.notifications
-      (type, appointment_id, patient_id, professional_id, payload)
-VALUES ('appointment_created_by_patient',
-        v_appointment_id, v_turn.patient_id, v_turn.professional_id,
-        pg_catalog.jsonb_build_object(
-          'patient_first_name',   v_patient_first_name,
-          'patient_last_name',    v_patient_last_name,
-          'appointment_starts_at', v_starts_at,
-          'appointment_ends_at',   v_ends_at,
-          'appointment_modality',  v_modality));
-
--- 2) Confirmó (agent_confirm_appointment_from_workflow)
---    identico, con type = 'appointment_confirmed'
-
--- 3) Canceló (agent_cancel_appointment_from_workflow)
---    identico, con type = 'appointment_cancelled_by_patient'
-
--- 4) Movió (agent_reschedule_appointment_from_workflow)
-INSERT INTO public.notifications
-      (type, appointment_id, patient_id, professional_id, payload)
-VALUES ('appointment_rescheduled_by_patient',
-        v_new_appointment_id, v_turn.patient_id, v_turn.professional_id,
-        pg_catalog.jsonb_build_object(
-          'patient_first_name', v_patient_first_name,
-          'patient_last_name',  v_patient_last_name,
-          'previous_starts_at', v_old.starts_at,
-          'previous_modality',  v_old.modality,
-          'new_starts_at',      v_new_starts_at,
-          'new_modality',       v_new_modality));
-
--- 5) Cambió de modalidad (agent_switch_appointment_modality_from_workflow)
-INSERT INTO public.notifications
-      (type, appointment_id, patient_id, professional_id, payload)
-VALUES ('modality_changed_by_patient',
-        v_appointment.id, v_turn.patient_id, v_turn.professional_id,
-        pg_catalog.jsonb_build_object(
-          'patient_first_name',    v_patient_first_name,
-          'patient_last_name',     v_patient_last_name,
-          'appointment_starts_at', v_appointment.starts_at,
-          'previous_modality',     v_old_modality,
-          'new_modality',          v_new_modality));
-
--- 6) Mandó comprobante (agent_attach_payment_proof_from_workflow)
-INSERT INTO public.notifications
-      (type, appointment_id, patient_id, professional_id, payload)
-VALUES ('payment_proof_received',
-        v_appointment.id, v_turn.patient_id, v_turn.professional_id,
-        pg_catalog.jsonb_build_object(
-          'patient_first_name',    v_patient_first_name,
-          'patient_last_name',     v_patient_last_name,
-          'appointment_starts_at', v_appointment.starts_at));
-```
-
-Cuatro reglas de forma, todas verificadas:
-
-1. **El `timestamptz` se pasa tal cual; `::text` jamás.** El lector valida el
-   instante con `/(?:[zZ]|[+-]\d{2}:?\d{2})$/`. `jsonb_build_object('x', now())`
-   produce `"2026-08-26T02:29:29.960926+00:00"` y pasa. `now()::text` produce
-   `"2026-08-26 02:29:29.960926+00"` y **falla**: el desplazamiento de dos
-   dígitos no cumple el patrón, y el aviso cae al texto neutro sin dar un solo
-   error. Envolverlo en `to_jsonb()` no aporta nada —comprobado en la base:
-   `jsonb_build_object('a', now())` y `to_jsonb(now())` devuelven la misma
-   cadena, porque el primero llama al segundo—. Lo mismo con la modalidad.
-2. **La modalidad va en crudo**, `in_person` u `online`. El lector traduce con su
-   propio diccionario; un «presencial» ya traducido no lo encuentra y cae al
-   neutro.
-3. **Nada de zona horaria en el `payload`.** Los dos lectores resuelven la zona
-   por su cuenta desde `professionals.timezone`. Los instantes van absolutos.
-4. **Ninguna clave de más.** `surface`, `command_id`, `change_policy_result`,
-   `waived`, `pending_charge_decision`: ningún lector las mira. Son peso muerto
-   que un día se filtra a una push.
-
-`professional_id` es `NOT NULL`. `appointment_id` y `patient_id` se llenan
-porque ya están en la mano y son el único rastro que liga el aviso con la cita;
-la app hoy no los usa.
-
-### 8.3 La regla del monto
-
-**El aviso de comprobante no lleva el monto.** El borrador escribe hoy:
-
-```sql
-'amount', pg_catalog.to_char(v_payment.amount, 'FM999999990.00')
-```
-
-Se quita. Dos razones, y la segunda es de producto: el lector no la mira, así que
-es peso muerto; y un monto en el aviso de un comprobante que **está pendiente de
-revisión** dice que ya se cobró esa cantidad, que es exactamente lo que la regla
-3 prohíbe decir. El profesional abre la tarjeta y ahí ve el monto, junto al
-botón que lo resuelve.
-
-Por la misma razón se quita `charge_reason` del mismo aviso.
+Y en las capacidades, `charge_timing`, para que el agente sepa desde el primer mensaje si
+tiene que hablar de dinero al agendar.
 
 ---
 
-## 9. Qué avisos de WhatsApp no debe encolar el agente
+## 6. El contrato de avisos a la profesional
 
-**El agente no encola ninguna plantilla. Ninguna. Nunca.**
+Son seis eventos y **una sola tabla**: `public.notifications`. `type` es `text` sin CHECK, así
+que la base acepta cualquier cosa — pero **el renderizador de la app decide si la tarjeta se
+lee o sale en blanco**, y la app es intocable esta ronda.
 
-Es una regla sin excepciones, y por eso es fácil de cumplir. El único productor
-nuevo de `whatsapp_outbox` en todo este diseño es
-`cron_agent_prepay_expiry` (§5.3), que no es el agente: corre cuando la
-conversación lleva horas cerrada.
+El renderizador vive en
+`flutter_application_1/lib/pages/notifications/notification_models.dart` y termina en
+`_ => _neutralPresentation`. Un tipo que no conoce, o un tipo que conoce **al que le falte una
+clave**, se pinta como:
 
-| Plantilla | Por qué el agente no la encola |
-|---|---|
-| `appointment_cancelled`, `appointment_cancelled_payment_proof` | **Eco.** El agente acaba de decírselo en el chat, al mismo teléfono. En la app del profesional este aviso tiene sentido porque la paciente no estaba presente; aquí sí estaba. |
-| `appointment_rescheduled`, `appointment_rescheduled_payment_proof` | **Eco**, por lo mismo. |
-| `appointment_confirmation_request`, `appointment_confirmation_prepay` | Son del `cron_appointment_confirmation_26h`, que ocupa el `dedup_key = 'appointment_confirmation:' || appointment_id`. Su `ON CONFLICT` no es un `DO NOTHING`: es un `DO UPDATE` que **revive la fila cancelada y le pisa el `payload` y el `template_key`** mientras no haya salido. Una fila puesta ahí por el agente no se respeta, se reescribe. |
-| `request_session_payment_proof`, `request_late_payment_proof`, `request_no_show_payment_proof` | Son la voz del profesional pidiendo dinero. El agente no pide dinero por él. |
-| `appointment_reminder_1h_*` | Del `cron_appointment_reminder_1h`. |
-| `patient_welcome`, `patient_reactivation`, `patient_review_request`, `patient_resource_delivery` | Fuera de este documento. |
+> **Nueva notificación** · Hay una actualización reciente en tu cuenta.
 
-Son las 16 claves que la base conoce. `private.wa_payload_ok` las lleva escritas
-en su cuerpo con el número exacto de variables de cada una, y
-`chk_outbox_variables` las impone: una clave desconocida devuelve `-1` variables
-esperadas y **el `INSERT` revienta**. (En Kapso hay 18 plantillas aprobadas:
-sobran `appointment_reminder_1h_online_no_url` y
-`appointment_reminder_1h_online_no_link`, dos variantes del recordatorio en
-línea que no tienen clave en la base y por lo tanto no se pueden encolar.)
-Añadir una plantilla nueva exige migrar `wa_payload_ok`,
-migrar `tg_outbox_variables_bi` para que sepa armarle el array de variables, y
-que Meta la apruebe. Este diseño no añade ninguna.
+### 6.1 Las tres reglas que atraviesan los seis
 
-**Cómo habla el agente entonces.** Por dentro de la sesión abierta, con
-`send_notification_to_user` de Kapso. La ventana de 24 h se cumple por
-construcción: la cola sólo produce plantillas, y el agente sólo responde dentro
-de una sesión que la paciente acaba de abrir. No hay que comprobar nada.
+1. **`patient_first_name` es obligatorio y no puede venir vacío.** `patient_last_name` es
+   opcional. Si el nombre falta, la tarjeta cae al aviso neutro, sin excepción.
+2. **Las horas tienen que traer huso.** `_parseOffsetInstant` exige que terminen en `Z` o en
+   `±HH:MM`. Es justo lo que produce un `timestamptz` metido en `jsonb_build_object`; una
+   cadena armada a mano no sirve.
+3. **La modalidad tiene que llegar exactamente como `'online'` o `'in_person'`.** Cualquier
+   otro texto devuelve `null` y tumba la tarjeta.
 
-**Y lo que sí sigue pasando solo**, sin que el agente escriba una línea:
+Claves extra —`surface`, `command_id`, `change_policy_result`— son inofensivas: el
+renderizador sólo lee las que conoce. Lo que no se puede es faltar una.
 
-- `tg_appointments_apagar_avisos`: al salir de `scheduled`, cancela confirmación,
-  prepago y los tres recordatorios de 1 h.
-- `tg_payments_apagar_cobro`: en `pending → credited|waived`, cancela las tres
-  peticiones de comprobante y degrada `appointment_confirmation_prepay →
-  appointment_confirmation_request` mientras siga en cola.
-- `tg_payment_proofs_degradar_prepago_ai`: al insertar un comprobante, degrada la
-  plantilla de prepago.
+### 6.2 Los seis avisos, con su forma exacta
 
-El orden está bien resuelto de fábrica: los triggers de cita disparan al cambiar
-el estado, **antes** de que se inserte la fila nueva, así que el aviso nuevo
-sobrevive y los pendientes mueren.
+| # | Evento | `type` | Claves obligatorias | Lo que pinta la app |
+|---|---|---|---|---|
+| 1 | Agendó | `appointment_created_by_patient` | `patient_first_name`, `appointment_starts_at`, `appointment_ends_at`, `appointment_modality` | «Cita creada · {nombre} agendó una cita para el {día}, de {hora} a {hora}, en modalidad {modalidad}.» |
+| 2 | Confirmó | `appointment_confirmed` | las mismas cuatro | «Cita confirmada · {nombre} confirmó su cita del {día}, de {hora} a {hora}, en modalidad {modalidad}.» |
+| 3 | Canceló | `appointment_cancelled_by_patient` | las mismas cuatro | «Cita cancelada · {nombre} canceló su cita {modalidad} del {día}, de {hora} a {hora}.» |
+| 4 | Reprogramó | `appointment_rescheduled_by_patient` | `patient_first_name`, `previous_starts_at`, `previous_modality`, `new_starts_at`, `new_modality` | «Cita reprogramada · {nombre} reprogramó su cita {modalidad} del {día} a las {hora}. Nueva cita: {día} a las {hora}, {modalidad}.» |
+| 5 | Cambió modalidad | `modality_changed_by_patient` | `patient_first_name`, `appointment_starts_at`, `previous_modality`, `new_modality` | «Modalidad modificada · {nombre} cambió su cita del {día} a las {hora} de modalidad {antes} a {después}.» |
+| 6 | Mandó comprobante | `payment_proof_received` | `patient_first_name`, `appointment_starts_at` | «Comprobante recibido · {nombre} envió el comprobante de su cita del {día} a las {hora}.» |
+
+> **Aviso, y no es cosmético: «las mismas cuatro» sólo vale para los avisos 1, 2 y 3.** Los
+> avisos 4 y 5 leen **otras claves, con otros nombres**, y el 6 lee sólo dos. El renderizador
+> no busca por parecido: `previous_modality` y `old_modality` son dos cosas distintas y la
+> segunda no existe para él. Copiar los cuatro nombres del renglón 1 en la tarjeta de
+> reprogramar la deja igual de en blanco que no escribir nada. **Ya pasó al arreglarlas** — ver
+> §6.4.
+
+El aviso 3 se reusa también para **pasar el pago**: no existe tipo propio para ese hecho y uno
+nuevo se pintaría en blanco. Para el **prepago vencido** la decisión está abierta y se explica
+en §3.2 — el archivo escrito escogió el tipo nuevo `appointment_cancelled_unpaid`, que la app
+pinta en blanco pero no miente sobre quién canceló.
+
+Los seis nombres y sus payloads no son teoría: **los seis existen en producción**, uno de cada
+uno, y se leyeron tal cual de la tabla.
+
+### 6.3 El del comprobante: le faltaban las dos claves y le sobraba el monto
+
+El aviso 6 pide **dos claves**: `patient_first_name` y `appointment_starts_at`. Lo que
+`agent_attach_payment_proof_from_workflow` mandaba era `surface`, `command_id`,
+`charge_reason` y `amount`: ninguna de las dos obligatorias, ni siquiera una hora. **Ya está
+corregido** en `20260825002000_agent_pagos.sql`, sin aplicar.
+
+El `'amount'` se fue por tres razones, y conviene que queden escritas para que nadie lo
+devuelva:
+
+1. **La app no lo lee.** Su texto no menciona dinero: la tarjeta sólo dice quién mandó qué y
+   de cuál cita.
+2. **Es dinero copiado a un sitio que no se actualiza.** El importe vive en `payments.amount`.
+   Si cambia, la notificación se queda mintiendo para siempre, porque nadie reescribe una fila
+   de la bandeja.
+3. **Un comprobante recibido no es un cobro.** El pago sigue `pending`, pendiente de revisión.
+   Poner el monto en la tarjeta empuja a leerlo como «entraron $800», que es exactamente lo
+   que R-D prohíbe decir.
+
+La fila real de producción lo confirma: su payload trae `patient_first_name`,
+`patient_last_name` y `appointment_starts_at`. **Sin monto.**
+
+### 6.4 Cómo van los seis hoy: cuatro bien, dos rotos
+
+Verificado renglón por renglón contra el `switch` de
+`flutter_application_1/lib/pages/notifications/notification_models.dart`, sobre el estado
+actual de las migraciones. Las claves `surface` y `command_id` van en las seis y son
+inofensivas.
+
+| Aviso | Qué manda hoy | Veredicto |
+|---|---|---|
+| 1 · crear | las cuatro del contrato | **pinta** |
+| 2 · confirmar | las cuatro | **pinta** |
+| 3 · cancelar | las cuatro, más `change_policy_result`, `pending_charge_decision` y `waived` | **pinta** |
+| 4 · reprogramar | `patient_first_name`, `appointment_starts_at`, `appointment_ends_at`, `appointment_modality`, `old_starts_at` | **EN BLANCO.** El renderizador de este tipo no mira ninguna de esas: pide `previous_starts_at`, `previous_modality`, `new_starts_at` y `new_modality`, y las cuatro faltan |
+| 5 · modalidad | `patient_first_name`, `appointment_starts_at`, `appointment_ends_at`, `appointment_modality`, `old_modality`, `new_modality` | **EN BLANCO** por una palabra: el renderizador lee `previous_modality`, no `old_modality`. Las otras tres claves que pide ya están |
+| 6 · comprobante | `patient_first_name`, `appointment_starts_at` | **pinta** |
+
+**Los dos rotos lo están por la misma causa:** se les copió el juego de cuatro claves de los
+avisos 1-3 en vez de leer el `switch` del tipo que les toca. Los arreglos son chicos y
+distintos entre sí:
+
+- **Reprogramar** necesita `previous_starts_at` (= `v_old.starts_at`, hoy va con el nombre
+  `old_starts_at`), `previous_modality` (= `v_old.modality`), `new_starts_at` (= `v_starts_at`)
+  y `new_modality` (= `v_modality`). Las tres `appointment_*` pueden quedarse o irse: el
+  renderizador de este tipo no las mira.
+- **Modalidad** necesita una sola edición: renombrar `old_modality` a `previous_modality`.
+  Cuidado con el valor, que ya está bien: `v_appointment.modality` es la instantánea *anterior*
+  al `UPDATE`, o sea la modalidad de la que se viene.
+
+Y **la de cancelar no manda `service_name`**, por si algún documento anterior lo dijo: ese
+campo va en el resultado que lee el modelo, no en el aviso.
 
 ---
 
-## 10. Decisiones pendientes para el dueño
+## 7. Qué plantillas no debe encolar el agente
 
-Cada una lleva la recomendación y el supuesto con el que este documento sigue.
+**La regla, en una línea: el agente contesta; el reloj encola.** Mientras la paciente está en
+la conversación, el agente le responde en el mismo turno con
+`send_notification_to_user`. Encolar además una plantilla es un **eco frío**: le llega dos
+veces lo mismo, y la segunda con el texto genérico de Meta.
 
-1. **Cargo por cambio tardío al reprogramar.** Recomendación: **mover es siempre
-   gratis**, cero código (§4.2). Supuesto en uso: mover es gratis. La alternativa
-   contradice la decisión de que el dinero siempre viaja, o exige tocar la app
-   del profesional.
-2. **La repetición de la confirmación cuando se agenda con menos de 26 h de
-   anticipación** (§5.2). Recomendación: aceptarla. Supuesto en uso: se acepta.
-   El arreglo, si molesta, es que el agente ocupe el `dedup_key` del cron.
-3. **Aviso al profesional cuando el prepago vence y la cita se cancela sola**
-   (§5.3). Hoy no se le avisa: no hay tipo de notificación y crearlo obliga a
-   tocar la app, que es intocable. Recomendación: dejarlo así esta ronda y
-   resolverlo junto con el punto 4.
-4. **Qué se le entrega al profesional en su ficha de cita** —quién agendó, quién
-   canceló, si avisó a tiempo—. Las cuatro columnas existen (`origin`,
-   `cancel_reschedule_actor`, `confirmation_source`, `change_policy_result`) y
-   ninguna de las dos funciones que alimentan su agenda las entrega. Material de
-   la ronda siguiente.
-5. **Que la decisión tardía sea fácil de encontrar.** El agente va a producirlas
-   todas, y hoy sólo aparecen tocando la tarjeta: no están en Cobros (por
-   `late_ok`), no hay punto en el calendario (`get_days_with_appointments` filtra
-   `status='scheduled'`), y el aviso se borra a las 24 h. Es un cambio en la app
-   del profesional. Nombrado, no resuelto.
-6. **Trasladar el pago a otra cita existente** (§6). Recomendación: no se
-   construye. Supuesto en uso: no entra, y se contesta con la respuesta fija.
-7. **El comprobante que llega después de que venció el prepago** (§1.5, fila F).
-   La paciente hizo la transferencia y tardó en mandar la foto; para entonces el
-   trabajo de §5.3 ya canceló la cita y condonó el pago. Ningún camino del
-   sistema reabre un `waived`: `waive`, `credit` y `request_proof` exigen
-   `pending` o `credited`. Recomendación: **dejarlo así y decirlo claro** —el
-   agente la manda con el profesional y le ofrece agendar de nuevo—; el dinero
-   se resuelve entre personas, que es donde ya estaba antes de que existiera el
-   agente. La alternativa es abrir una ventana de gracia (aceptar el comprobante
-   y dejar el pago `pending` sobre la cita cancelada), y eso obliga a
-   des-condonar un pago, que hoy no tiene función. Supuesto en uso: no hay
-   ventana de gracia.
-8. **El plazo del prepago cuando la cita empieza antes de 24 h.** Resuelto en
-   §5.3 así: el plazo es siempre `proof_requested_at + 24 h`, y el trabajo no
-   toca una cita que ya empezó. Es decir, **una cita de prepago agendada para
-   dentro de menos de 24 h nunca se autocancela**: llega sin comprobante, pasa a
-   `past_pending` y el profesional la resuelve con sus botones, exactamente como
-   cualquier otra cita sin pagar. Recomendación: dejarlo así. La alternativa
-   —vencer al empezar la sesión— cancelaba la cita con la paciente ya sentada,
-   porque entre `starts_at` y `ends_at` la cita sigue `scheduled`. Y hoy el caso
-   no existe: la única profesional con cobro antes pide 48 h de anticipación.
-   Supuesto en uso: 24 h fijas, y nunca sobre una cita empezada.
+`chk_outbox_variables` acepta exactamente **16 claves de plantilla** —el catálogo vive dentro
+de `private.wa_payload_ok` y una clave desconocida devuelve `-1` y revienta el `INSERT`—.
+Ninguna es del agente en una conversación viva:
+
+| Plantilla | De quién es | Por qué el agente no la encola |
+|---|---|---|
+| `appointment_cancelled` | del reloj de prepago (§3.2) y de la app de la profesional | La función de cancelar del agente **la encolaba**, y era eco: la paciente acababa de leer «Listo, cancelé tu cita…». Ya está retirada del archivo |
+| `appointment_rescheduled` | de la app de la profesional | La de reprogramar hacía lo mismo. También retirada |
+| `appointment_confirmation_request` | del cron de 26 h | El agente no pide confirmación: la paciente ya está escribiendo. Y el trigger `appointments_apagar_avisos_au` cancela la que hubiera en cola en cuanto la cita deja de estar `scheduled` |
+| `appointment_confirmation_prepay` | del cron de 26 h | Igual. Al agendar con prepago, el agente pide el comprobante **con palabras**, no con plantilla |
+| `request_session_payment_proof` | de la app de la profesional | El agente lo pide en la conversación |
+| `request_late_payment_proof` | de `request_appointment_payment_proof`, de la profesional | Es la única que la profesional le manda a la paciente cuando decide. Del agente, nunca |
+| `request_no_show_payment_proof` | de `mark_appointment_no_show` | Otro flujo |
+| `appointment_cancelled_payment_proof` · `appointment_rescheduled_payment_proof` | de `cancel_appointment` / `reschedule_appointment`, de la profesional | Otro flujo |
+| los tres `appointment_reminder_1h_*` | del cron de 1 h | Otro flujo |
+| `patient_welcome` · `patient_reactivation` | del alta y la reactivación | No son del agente |
+| `patient_resource_delivery` · `patient_review_request` | las manda la profesional | Son las que **abren** una conversación con el agente, no las que él manda |
+
+**La única excepción, y es una sola:** el trabajo que cancela un prepago vencido (§3.2) sí
+encola `appointment_cancelled`. Ahí no hay eco posible: pasaron 24 horas, la paciente no está
+en la conversación, y el silencio sería peor —se quedaría creyendo que tiene cita—.
+
+**Cómo se encola, cuando toca.** Nunca se arma `variables` a mano: se insertan campos
+semánticos (`patient_first_name`, `professional_first_name`, `starts_at`, `timezone`,
+`old_starts_at` / `new_starts_at`, `meeting_url`) y el trigger `outbox_variables_bi`
+—función `tg_outbox_variables_bi`, `BEFORE INSERT`— las materializa.
+
+Ese trigger **relee `appointments.modality` sólo para cuatro plantillas**: las dos de
+reprogramar y las dos de confirmación. Para ésas la cita tiene que existir y estar ya
+actualizada antes del `INSERT` en la cola. `appointment_cancelled` **no** es una de ellas: sus
+cuatro variables salen enteras del payload. Aun así el `INSERT` va al final, por los
+disparadores que apagan la cola (§3.2).
+
+---
+
+## 8. Lo que falta, en orden
+
+**Nada de esto está aplicado sobre la base**, así que «escrito» quiere decir «el texto existe
+en un archivo de `supabase/migrations/` que nadie ha corrido». Estado verificado el 26 de
+agosto de 2026 a las 16:12; los archivos se están editando, así que este renglón se
+reverifica antes de repartir trabajo. **No se citan números de línea a propósito**: cambian
+cada media hora. Se cita la función y qué buscar dentro.
+
+### Bloquea todo
+
+| # | Qué | Dónde | Estado |
+|---|---|---|---|
+| 1 | Sembrar una fila en `private.agent_token_key_registry` con `can_issue = true` y `verify_until` más allá de los 15 minutos del identificador | dato, no código | **0 filas.** Sin esto, toda lectura que emita identificadores aborta antes de devolver nada |
+| 2 | Aplicar las migraciones | — | 13 archivos escritos, cero aplicados |
+
+### Ya escrito, sólo falta aplicar
+
+| # | Qué | Dónde |
+|---|---|---|
+| 3 | `GRANT SELECT` y `GRANT DELETE` sobre `public.payment_proofs` | `20260825000000_agent_dominio_fundamento.sql` |
+| 4 | El cerrojo `APPOINTMENT_HAS_MONEY`, tras cargar el pago y antes de tocar la cita | `agent_cancel_appointment_from_workflow` → §2 |
+| 5 | Reprogramar partido en dos: a tiempo arrastra, tarde congela | `agent_reschedule_appointment_from_workflow` → §1.7 |
+| 6 | Reprogramar a tiempo: la petición viaja siempre y el comprobante se mueve | la misma → §1.6 |
+| 7 | Sin `INSERT INTO public.whatsapp_outbox` en cancelar ni en reprogramar | la misma y su hermana → §7 |
+| 8 | `public.cron_prepay_autocancel` y su `cron.schedule` cada cinco minutos | `20260826005000_agente_prepago_24h.sql` → §3.2 |
+| 9 | Los tres campos bancarios del perfil y sus dos funciones | `20260826001000_agente_datos_de_pago.sql` → §3.1 |
+| 10 | `agent_carry_payment_forward_from_workflow` | `20260826004000_agente_pasar_el_pago.sql` → §4 |
+| 11 | `carry_payment_forward` en el catálogo del portero | `20260826000000_agente_portero_conversacional.sql` |
+| 12 | El colapso por `COALESCE(series_id, id)` en la lista, en el conteo y en el ciclo | `agent_list_upcoming_appointments_from_workflow` → §4.1 |
+| 13 | Los avisos 1, 2, 3 y 6 con sus claves correctas | crear, confirmar, cancelar y comprobante → §6.4 |
+
+### Todavía por escribir
+
+| # | Qué | Dónde | Bloquea a |
+|---|---|---|---|
+| 14 | Sellar `proof_requested_at` + `method='transfer'` en el `INSERT INTO public.payments` de crear, conservando `v_payment_status` | `agent_create_appointment_from_workflow` | §3.1 |
+| 15 | `AND NOT v_prepay` en `v_born_confirmed` | la misma | §3.3 |
+| 16 | Confirmar la cita al pegar el comprobante | `agent_attach_payment_proof_from_workflow` | §3.3 |
+| 17 | Los avisos 4 y 5: `previous_starts_at` / `previous_modality` / `new_starts_at` / `new_modality` en reprogramar, y renombrar `old_modality` → `previous_modality` en modalidad | las dos mutaciones | §6.4. **Hoy siguen en blanco** |
+| 18 | Los cinco campos nuevos por cita en la lista: `change_policy_result`, `notice_hours`, `has_money`, `is_chargeable`, `can_carry_payment` | `agent_list_upcoming_appointments_from_workflow` | §5.3. **Sin esto los avisos previos no se pueden dar** |
+| 19 | La ruta `/tools/payments/carry-forward` en `FUTURE_AGENT_ROUTES` y en `DOMAIN_ROUTES`, con su `parse` de un solo identificador | `supabase/functions/agent_tool_gateway/handler.ts` | §4. Hoy no aparece ni una vez |
+| 20 | Un juego de datos sembrado en rama: dos series, una cita suelta del mismo servicio, un comprobante y un prepago | `supabase/tests/` | **todo lo probable** |
+
+---
+
+## 9. Los límites conocidos, sin maquillaje
+
+1. **Nada de esto se puede probar contra producción.** Cero series, cero comprobantes en toda
+   la historia, cero citas futuras vivas, cero decisiones abiertas, cero identificadores
+   emitidos y cero mutaciones del agente. Se siembra en una rama o se escribe a ciegas.
+2. **La paciente nunca sabe qué decidió la profesional.** De las tres funciones que resuelven,
+   sólo «pedir comprobante» le manda algo. Cobrar en efectivo la deja callada y sin saber
+   cuánto ni cómo pagar —y además **apaga** los avisos de comprobante que quedaban en cola—;
+   condonar es mudo. Con R-E esto duele menos en un lado y más en el otro: se le dijo que se
+   cobra, así que la mudez de «cobrar» ya no la deja en el aire, pero la de «condonar» sí le
+   quita una buena noticia.
+3. **La decisión tardía es difícil de encontrar en la app.** No aparece en Cobros
+   (`late_ok=false`), no pinta punto en el calendario (`get_days_with_appointments` filtra
+   `scheduled`) y el aviso se borra solo. La única forma es tocar la tarjeta del día. El
+   dueño decidió no arreglarlo esta ronda.
+4. **La app no conoce dos tipos de aviso que hacen falta:** «tienes una decisión de cobro
+   pendiente» y «el reloj canceló un prepago». `notifications.type` es texto libre, así que
+   los dos se pueden insertar sin migrar nada, pero el renderizador los pinta en blanco.
+   El de la decisión se acepta así. El del prepago sigue abierto: la alternativa es reusar
+   `appointment_cancelled_by_patient`, que pinta pero dice que canceló la paciente (§3.2).
+5. **Condonar un prepago escribe `forgiven`, no `carried_forward`.** El valor está fijo en el
+   código de `waive_appointment_payment`, sin parámetro. El dinero entró de verdad y el
+   registro dice que no se cobró. Es decisión de producto, no arreglo barato.
+6. **El agente va a producir decisiones tardías y las va a producir todas.** Hoy no las
+   produce nadie: `late_change_decision = 'pending'` no la escribe ninguna función desplegada
+   —`reschedule_appointment` ni siquiera nombra esa columna— y las dos únicas filas de
+   producción que la traen ya están resueltas. Por eso el punto 3 no molesta todavía. Deja de
+   ser cierto el día que esto se despliegue.

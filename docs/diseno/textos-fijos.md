@@ -1,11 +1,16 @@
-# Los ocho textos fijos
+# Los diez textos fijos
 
-Segunda versión, con las correcciones de Gael del 2026-08-26.
+**Tercera versión, con las correcciones de coherencia del cierre.** Seis los compone el servidor
+y el modelo sólo los retransmite. **Ya no salen de una herramienta**: viajan dentro de
+`abrir_expediente`, en el bloque `frases_fijas` (`02-herramientas.md` §1.7 y §2.1). El de crisis
+vive **literal en el prompt**, porque si dependiera de una llamada de red y del presupuesto, un
+`TOOL_BUDGET_EXCEEDED` en un mensaje de crisis sería silencio en el peor momento del producto. El
+octavo lo manda el borde de entrada, antes de que el agente exista.
 
-Seis los compone el servidor y el modelo sólo escoge el código. El de crisis vive **literal
-en el prompt**, porque si dependiera de una llamada de red y del presupuesto de ocho, un
-`TOOL_BUDGET_EXCEEDED` en un mensaje de crisis sería silencio en el peor momento del
-producto. El octavo lo manda el borde de entrada, antes de que el agente exista.
+**Y hay dos más que la autoridad fija y esta lámina no tenía**, que también viajan en
+`frases_fijas` y por la misma razón: `no_entendi` —personalizada a lo que esa profesional
+permite— y `se_acabo_el_espacio`, que **no puede** salir de una herramienta porque es
+literalmente el texto de «se acabaron las llamadas». Están al final, como textos 9 y 10.
 
 **Reglas de redacción:**
 - Nada de género en la paciente. Hay pacientes hombres en producción, así que ni «activa»
@@ -103,8 +108,11 @@ paciente → directorio; fue y ya no → que la reactiven.**
 
 ## 6 · `sin_horarios`
 
-**Cuándo.** La profesional no tiene ni un hueco en los próximos sesenta días — normalmente
-porque todavía no ha guardado su horario.
+**Cuándo.** La profesional no tiene ni un bloque de horario guardado, o tiene el agendado por
+parte de la paciente apagado. El horizonte del producto son **treinta días**, no sesenta (regla 7
+del ensayo). Sale de dos sitios: de `frases_fijas.sin_horarios` del expediente cuando
+`agendar.puede` va en falso, y del motivo `SIN_HORARIO` de `buscar_horarios` cuando la
+profesional no tiene ni un bloque configurado.
 
 > Ahorita {profesional} no tiene horarios abiertos para las próximas semanas. Lo mejor es
 > que le escribas directamente para que te dé un espacio.
@@ -183,41 +191,49 @@ Con recurrencia o con una próxima cita del mismo servicio — las dos salidas:
 
 ---
 
-# El prepago, de punta a punta
-
-Queda así, con la corrección de Gael:
-
-1. **Agenda por formulario, normal.** La cita nace sin confirmar y el reloj de 24 h empieza
-   a correr desde que agenda, no 26 h antes de la cita.
-2. **El agente le pide el comprobante por chat**, con la consecuencia dicha desde el
-   principio: si no llega en 24 h, se cancela.
-3. **Si no llega, un trabajo programado la cancela** y libera el horario.
-4. **Si después quiere otra cita, el formulario le pide la foto adentro.** No hay ventana de
-   gracia ni se reabre la cita vieja: empieza de cero, pero esta vez con el comprobante
-   dentro del formulario.
-
-La condición para pedir la foto dentro del formulario: que esa paciente tenga al menos una
-cita cancelada por prepago vencido. Es una consulta, y la resuelve el servidor al armar la
-primera pantalla.
-
-**Se hace con un solo formulario, no con dos.** El endpoint de datos decide a qué pantalla
-va después de la de horarios: si le toca subir comprobante, la manda a la pantalla de la
-foto; si no, cierra. Un solo formulario publicado, un solo permiso de Meta, un solo worker.
-Dos formularios costarían dos publicaciones y dos workers, y sólo quedan dos libres.
-
----
-
 # Lo que estos textos le exigen al sistema
 
 1. **El nombre de pila de la profesional** tiene que venir en el expediente. Ya viene.
-2. **`sin_horarios` necesita saber que no hay ni un hueco en el horizonte.** Sale de la
-   misma consulta barata que pinta el calendario: si devuelve la lista vacía, es ese caso.
+2. **Los diez textos tienen que venir compuestos dentro del expediente**, en `frases_fijas`, y
+   `no_entendi` además tiene que nombrar sólo lo que esa profesional permite. Es la exigencia 2
+   de `05-prompt.md` §9, y hoy el expediente escrito no la cumple.
 3. **`vas_muy_rapido` necesita un envío desde el borde** que hoy no existe: la admisión
    marca el rechazo y ahí se acaba, así que ella no recibe nada. Es un POST más.
 4. **`elige_profesional` necesita resolver una cita contra dos relaciones** para poder tomar
    el camino corto. Hoy no hay ningún teléfono con dos, así que no se ejercita.
 5. **La reseña por partes** obliga a que el agente sepa cuándo tiene lo suficiente para
    registrar: con la calificación basta.
-6. **La pantalla del comprobante dentro del formulario** obliga a bajar y descifrar el
-   archivo desde los servidores de WhatsApp. Es la rutina que no existe hoy, y es el único
-   trabajo nuevo de peso que sale de esta ronda de correcciones.
+6. **Bajar y descifrar el comprobante desde los servidores de WhatsApp.** El archivo llega por
+   `kapso_inbound_webhook`, que hoy no tiene una sola línea de medios ni de almacenamiento, y
+   `whatsapp_inbound_messages` no tiene dónde guardar los cuatro campos del archivo. Es la rutina
+   que no existe, y sin ella `registrar_comprobante` no funciona aunque la función de base esté
+   escrita.
+
+
+---
+
+## 9 · `no_entendi`
+
+**Cuándo.** No se entiende qué quiere. **Acotado a lo que el agente hace y personalizado a lo que
+esa profesional permite** — si no permite cambios de modalidad, no se menciona.
+
+> No te entendí. Por aquí te puedo ayudar con tus citas —agendar, mover, cancelar o confirmar— y
+> con lo de tus pagos. ¿Qué necesitas?
+
+**Después:** la gestión sigue abierta.
+**Compone el servidor:** la lista de verbos sale de `puede` del expediente. Una paciente sin
+ninguna cita futura no oye «mover» ni «cancelar», porque esas banderas van en falso.
+
+---
+
+## 10 · `se_acabo_el_espacio`
+
+**Cuándo.** Se acabaron las doce llamadas de la gestión (`TOOL_BUDGET_EXCEEDED`).
+
+> Se me acabó el espacio de esta consulta. Escríbeme otra vez y seguimos justo desde donde nos
+> quedamos.
+
+**Después:** la gestión cierra.
+**Por qué viaja en el expediente y no en una herramienta:** cuando hace falta, ya no queda ninguna
+llamada disponible. Una herramienta que sólo se puede usar cuando no se puede usar ninguna es una
+herramienta rota.
