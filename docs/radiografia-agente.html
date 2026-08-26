@@ -1,0 +1,599 @@
+<title>Radiografía del agente</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700;800&family=JetBrains+Mono:wght@400;500;700&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&display=swap">
+
+<style>
+  :root{
+    --ground:#EDF0F5;
+    --surface:#FFFFFF;
+    --surface-2:#F5F8FC;
+    --ink:#101722;
+    --ink-2:#4C586C;
+    --ink-3:#7C889C;
+    --line:#D2DAE6;
+    --line-2:#E6ECF4;
+    --accent:#2E4A8F;
+    --accent-2:#5470B8;
+    --accent-soft:#DEE5F4;
+    --live:#186546;
+    --live-soft:#D6EBE0;
+    --written:#7F5A0D;
+    --written-soft:#F2E7C9;
+    --missing:#96262A;
+    --missing-soft:#F5DCDC;
+    --shadow:0 1px 2px rgba(16,23,34,.05), 0 8px 24px -12px rgba(16,23,34,.18);
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --ground:#0B1017;
+      --surface:#131A25;
+      --surface-2:#18212F;
+      --ink:#E7ECF4;
+      --ink-2:#A4AFC2;
+      --ink-3:#74839B;
+      --line:#2A3543;
+      --line-2:#1D2733;
+      --accent:#8AA6E8;
+      --accent-2:#6E8DD6;
+      --accent-soft:#1B2740;
+      --live:#63D3A6;
+      --live-soft:#123027;
+      --written:#E3BF66;
+      --written-soft:#2E2711;
+      --missing:#F09090;
+      --missing-soft:#341A1B;
+      --shadow:0 1px 2px rgba(0,0,0,.4), 0 10px 30px -14px rgba(0,0,0,.7);
+    }
+  }
+  :root[data-theme="dark"]{
+    --ground:#0B1017;
+    --surface:#131A25;
+    --surface-2:#18212F;
+    --ink:#E7ECF4;
+    --ink-2:#A4AFC2;
+    --ink-3:#74839B;
+    --line:#2A3543;
+    --line-2:#1D2733;
+    --accent:#8AA6E8;
+    --accent-2:#6E8DD6;
+    --accent-soft:#1B2740;
+    --live:#63D3A6;
+    --live-soft:#123027;
+    --written:#E3BF66;
+    --written-soft:#2E2711;
+    --missing:#F09090;
+    --missing-soft:#341A1B;
+    --shadow:0 1px 2px rgba(0,0,0,.4), 0 10px 30px -14px rgba(0,0,0,.7);
+  }
+
+  *{box-sizing:border-box}
+  body{
+    margin:0;
+    background:var(--ground);
+    color:var(--ink);
+    font-family:"Source Serif 4","Iowan Old Style",Georgia,serif;
+    font-size:17px;
+    line-height:1.62;
+    -webkit-font-smoothing:antialiased;
+  }
+  .page{max-width:1080px;margin:0 auto;padding:0 24px 96px}
+  @media (max-width:640px){ .page{padding:0 16px 64px} body{font-size:16px} }
+
+  h1,h2,h3,.mono,.eyebrow,.chip,.num,th{font-family:"Archivo","Helvetica Neue",Arial,sans-serif}
+  .mono,code,.dgm,.opname,.metric-num,.funnel-num,td.n{font-family:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,monospace}
+
+  /* ---------- cabecera ---------- */
+  header.hd{padding:72px 0 44px;border-bottom:1px solid var(--line)}
+  .eyebrow{
+    font-size:11px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;
+    color:var(--accent);margin:0 0 18px;
+  }
+  h1{
+    font-size:clamp(40px,7vw,68px);font-weight:800;letter-spacing:-.035em;line-height:1.02;
+    margin:0 0 20px;text-wrap:balance;
+  }
+  .dek{font-size:clamp(18px,2.4vw,21px);color:var(--ink-2);max-width:60ch;margin:0}
+  .stamp{
+    margin-top:26px;font-size:12px;letter-spacing:.04em;color:var(--ink-3);
+    font-family:"JetBrains Mono",monospace;
+  }
+
+  /* ---------- veredicto ---------- */
+  .verdict{
+    margin:44px 0 0;padding:32px 34px;background:var(--surface);border:1px solid var(--line);
+    border-left:4px solid var(--accent);border-radius:3px;box-shadow:var(--shadow);
+  }
+  .verdict p{margin:0;font-size:clamp(21px,3vw,27px);line-height:1.36;letter-spacing:-.012em;text-wrap:balance}
+  .verdict p + p{margin-top:16px;font-size:17px;line-height:1.6;color:var(--ink-2)}
+
+  /* ---------- métricas ---------- */
+  .metrics{
+    display:grid;grid-template-columns:repeat(auto-fit,minmax(158px,1fr));
+    gap:1px;background:var(--line);border:1px solid var(--line);margin:36px 0 0;border-radius:3px;overflow:hidden;
+  }
+  .metric{background:var(--surface);padding:20px 18px}
+  .metric-num{font-size:32px;font-weight:700;letter-spacing:-.03em;line-height:1;display:block;font-variant-numeric:tabular-nums}
+  .metric-lbl{display:block;margin-top:9px;font-size:12.5px;line-height:1.4;color:var(--ink-2)}
+  .metric.zero .metric-num{color:var(--missing)}
+  .metric.warn .metric-num{color:var(--written)}
+
+  /* ---------- secciones ---------- */
+  section{margin-top:76px}
+  h2{
+    font-size:clamp(25px,3.4vw,33px);font-weight:700;letter-spacing:-.026em;line-height:1.14;
+    margin:0 0 8px;text-wrap:balance;
+  }
+  h2 .h2num{
+    font-family:"JetBrains Mono",monospace;font-size:13px;font-weight:500;color:var(--accent);
+    display:block;margin-bottom:10px;letter-spacing:.06em;
+  }
+  .sub{color:var(--ink-2);margin:0 0 30px;max-width:68ch}
+  h3{font-size:17px;font-weight:700;letter-spacing:.01em;margin:34px 0 10px}
+  p{max-width:70ch}
+  a{color:var(--accent);text-decoration-thickness:1px;text-underline-offset:2px}
+  a:focus-visible,button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+  /* ---------- leyenda de estados ---------- */
+  .legend{display:flex;flex-wrap:wrap;gap:10px;margin:0 0 26px}
+  .chip{
+    display:inline-flex;align-items:center;gap:7px;font-size:11.5px;font-weight:600;
+    letter-spacing:.05em;text-transform:uppercase;padding:5px 11px 5px 9px;border-radius:2px;
+    border:1px solid transparent;white-space:nowrap;
+  }
+  .chip::before{content:"";width:7px;height:7px;border-radius:50%;flex:none}
+  .chip.live{background:var(--live-soft);color:var(--live);border-color:var(--live)}
+  .chip.live::before{background:var(--live)}
+  .chip.written{background:var(--written-soft);color:var(--written);border-color:var(--written)}
+  .chip.written::before{background:var(--written)}
+  .chip.missing{background:var(--missing-soft);color:var(--missing);border-color:var(--missing)}
+  .chip.missing::before{background:var(--missing)}
+
+  /* ---------- diagramas ---------- */
+  .dgm-wrap{
+    background:var(--surface);border:1px solid var(--line);border-radius:3px;
+    padding:26px 20px;overflow-x:auto;box-shadow:var(--shadow);margin:0 0 14px;
+  }
+  .dgm-wrap pre.mermaid{margin:0;min-width:600px;display:flex;justify-content:center}
+  .caption{font-size:13.5px;color:var(--ink-3);margin:0 0 4px;max-width:70ch}
+
+  /* ---------- embudo ---------- */
+  .funnel{
+    background:var(--surface);border:1px solid var(--line);border-radius:3px;
+    padding:28px 26px;box-shadow:var(--shadow);display:flex;flex-direction:column;gap:22px;
+  }
+  .fr{display:grid;grid-template-columns:minmax(150px,210px) 1fr auto;gap:18px;align-items:center}
+  @media (max-width:640px){ .fr{grid-template-columns:1fr auto;row-gap:8px} .fr .ftrack{grid-column:1/-1;order:3} }
+  .flbl{font-family:"Archivo",sans-serif;font-size:13.5px;font-weight:600;line-height:1.3}
+  .flbl small{display:block;font-weight:400;color:var(--ink-3);font-size:11.5px;letter-spacing:.02em;font-family:"JetBrains Mono",monospace;margin-top:3px}
+  .ftrack{background:var(--line-2);height:30px;border-radius:2px;overflow:hidden}
+  .fbar{height:100%;min-width:5px;border-radius:2px 0 0 2px}
+  .fbar.a{background:var(--accent)}
+  .fbar.b{background:var(--written)}
+  .fbar.c{background:var(--missing)}
+  .funnel-num{font-family:"JetBrains Mono",monospace;font-size:27px;font-weight:700;font-variant-numeric:tabular-nums;min-width:2.2ch;text-align:right}
+  .fr:nth-child(1) .funnel-num{color:var(--accent)}
+  .fr:nth-child(2) .funnel-num{color:var(--written)}
+  .fr:nth-child(3) .funnel-num{color:var(--missing)}
+
+  /* ---------- inventario de operaciones ---------- */
+  .surface-group{margin-top:26px}
+  .surface-hd{
+    display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;
+    padding-bottom:9px;border-bottom:1px solid var(--line);margin-bottom:14px;
+  }
+  .surface-hd h3{margin:0;font-size:15px}
+  .surface-hd .mono{font-size:11.5px;color:var(--ink-3);letter-spacing:.03em}
+  .ops{display:grid;grid-template-columns:repeat(auto-fill,minmax(238px,1fr));gap:8px}
+  .op{
+    background:var(--surface);border:1px solid var(--line);border-left-width:3px;
+    border-radius:2px;padding:11px 13px;display:flex;flex-direction:column;gap:4px;
+  }
+  .op.live{border-left-color:var(--live)}
+  .op.written{border-left-color:var(--written)}
+  .op.missing{border-left-color:var(--missing)}
+  .opname{font-size:12.5px;font-weight:500;line-height:1.3;word-break:break-word}
+  .opnote{font-size:11.5px;line-height:1.42;color:var(--ink-3);font-family:"Source Serif 4",serif}
+  .op.live .opname{color:var(--ink)}
+  .op.written .opname,.op.missing .opname{color:var(--ink-2)}
+
+  /* ---------- tarjetas de nudo ---------- */
+  .knots{display:flex;flex-direction:column;gap:14px}
+  .knot{
+    background:var(--surface);border:1px solid var(--line);border-radius:3px;
+    padding:22px 24px;box-shadow:var(--shadow);
+  }
+  .knot-hd{display:flex;align-items:baseline;gap:12px;margin-bottom:8px;flex-wrap:wrap}
+  .knot-k{
+    font-family:"JetBrains Mono",monospace;font-size:11px;font-weight:700;letter-spacing:.1em;
+    color:var(--missing);background:var(--missing-soft);padding:3px 8px;border-radius:2px;
+  }
+  .knot h3{margin:0;font-size:18px;letter-spacing:-.012em}
+  .knot p{margin:0;color:var(--ink-2);font-size:16px}
+  .knot p + p{margin-top:10px}
+  .knot .ev{
+    margin-top:12px;font-family:"JetBrains Mono",monospace;font-size:11.5px;line-height:1.55;
+    color:var(--ink-3);background:var(--surface-2);border:1px solid var(--line-2);
+    padding:9px 12px;border-radius:2px;overflow-x:auto;
+  }
+
+  /* ---------- tablas ---------- */
+  .tw{overflow-x:auto;border:1px solid var(--line);border-radius:3px;background:var(--surface);box-shadow:var(--shadow)}
+  table{border-collapse:collapse;width:100%;min-width:520px;font-size:14.5px}
+  th{
+    text-align:left;font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;
+    color:var(--ink-3);padding:12px 16px;border-bottom:1px solid var(--line);white-space:nowrap;
+  }
+  td{padding:12px 16px;border-bottom:1px solid var(--line-2);vertical-align:top;color:var(--ink-2)}
+  tr:last-child td{border-bottom:0}
+  td:first-child{color:var(--ink);font-family:"Archivo",sans-serif;font-weight:600;font-size:13.5px}
+  td.n{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+
+  /* ---------- decisiones ---------- */
+  .decs{display:flex;flex-direction:column;gap:1px;background:var(--line);border:1px solid var(--line);border-radius:3px;overflow:hidden}
+  .dec{background:var(--surface);padding:20px 24px;display:grid;grid-template-columns:auto 1fr;gap:18px;align-items:start}
+  .dec-n{
+    font-family:"JetBrains Mono",monospace;font-size:13px;font-weight:700;color:var(--accent);
+    padding-top:2px;font-variant-numeric:tabular-nums;
+  }
+  .dec q{display:block;font-family:"Archivo",sans-serif;font-weight:600;font-size:16px;color:var(--ink);quotes:none;letter-spacing:-.008em}
+  .dec p{margin:7px 0 0;font-size:15px;color:var(--ink-2)}
+
+  /* ---------- nota de método ---------- */
+  .method{
+    margin-top:76px;padding:24px 26px;background:var(--surface-2);border:1px solid var(--line-2);
+    border-radius:3px;font-size:14px;color:var(--ink-2);
+  }
+  .method h3{margin:0 0 10px;font-size:13px;letter-spacing:.09em;text-transform:uppercase;color:var(--ink-3)}
+  .method ul{margin:0;padding-left:20px;display:flex;flex-direction:column;gap:5px}
+  .method li{max-width:80ch}
+  .method code{font-size:12.5px;background:var(--surface);border:1px solid var(--line);padding:1px 5px;border-radius:2px;color:var(--ink-2)}
+
+  ul.plain{padding-left:20px;margin:14px 0;display:flex;flex-direction:column;gap:8px}
+  ul.plain li{max-width:70ch;color:var(--ink-2)}
+  ul.plain li strong{color:var(--ink)}
+  @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+
+<div class="page">
+
+<header class="hd">
+  <p class="eyebrow">Auditoría verificada · Agenda Psi</p>
+  <h1>Radiografía del agente</h1>
+  <p class="dek">Qué está realmente puesto en Kapso, en la base de datos y en las funciones de borde — leído de los sistemas desplegados, no de la documentación del repositorio.</p>
+  <p class="stamp">25 de agosto de 2026 · proyecto ssyzfeadyrczlzjbvxyl · Kapso «Agenda Psi»</p>
+</header>
+
+<div class="verdict">
+  <p>El agente está completo de la cintura para arriba. Recibe, entiende, decide, y sabe cerrar. Lo que no tiene son manos.</p>
+  <p>En toda la historia de producción ha ejecutado exactamente dos operaciones distintas: pedir su expediente y cerrar la gestión. Seis llamadas en total, cero acciones que cambien algo, cero identificadores emitidos. Toda la maquinaria de control funciona; lo que hay detrás de ella no existe todavía.</p>
+</div>
+
+<div class="metrics">
+  <div class="metric"><span class="metric-num">26</span><span class="metric-lbl">operaciones que el portero autoriza</span></div>
+  <div class="metric warn"><span class="metric-num">3</span><span class="metric-lbl">rutas vivas de 27 declaradas en la puerta</span></div>
+  <div class="metric zero"><span class="metric-num">0</span><span class="metric-lbl">funciones de dominio en la base</span></div>
+  <div class="metric"><span class="metric-num">6</span><span class="metric-lbl">llamadas en toda la historia</span></div>
+  <div class="metric zero"><span class="metric-num">0</span><span class="metric-lbl">mutaciones y handles emitidos</span></div>
+  <div class="metric"><span class="metric-num">41</span><span class="metric-lbl">citas reales en la base</span></div>
+</div>
+
+<!-- ============================================================ -->
+<section>
+  <h2><span class="h2num">GRAFO 01</span>El camino de un mensaje, hoy</h2>
+  <p class="sub">Todo lo azul está puesto y funciona. La rama roja es donde el camino se corta: el agente tiene dos herramientas conectadas y ninguna de ellas hace nada administrativo.</p>
+
+  <div class="legend">
+    <span class="chip live">Vive y responde</span>
+    <span class="chip written">Escrito, sin desplegar</span>
+    <span class="chip missing">No existe</span>
+  </div>
+
+  <div class="dgm-wrap">
+<pre class="mermaid">
+%%{init:{"theme":"base","themeVariables":{"fontFamily":"JetBrains Mono, monospace","fontSize":"13px","primaryColor":"#2E4A8F","primaryTextColor":"#FFFFFF","primaryBorderColor":"#2E4A8F","lineColor":"#8A97AC","tertiaryColor":"#EDF0F5"}}}%%
+flowchart TD
+  P["Paciente<br/>WhatsApp"] --> KW["Kapso · webhook<br/>agrupamiento APAGADO"]
+  KW --> EF["Borde<br/>kapso_inbound_webhook"]
+  EF --> ADM["Admisión<br/>identidad por teléfono<br/>abre la gestión"]
+  ADM --> WF["Workflow de Kapso<br/>ACTIVO · 3 nodos"]
+  WF --> AG["Nodo Agente<br/>gpt-5.6-luna · 16 vueltas<br/>prompt de ~3,800 letras"]
+  AG --> T1["get_capabilities<br/>expediente del turno"]
+  AG --> T2["sync_waiting<br/>sincroniza la espera"]
+  AG --> FN["Nodo Función<br/>cerrar la gestión"]
+  T1 --> GW["Puerta<br/>agent_tool_gateway"]
+  T2 --> GW
+  FN --> GW
+  GW --> DB["Base de datos<br/>13 funciones de control"]
+  AG -.-> DEAD["Agendar · reprogramar · cancelar<br/>confirmar · pagos · recursos · reseña<br/>SIN HERRAMIENTA CONECTADA"]
+
+  classDef ok fill:#2E4A8F,stroke:#2E4A8F,color:#FFFFFF;
+  classDef dead fill:#96262A,stroke:#96262A,color:#FFFFFF;
+  class P,KW,EF,ADM,WF,AG,T1,T2,FN,GW,DB ok;
+  class DEAD dead;
+</pre>
+  </div>
+  <p class="caption">El nodo del agente tiene además cuatro herramientas nativas de Kapso: enviar mensaje, esperar, cerrar tarea y —impuesta por la plataforma— pasar a un humano, que el prompt prohíbe usar.</p>
+</section>
+
+<!-- ============================================================ -->
+<section>
+  <h2><span class="h2num">GRAFO 02</span>Los tres muros</h2>
+  <p class="sub">La misma lista de operaciones vista desde las tres capas que tendría que atravesar. Cada muro deja pasar menos que el anterior, y el último deja pasar casi nada.</p>
+
+  <div class="funnel">
+    <div class="fr">
+      <div class="flbl">El portero autoriza<small>private.agent_claim_tool_call</small></div>
+      <div class="ftrack"><div class="fbar a" style="width:100%"></div></div>
+      <div class="funnel-num">26</div>
+    </div>
+    <div class="fr">
+      <div class="flbl">La puerta responde<small>agent_tool_gateway · 27 rutas declaradas</small></div>
+      <div class="ftrack"><div class="fbar b" style="width:11.5%"></div></div>
+      <div class="funnel-num">3</div>
+    </div>
+    <div class="fr">
+      <div class="flbl">La base implementa<small>funciones de dominio desplegadas</small></div>
+      <div class="ftrack"><div class="fbar c" style="width:7.7%"></div></div>
+      <div class="funnel-num">2</div>
+    </div>
+  </div>
+
+  <ul class="plain">
+    <li><strong>El portero está completo.</strong> Autoriza 26 operaciones repartidas en cuatro superficies, con sus reglas de estado, presupuesto y mutaciones. Es la pieza mejor hecha del sistema y está desplegada.</li>
+    <li><strong>La puerta está declarada pero cerrada.</strong> Las 27 rutas existen como lista; sólo tres contestan. Las otras 24 devuelven «operación no habilitada».</li>
+    <li><strong>La base sólo tiene el andamio.</strong> Trece funciones, todas de control: admitir, enlazar, esperar, cerrar, reclamar, finalizar, emitir y resolver identificadores. De las 26 operaciones autorizadas, únicamente dos tienen una función detrás.</li>
+  </ul>
+</section>
+
+<!-- ============================================================ -->
+<section>
+  <h2><span class="h2num">INVENTARIO</span>Las 26 operaciones, una por una</h2>
+  <p class="sub">Ordenadas por la puerta a la que pertenecen. El color dice si existen de verdad.</p>
+
+  <div class="legend">
+    <span class="chip live">Vive y responde</span>
+    <span class="chip written">Escrito en el árbol, sin desplegar</span>
+    <span class="chip missing">No existe en ninguna parte</span>
+  </div>
+
+  <div class="surface-group">
+    <div class="surface-hd"><h3>Conversación · lo que el modelo puede pedir</h3><span class="mono">agent_node · 18 operaciones</span></div>
+    <div class="ops">
+      <div class="op live"><span class="opname">get_capabilities</span><span class="opnote">La única que ha corrido de verdad. Tres veces.</span></div>
+      <div class="op written"><span class="opname">select_relationship</span><span class="opnote">Salida del estado ambiguo</span></div>
+      <div class="op written"><span class="opname">list_services</span></div>
+      <div class="op written"><span class="opname">get_booking_eligibility</span></div>
+      <div class="op written"><span class="opname">get_availability</span><span class="opnote">Única con permiso en dos estados</span></div>
+      <div class="op written"><span class="opname">list_upcoming_appointments</span></div>
+      <div class="op written"><span class="opname">get_next_appointment</span></div>
+      <div class="op written"><span class="opname">get_location</span></div>
+      <div class="op written"><span class="opname">get_pending_payments</span></div>
+      <div class="op written"><span class="opname">get_appointment_payment_status</span></div>
+      <div class="op written"><span class="opname">get_professional_share_profile</span></div>
+      <div class="op written"><span class="opname">confirm_appointment</span><span class="opnote">mutación</span></div>
+      <div class="op written"><span class="opname">cancel_appointment</span><span class="opnote">mutación</span></div>
+      <div class="op written"><span class="opname">cancel_then_open_booking_flow</span><span class="opnote">mutación · la saga de dos pasos</span></div>
+      <div class="op written"><span class="opname">reschedule_appointment</span><span class="opnote">mutación</span></div>
+      <div class="op written"><span class="opname">switch_appointment_modality</span><span class="opnote">mutación</span></div>
+      <div class="op written"><span class="opname">resume_resource_delivery</span><span class="opnote">mutación</span></div>
+      <div class="op written"><span class="opname">submit_review</span><span class="opnote">mutación</span></div>
+    </div>
+  </div>
+
+  <div class="surface-group">
+    <div class="surface-hd"><h3>Dentro del formulario</h3><span class="mono">flow_data_exchange · 4 operaciones</span></div>
+    <div class="ops">
+      <div class="op missing"><span class="opname">flow_list_services</span><span class="opnote">La función de Kapso ya la llama; la ruta contesta 403</span></div>
+      <div class="op missing"><span class="opname">flow_get_eligibility</span><span class="opnote">Igual</span></div>
+      <div class="op missing"><span class="opname">flow_get_availability</span><span class="opnote">Igual</span></div>
+      <div class="op missing"><span class="opname">flow_create_appointment</span><span class="opnote">mutación · y además bloqueada, ver nudo 01</span></div>
+    </div>
+  </div>
+
+  <div class="surface-group">
+    <div class="surface-hd"><h3>Imágenes que llegan</h3><span class="mono">media_adapter · 1 operación</span></div>
+    <div class="ops">
+      <div class="op missing"><span class="opname">attach_payment_proof</span><span class="opnote">mutación · en la puerta equivocada, ver nudo 02</span></div>
+    </div>
+  </div>
+
+  <div class="surface-group">
+    <div class="surface-hd"><h3>Control del flujo</h3><span class="mono">workflow_internal · 3 operaciones</span></div>
+    <div class="ops">
+      <div class="op written"><span class="opname">open_booking_flow</span><span class="opnote">manda el formulario</span></div>
+      <div class="op written"><span class="opname">send_fixed_response</span><span class="opnote">crisis y soporte</span></div>
+      <div class="op live"><span class="opname">complete_inbound</span><span class="opnote">Ordinal 9, fuera del presupuesto. Ha corrido tres veces.</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<section>
+  <h2><span class="h2num">LIBRO MAYOR</span>La prueba, sin interpretación</h2>
+  <p class="sub">El registro de llamadas del agente es lo único que no admite discusión: guarda una fila por cada operación reclamada, con su resultado. Éste es el registro completo.</p>
+
+  <div class="tw">
+    <table>
+      <thead>
+        <tr><th>Operación</th><th>Puerta</th><th class="n">Ordinal</th><th>Resultado</th><th>Cuándo (UTC)</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>complete_inbound</td><td>workflow_internal</td><td class="n">9</td><td>cerrada</td><td class="n">24 ago · 05:12</td></tr>
+        <tr><td>get_capabilities</td><td>agent_node</td><td class="n">1</td><td>cerrada</td><td class="n">24 ago · 05:23</td></tr>
+        <tr><td>complete_inbound</td><td>workflow_internal</td><td class="n">9</td><td>cerrada</td><td class="n">24 ago · 05:28</td></tr>
+        <tr><td>get_capabilities</td><td>agent_node</td><td class="n">1</td><td>cerrada</td><td class="n">24 ago · 06:14</td></tr>
+        <tr><td>get_capabilities</td><td>agent_node</td><td class="n">1</td><td>cerrada</td><td class="n">24 ago · 21:09</td></tr>
+        <tr><td>complete_inbound</td><td>workflow_internal</td><td class="n">9</td><td>cerrada</td><td class="n">24 ago · 21:09</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="caption">Seis filas. Cuatro sesiones, seis gestiones, diez mensajes registrados, cero identificadores emitidos. Nada se ha movido desde el 24 de agosto a las 21:09.</p>
+</section>
+
+<!-- ============================================================ -->
+<section>
+  <h2><span class="h2num">GRAFO 03</span>Los nudos verificados</h2>
+  <p class="sub">Cuatro cosas que hay que desatar antes de escribir una línea más. No son opiniones: cada una está leída del sistema desplegado.</p>
+
+  <div class="knots">
+
+    <div class="knot">
+      <div class="knot-hd"><span class="knot-k">NUDO 01</span><h3>El formulario no puede crear la cita</h3></div>
+      <p>La operación con la que el formulario crearía una cita sólo se autoriza si la gestión viene de la maniobra de «cancelar y volver a agendar»: exige que ya haya una cancelación cometida y el permiso ampliado a dos cambios. Una gestión limpia —que es exactamente la de agendar— se rechaza.</p>
+      <p>Es decir: hoy el formulario de agendar, que es la pieza central del diseño nuevo, tiene la puerta cerrada por dentro.</p>
+      <div class="ev">flow_create_appointment → MUTATION_BLOCKED<br>si NO (saga = 'awaiting_replacement_create' Y límite = 2 Y cometidas = 1)</div>
+    </div>
+
+    <div class="knot">
+      <div class="knot-hd"><span class="knot-k">NUDO 02</span><h3>El comprobante está en la puerta equivocada</h3></div>
+      <p>Registrar el comprobante de pago sólo se autoriza en una superficie propia para imágenes. Pero quien decide que una foto es un comprobante y contra qué cobro va es el agente, y el agente vive en la superficie de conversación. Cualquier llamada desde donde el modelo realmente está recibe «herramienta no permitida».</p>
+      <div class="ev">attach_payment_proof → permitida sólo en surface 'media_adapter'<br>el modelo llama desde 'agent_node' → TOOL_NOT_ALLOWED</div>
+    </div>
+
+    <div class="knot">
+      <div class="knot-hd"><span class="knot-k">NUDO 03</span><h3>Reprogramar no existe en el formulario</h3></div>
+      <p>La superficie del formulario sólo sabe crear. Mover una cita sólo existe como operación de conversación. Ya decidimos que reprogramar va por formulario, así que falta la operación entera — y con ella, la única forma de que el dinero viaje con la paciente en lugar de quedarse colgado.</p>
+      <div class="ev">flow_data_exchange: flow_list_services · flow_get_eligibility · flow_get_availability · flow_create_appointment<br>flow_reschedule_appointment → no está en la lista</div>
+    </div>
+
+    <div class="knot">
+      <div class="knot-hd"><span class="knot-k">NUDO 04</span><h3>Nadie limpia una cita de prepago sin comprobante</h3></div>
+      <p>La regla dice que si el comprobante no llega en 24 horas la cita se cancela sola. Hay siete trabajos programados en la base y ninguno hace eso. Mientras no exista, una cita apartada sin un peso adentro bloquea su horario para siempre, y el motor de disponibilidad no distingue entre una cita pagada y una apartada.</p>
+      <div class="ev">cron activos: recordatorio 1 h · confirmación 26 h · barrido de pendientes<br>purga de bitácoras ×3 · envío de WhatsApp<br>autocancelación de prepago → no existe</div>
+    </div>
+
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<section>
+  <h2><span class="h2num">ESTADO</span>Qué hay puesto en cada lado</h2>
+
+  <h3>En Kapso</h3>
+  <div class="tw">
+    <table>
+      <thead><tr><th>Pieza</th><th>Estado</th><th>Detalle</th></tr></thead>
+      <tbody>
+        <tr><td>Workflow del agente</td><td>Activo</td><td>Tres nodos: inicio → agente → cerrar gestión. Se dispara por llamada de API.</td></tr>
+        <tr><td>Nodo Agente</td><td>Configurado</td><td>Modelo gpt-5.6-luna, temperatura 0, hasta 16 vueltas, entrega sólo por herramienta.</td></tr>
+        <tr><td>Herramientas del agente</td><td>Dos</td><td>Pedir el expediente y sincronizar la espera. Ninguna administrativa.</td></tr>
+        <tr><td>Herramientas nativas</td><td>Cuatro</td><td>Enviar, esperar, cerrar y pasar a humano — esta última la impone la plataforma y el prompt la prohíbe.</td></tr>
+        <tr><td>Funciones privadas</td><td>Cuatro</td><td>Cerrar gestión, sincronizar espera, y las dos del formulario: agendar y reprogramar. Estas dos son idénticas a las del repositorio.</td></tr>
+        <tr><td>Agrupamiento de mensajes</td><td>Apagado</td><td>Ventana de 5 s y tope de 50 ya configurados, pero el interruptor está en off.</td></tr>
+        <tr><td>Número de WhatsApp</td><td>Conectado</td><td>Producción, aprobado, límite de 250 mensajes al día.</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>En Supabase</h3>
+  <div class="tw">
+    <table>
+      <thead><tr><th>Pieza</th><th>Estado</th><th>Detalle</th></tr></thead>
+      <tbody>
+        <tr><td>Función de entrada</td><td>Desplegada</td><td>Recibe el webhook, admite el mensaje y arranca el workflow. Dos interruptores de apagado por variable de entorno.</td></tr>
+        <tr><td>Puerta de herramientas</td><td>Desplegada</td><td>27 rutas declaradas, 3 contestando: expediente, esperar y cerrar.</td></tr>
+        <tr><td>Capa de control</td><td>Desplegada</td><td>Trece funciones: admisión, enlace, espera, cierre, portero, libro mayor y emisor de identificadores.</td></tr>
+        <tr><td>Operaciones de dominio</td><td>Ninguna</td><td>Cero desplegadas. Dieciocho escritas en el árbol de trabajo, sin subir.</td></tr>
+        <tr><td>Rol propio del agente</td><td>Creado</td><td>Existe y tiene lectura sobre nueve tablas. Le faltan cinco para el expediente ampliado.</td></tr>
+        <tr><td>Trabajos programados</td><td>Siete</td><td>Ninguno atiende al agente: ni limpia gestiones colgadas ni cancela prepagos vencidos.</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>Sin desplegar, en el árbol de trabajo</h3>
+  <ul class="plain">
+    <li><strong>Seis migraciones</strong> con dieciocho operaciones de dominio y sus pruebas.</li>
+    <li><strong>Veintidós rutas</strong> añadidas a la puerta, más un analizador de entrada por ruta.</li>
+    <li><strong>Dos formularios de WhatsApp</strong> en versión 7.2, de una pantalla cada uno.</li>
+    <li><strong>Un arreglo de la espera</strong> que quedó descartado: reparte trabajo a mensajes que no cuentan para ningún tope, y eso abre un agujero de costo sin techo.</li>
+  </ul>
+</section>
+
+<!-- ============================================================ -->
+<section>
+  <h2><span class="h2num">GRAFO 04</span>Hacia dónde lo movemos</h2>
+  <p class="sub">El diseño simplificado que ya decidimos, dibujado contra lo que hay. Tres cambios de forma, no de tecnología.</p>
+
+  <div class="dgm-wrap">
+<pre class="mermaid">
+%%{init:{"theme":"base","themeVariables":{"fontFamily":"JetBrains Mono, monospace","fontSize":"13px","primaryColor":"#2E4A8F","primaryTextColor":"#FFFFFF","primaryBorderColor":"#2E4A8F","lineColor":"#8A97AC","tertiaryColor":"#EDF0F5"}}}%%
+flowchart TD
+  M["Mensaje de la paciente"] --> CTX["UNA sola consulta de apertura<br/>quién es · qué puede · qué debe<br/>~900 letras"]
+  CTX --> D{"El agente decide"}
+  D -->|"agendar o mover"| FL["Manda EL formulario<br/>una sola forma, dos modos"]
+  D -->|"otra acción"| OR["Orquestador<br/>una puerta, no 22 herramientas"]
+  D -->|"sólo hablar"| TX["Contesta y cierra"]
+  FL --> FD["Servicios → horarios → confirmar<br/>dentro del formulario"]
+  FD --> FIN["Cita creada o movida<br/>+ el dinero viaja con ella"]
+  OR --> FIN2["Confirmar · cancelar · comprobante<br/>modalidad · recursos · reseña"]
+  FIN --> CL["Cierra la gestión"]
+  FIN2 --> CL
+  TX --> CL
+
+  classDef ok fill:#2E4A8F,stroke:#2E4A8F,color:#FFFFFF;
+  classDef hi fill:#186546,stroke:#186546,color:#FFFFFF;
+  class M,D,FL,FD,FIN,FIN2,TX,CL ok;
+  class CTX,OR hi;
+</pre>
+  </div>
+
+  <ul class="plain">
+    <li><strong>Una consulta al abrir, no cinco.</strong> El expediente trae de golpe quién escribe, qué puede hacer y qué tiene pendiente — incluidas las dos banderas que valen oro: si esa cita tiene dinero adentro y si el cambio va a tiempo. Con eso el agente niega una cancelación imposible sin gastar una llamada más, y desaparecen cuatro operaciones de consulta.</li>
+    <li><strong>Un orquestador, no veintidós herramientas.</strong> El modelo no elige entre veintidós nombres; dice qué quiere hacer y una sola puerta lo enruta. Lo que el portero autoriza no cambia; lo que el modelo tiene que sostener en la cabeza, sí.</li>
+    <li><strong>Un formulario, no dos.</strong> Agendar y mover son la misma pantalla con distinto contenido. Un solo publicado, una sola revisión de Meta, una sola función de datos. Y un formulario publicado no se puede editar, así que cada corrección futura cuesta la mitad.</li>
+    <li><strong>Veintidós operaciones en vez de veintiséis</strong>, tres superficies en vez de cuatro, y una sola mutación por gestión sin excepciones: se retira la maniobra de «cancelar y volver a agendar», que además es la única ruta por la que hoy el dinero de una paciente puede evaporarse sin que nadie lo decida.</li>
+  </ul>
+</section>
+
+<!-- ============================================================ -->
+<section>
+  <h2><span class="h2num">TE TOCA</span>Las decisiones que bloquean</h2>
+  <p class="sub">De la lista larga, éstas son las que impiden escribir código. Las demás pueden esperar a que haya algo funcionando.</p>
+
+  <div class="decs">
+    <div class="dec"><span class="dec-n">01</span><div>
+      <q>Una paciente ya pagó y quiere cancelar. ¿Qué se le ofrece?</q>
+      <p>Ya decidiste que no puede cancelar, sino mover la cita o pasar el pago a la próxima. Falta decidir si construimos ahora la segunda salida —pasar el pago a una cita que ya existe— o si por ahora sólo se le ofrece mover. Hoy no hay ninguna serie activa en producción, así que mover cubre todos los casos reales.</p>
+    </div></div>
+
+    <div class="dec"><span class="dec-n">02</span><div>
+      <q>El cambio tardío con dinero adentro, ¿genera cargo?</q>
+      <p>En el libro de cuentas hay un cobro por cita y no hay renglones sueltos, así que un cargo por cambio no tiene dónde vivir. O se acepta que sólo quede la marca de que el cambio fue tardío, o hay que abrir un renglón nuevo. Prometer que la profesional decide sin que tenga botón para decidir es peor que no prometer nada.</p>
+    </div></div>
+
+    <div class="dec"><span class="dec-n">03</span><div>
+      <q>El plazo del prepago cuando la cita es en menos de 24 horas.</q>
+      <p>El plazo vencería después de que la sesión ya pasó. ¿El comprobante vence a las 24 horas, o antes de que empiece la sesión, lo que ocurra primero?</p>
+    </div></div>
+
+    <div class="dec"><span class="dec-n">04</span><div>
+      <q>La paciente abre el formulario y lo abandona a la mitad.</q>
+      <p>La gestión se queda esperando. Si vuelve a escribir por el chat, hoy el agente no puede ni pedir su expediente ni contestar en ese estado: se queda mudo. Hay que decidir que al volver a escribir la gestión regresa a estado normal y el formulario viejo se da por muerto.</p>
+    </div></div>
+
+    <div class="dec"><span class="dec-n">05</span><div>
+      <q>Cuántas citas sin confirmar puede tener abiertas una paciente.</q>
+      <p>No hay ningún tope. Con prepago, cada formulario completado aparta un horario sin un peso adentro. Sin ese tope y sin el trabajo de limpieza, encender el formulario es abrir la agenda de par en par.</p>
+    </div></div>
+
+    <div class="dec"><span class="dec-n">06</span><div>
+      <q>El agrupamiento de mensajes: ¿cuándo y con qué tope?</q>
+      <p>Al encenderlo, todo mensaje —incluso uno solo— espera cinco segundos antes de que el asistente lo vea, y tres de cada cuatro mensajes llegan aislados. No arregla la pérdida que sí medimos, que ocurre porque el agente sigue ocupado, no porque los mensajes vengan pegados. Va al final de la fila, nunca al principio.</p>
+    </div></div>
+  </div>
+</section>
+
+<div class="method">
+  <h3>Cómo se verificó</h3>
+  <ul>
+    <li>Las 26 operaciones, sus superficies, estados y cerrojos salen de leer el cuerpo del portero desplegado, no de la documentación.</li>
+    <li>Las tres rutas vivas salen de comparar la lista de rutas declaradas contra las que el código atiende, en la versión publicada.</li>
+    <li>Las trece funciones de la base salen del catálogo del propio motor; el libro mayor, de la tabla de llamadas completa.</li>
+    <li>El estado de Kapso viene de una bajada fresca del proyecto: el workflow, sus tres nodos, el prompt entero y las cuatro funciones privadas.</li>
+    <li>El agrupamiento y el número de WhatsApp, de la configuración viva de los webhooks.</li>
+    <li>Lo único que no pude leer desde aquí: si los formularios están dados de alta en el tablero de Kapso, y el valor actual de los dos interruptores de apagado —son variables de entorno y no se exponen.</li>
+  </ul>
+</div>
+
+</div>
