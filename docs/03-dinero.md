@@ -1,54 +1,67 @@
 # 03 · El dinero
 
-Corte: 2026-08-27. Todos los números de este archivo se leyeron de la base viva ese día.
+Corte: 2026-08-28.
 
 Este archivo contesta una sola pregunta: **qué le pasa al cobro en cada acción**. Las fichas de
 las once funciones están en `docs/02-funciones.md`. Los textos completos están en
 `docs/06-textos.md`, que es la única fuente de lo que la paciente lee; aquí se citan por clave y
-no se reescriben. Las reglas numeradas viven en `docs/00-el-agente.md` y se citan por número.
+no se reescriben. Las reglas generales están en `docs/00-el-agente.md`.
+
+**Nada de aquí describe una base concreta.** Cada regla se escribe sobre **lo que cada profesional
+configura** —si cobra antes o después, cuánto plazo de aviso pide, qué precio tiene cada servicio—,
+nunca sobre lo que alguien tenga configurado hoy. Los nombres que aparecen en los ejemplos son
+inventados y se marcan como ejemplos.
 
 ---
 
 ## 1. Las diez reglas del dinero, en una página
 
-**D1 · «Dinero adentro» tiene una definición exacta y una sola.** El cobro está acreditado, o hay
-un comprobante pegado. Una petición de comprobante sellada sin archivo **no** es dinero adentro.
-(Regla 10; el porqué, en §2.)
+**D1 · «Dinero adentro» tiene una definición exacta y una sola.** El cobro está acreditado, o hay un
+comprobante pegado. Una petición de comprobante sellada sin archivo **no** es dinero adentro. (El
+porqué, en §2.)
 
 **D2 · El agente nunca dice «pagado» ni «aprobado».** Dice «recibí tu comprobante». Un
-comprobante recibido queda pendiente de revisión, y revisarlo es de la profesional. (Regla 4.)
+comprobante recibido queda pendiente de revisión, y revisarlo es de la profesional.
 
 **D3 · A la paciente no se le dice que la profesional va a decidir. Se le dice que se cobra.**
 Que después condone es asunto interno suyo. Decirle «va a decidir» le abre una duda que nadie le
 va a cerrar, porque cuando la profesional decide, la paciente casi nunca se entera (§9.1).
-(Regla 5.)
 
-**D4 · Cobrar desde el agente sólo aplica cuando la profesional cobra por adelantado.** Si cobra
-después, el agente no pide comprobante, no menciona pago al agendar y no da datos de
-transferencia. Hoy es **una de las seis**. (Regla 6.)
+Hay **una excepción, y una sola**: cuando cancela una cita que ya traía dinero adentro. Ahí sí se le
+dice que su pago queda registrado y que su profesional lo resuelve con ella, porque su dinero está
+de verdad adentro y necesita saber a dónde ir a preguntar (§6.2).
 
-**D5 · Ningún plazo se escribe a mano.** Sale de la ficha de esa profesional: hoy 24 horas de
-aviso en cinco y **12 en una**. La única constante del producto es **el reloj de 24 horas del
-prepago**, que no sale de ninguna ficha. (Regla 2.)
+**D4 · Recibir comprobantes aplica a todas las profesionales, cobren antes o después.** Lo que sólo
+aplica al cobro por adelantado es **pedir el pago al agendar**: la paciente de quien cobra al cerrar
+la sesión no recibe petición de comprobante al apartar, no oye una palabra de pago en el cierre y no
+recibe datos de transferencia por aquí. Pero si transfiere por su cuenta y manda la foto, **el
+agente la pega igual**.
+
+**D5 · Ningún plazo de aviso se escribe a mano.** Sale de la ficha de esa profesional: una puede
+pedir 24 horas y otra 12, y un número escrito a mano le miente a las pacientes de la segunda. La
+única constante del producto es **la ventana de 26 horas**, que decide si una cita nace confirmada y
+cuándo sale el recordatorio del comprobante. Es un solo número para todas, y es el mismo que usa el
+trabajo programado.
 
 **D6 · El agente abre la decisión de cobro; nunca la cierra.** Cerrarla es de la profesional,
-desde su app, y son las mismas dos salidas de siempre: cobrar o no cobrar. (Regla 12.)
+desde su app, y son las mismas dos salidas de siempre: cobrar o no cobrar.
 
 **D7 · Cuando una cita se cierra, el motivo del cobro se reclasifica en el mismo acto.** De
 «sesión» a «cancelación» o a «cambio». Es la parte que no se puede olvidar: sin ella la fila
 desaparece de la facturación **aunque la profesional decida cobrar**, sin error y sin aviso.
 
 **D8 · Ninguna operación del agente cambia el importe de un cobro.** Ni al congelarlo, ni al
-trasladarlo. Si el importe deja de coincidir con el precio de la cita, la tarjeta que ve la
-profesional se apaga entera y se queda sin botones.
+trasladarlo: el importe viaja tal como estaba. Si deja de coincidir con el precio de la cita donde
+acaba, **lo ajusta la profesional desde su app**, que es donde se ajustan los importes. El agente no
+tiene esa acción y no debe tenerla.
 
 **D9 · Ningún movimiento de dinero termina sin que la profesional se entere, en la misma
 transacción.** Si el aviso no se pudo escribir, el movimiento no ocurrió. Y el aviso del
-comprobante **nunca lleva el monto**. (Regla 13.)
+comprobante **nunca lleva el monto**.
 
-**D10 · El agente no encola ninguna plantilla.** Contesta dentro de la conversación abierta. Las
-plantillas de dinero que salen solas —la petición de comprobante y el aviso del prepago vencido—
-las producen los trabajos automáticos, nunca el agente. (Regla 15.)
+**D10 · El agente no encola ninguna plantilla.** Contesta dentro de la conversación abierta. La
+única plantilla de dinero que sale sola es **el recordatorio del comprobante**, y la produce el
+trabajo programado cuando faltan 26 horas para la sesión.
 
 ---
 
@@ -59,25 +72,19 @@ Nada más. Una petición sellada sin archivo es una petición, no dinero: no ent
 
 Los cinco estados en que el agente se puede encontrar un cobro, y cuáles cuentan:
 
-| Estado | Cómo se reconoce | ¿Dinero adentro? | Hoy en la base |
-|---|---|---|---|
-| Sin costo | El precio efectivo es cero | no | **0** |
-| Pendiente desnudo | Se debe y nadie ha pedido nada | no | **31** |
-| Comprobante pedido | Se selló la petición, no llegó archivo | **no** | **3** |
-| Comprobante recibido | Llegó el archivo, nadie lo ha revisado | **sí** | **0** |
-| Acreditado | El cobro ya entró, de un prepago o de una sesión cobrada | **sí** | **37** |
+| Estado | Cómo se reconoce | ¿Dinero adentro? |
+|---|---|---|
+| Sin costo | El precio efectivo es cero | no |
+| Pendiente desnudo | Se debe y nadie ha pedido nada | no |
+| Comprobante pedido | Se selló la petición, no llegó archivo | **no** |
+| Comprobante recibido | Llegó el archivo, nadie lo ha revisado | **sí** |
+| Acreditado | El cobro ya entró, de un prepago o de una sesión cobrada | **sí** |
 
-Más 2 cobros ya condonados, sobre citas cerradas. Total: 73.
-
-**Por qué la definición tiene que ser exactamente ésta y la misma en los dos sitios.** La usan el
-cerrojo de cancelar (§6) y pasar el pago (§7). Si difirieran, aparecería una cita que no se puede
-cancelar **y** tampoco se puede pasar: un callejón sin salida por WhatsApp, construido por
-nosotros. Y si una petición sellada contara como dinero, los 3 cobros que hoy sólo esperan
-comprobante bloquearían la cancelación de sus citas sin que haya entrado un peso.
-
-**Dónde está el dinero hoy.** De las **30 citas futuras vivas**, **ninguna tiene dinero adentro**,
-y en toda la historia hay **cero comprobantes**. El cerrojo no va a morder el primer día. Empieza
-a morder en cuanto el circuito de prepago funcione de verdad.
+**Por qué la definición tiene que ser exactamente ésta y la misma en los dos sitios.** La usan
+cancelar, para decidir qué se le ofrece antes (§6), y pasar el pago, para decidir si hay algo que
+pasar (§7). Si difirieran, aparecerían citas a las que una mitad del sistema le ofrece mover un
+dinero que la otra mitad no ve. Y si una petición sellada contara como dinero, cada cita de prepago
+que sólo espera comprobante arrastraría ofertas de traslado sin que haya entrado un peso.
 
 ---
 
@@ -88,16 +95,18 @@ a morder en cuanto el circuito de prepago funcione de verdad.
 | Acción | Qué le pasa al cobro | Qué ve la profesional en el dinero | Qué se le dice a la paciente |
 |---|---|---|---|
 | **Agendar**, cobra después | Nace un cobro pendiente por la sesión, sin petición de comprobante | Nada. Cobra al cerrar la sesión, como siempre | `agendar_cierre_cobra_despues`. **Ni una palabra de pago** |
-| **Agendar**, cobra por adelantado | Nace pendiente **y con la petición sellada**, que es lo que arranca el reloj de 24 horas | Nada hasta que llegue el archivo | `agendar_cierre_prepago_con_datos` o `agendar_cierre_prepago_sin_datos` |
+| **Agendar**, cobra por adelantado | Nace pendiente **y con la petición sellada** | Ve que se pidió y no ha llegado. Nada más hasta que entre el archivo | `agendar_cierre_prepago_con_datos` o `agendar_cierre_prepago_sin_datos` |
 | **Agendar**, precio efectivo cero | Nace sin costo, aunque esa profesional cobre por adelantado | Nada | `agendar_cierre_cobra_despues`. No se menciona dinero |
 | **Confirmar**, cobra después | No se toca | Nada | `confirmar_cierre` |
-| **Confirmar**, cobra por adelantado | No se toca, **y la cita no queda confirmada** | Nada | `comprobante_pedido_con_datos` o `comprobante_pedido_sin_datos`. Lo que confirma es el archivo |
+| **Confirmar**, cobra antes y no hay comprobante | No se toca, **y la cita no queda confirmada** | Nada | `comprobante_pedido_con_datos` o `comprobante_pedido_sin_datos`. Lo que confirma es el archivo |
+| **Confirmar**, cobra antes y ya mandó comprobante | No se toca | Nada | `confirmar_cierre`. No se le pide dos veces lo que ya mandó |
 | **Mandar comprobante** | **No cambia de estado.** Sigue pendiente; lo que entra es el archivo. Si la cita sigue viva y en el futuro, queda confirmada | Le llega el aviso y decide: acreditar o condonar | `comprobante_acuse`. **Nunca «pagado»** |
 | **Reprogramar a tiempo** | El dinero viaja a la cita nueva, con su petición de comprobante y con su archivo si los tenía | La tarjeta vieja dice que el pago está en la cita nueva. Sin botones | `reprogramar_cierre` |
-| **Reprogramar tarde** | El cobro viejo **se congela tal como está** sobre la cita movida y queda abierta la decisión. La cita nueva nace con su propio cobro | «Pendiente de decisión», con **[Cobrar]** y **[No cobrar]** | Antes de mover, `reprogramar_aviso_tardio`, con el plazo de esa ficha. Al cerrar, `reprogramar_cierre`, sin repetir el aviso |
+| **Reprogramar tarde** | El cobro viejo **se congela tal como está** sobre la cita movida y queda abierta la decisión. La cita nueva nace con su propio cobro | «Pendiente de decisión», con **[Cobrar]** y **[No cobrar]** | Antes de mover, `reprogramar_aviso_tardio`, con el plazo de esa ficha. Al cerrar, `reprogramar_cierre` |
+| **Pasar una cita de la serie a su próxima** | El dinero viaja a la ocurrencia que ya existía y la cita movida **queda cancelada**, no reprogramada | El aviso de la cancelación. La tarjeta de la próxima dirá que está pagada | `reprogramar_recurrencia_dos_salidas` y, al cerrar, `reprogramar_pasada_a_la_proxima` |
 | **Cancelar a tiempo**, sin dinero adentro | El cobro pendiente **se condona** | Tarjeta «No cobrada», sin botones. No aparece en Cobros | `cancelar_cierre`, que dice que no le queda ningún cobro pendiente |
 | **Cancelar tarde**, sin dinero adentro | Se congela y queda abierta la decisión | «Pendiente de decisión», con las dos salidas | `cancelar_aviso_tardio` y, al confirmar, `cancelar_cierre_tardio` |
-| **Cancelar con dinero adentro** | **No se cancela.** Nada se toca | Nada: no pasó nada | `cancelar_dinero_adentro`; si insiste, `cancelar_insiste` |
+| **Cancelar con dinero adentro**, a cualquier hora | Antes se ofrecen dos salidas. Si dice que no a las dos, **la cita se cancela y el cobro se congela tal como estaba**, con la decisión abierta | «Pendiente de decisión», con las dos salidas | `cancelar_dinero_adentro` o `cancelar_dinero_adentro_con_proxima` y, si dice que no, `cancelar_insiste` |
 | **Pasar el pago** | El dinero se traslada a la próxima sesión del mismo servicio y la cita que lo traía se cancela | El aviso de la cancelación. La tarjeta de la cita destino dirá que está pagada | `pasar_pago_acreditado` o `pasar_pago_comprobante`, según cómo viajó |
 | **Cambiar modalidad** | **No toca dinero nunca.** No hay versión tardía con cargo | Nada | `modalidad_cierre` |
 | **Dejar reseña** | No toca dinero | Nada, a propósito | `resena_gracias` |
@@ -118,79 +127,81 @@ Se documentan porque el agente **se los encuentra**, no porque los haga.
 
 | Movimiento | Quién lo hace | Qué significa para el agente |
 |---|---|---|
-| Marcar que no asistió | La profesional, desde su app | Deja un cobro pendiente por la falta. Si pide comprobante, ese cobro entra como candidata de `mandar_comprobante`. Hoy hay exactamente uno así, de $800 |
+| Marcar que no asistió | La profesional, desde su app | Deja un cobro pendiente por la falta. Si además pide comprobante, ese cobro entra como candidata de `mandar_comprobante` |
 | Cerrar la sesión como asistida | La profesional | Nada. El agente no cobra sesiones |
-| El reloj del prepago a las 24 horas | El servidor, solo | Cancela la cita, condona el cobro y avisa por plantilla. **No abre decisión de cobro** (§4.4) |
 | Cobrar o condonar una decisión abierta | La profesional | El agente no llama a ninguna de esas acciones y no le dice a la paciente cuál se tomó (§9.1) |
+| Ajustar el importe de un cobro | La profesional, desde su app | Es la salida cuando un pago viaja a una sesión que cuesta distinto (§7.3) |
 | Devoluciones y descuentos | La profesional, fuera de la app | Texto `asunto_de_dinero`, cero llamadas |
+
+**Y uno que ya no existe: nada cancela citas solo.** No hay barrido que mate una cita de prepago sin
+comprobante, ni ningún otro reloj que cierre citas por su cuenta (§4.3).
 
 ---
 
 ## 4. El prepago completo
 
-Aplica cuando esa profesional cobra por adelantado **y** el precio efectivo es mayor que cero. Hoy
-es **una de las seis**, con **11 pacientes** a su cargo, y es quien tiene llenos banco, titular y
-CLABE en su perfil —**2 de 6 los tienen**—.
+Aplica cuando esa profesional cobra por adelantado **y** el precio efectivo es mayor que cero.
 
-### 4.1 La cita nace sin confirmar y con el reloj corriendo
+### 4.1 La cita nace apartada, sin confirmar y con el comprobante pedido
 
 Al agendar, la cita queda apartada y **nunca confirmada**, y en la misma escritura se sella la
-petición de comprobante. Esa marca es el reloj: no hay ninguna otra cosa que diga cuándo empezó a
-correr el plazo. El cierre lleva el importe y los datos de la transferencia, o la salida de
+petición de comprobante. El cierre lleva el importe y los datos de la transferencia, o la salida de
 pedírselos a su profesional cuando el perfil está vacío.
 
-Que no nazca confirmada tiene tres razones, y las tres apuntan al mismo sitio:
+Que no nazca confirmada tiene dos razones, y las dos apuntan al mismo sitio:
 
-1. **De producto: el comprobante es lo que confirma.** Si la cita naciera confirmada, el acuse del
-   comprobante —«ya quedó confirmada»— sería falso: ya lo estaba.
-2. **Una cita confirmada no se puede editar.** Nacer confirmada y morir por falta de pago
-   veinticuatro horas después es una contradicción escrita en la propia cita.
-3. **La ventana que decide si una cita nace confirmada es de 48 horas**, y sólo se aplica a citas
-   que la paciente agenda. Una cita que nace confirmada no recibe la petición de confirmación
-   automática, así que dentro de esa ventana el prepago **no se pediría nunca**.
+1. **El comprobante es lo que confirma.** Si la cita naciera confirmada, el acuse del comprobante
+   —«ya quedó confirmada»— sería falso: ya lo estaba.
+2. **La profesional necesita ver la diferencia.** Apartada, sin confirmar y con el comprobante
+   pedido es exactamente la forma de «se pidió y no ha llegado». Nacer confirmada borraría esa
+   señal justo cuando le sirve.
 
-### 4.2 Hoy el prepago se salva por accidente
+**Con prepago la cita no consulta la ventana de las 26 horas.** Esa ventana decide si una cita nace
+confirmada cuando la profesional cobra después (D5). Con prepago no hay nada que decidir: la cita
+nunca nace confirmada, punto, y el agente no depende de ningún margen para que el comprobante se
+pida.
 
-La única profesional que cobra por adelantado pide **48 horas de anticipación mínima** para
-agendar, así que sus citas caen **fuera** de la ventana de 48 horas que decide si una cita nace
-confirmada. Las dos cifras se tocan exactamente en el borde: basta una cita agendada justo a 48
-horas para que nazca confirmada y el comprobante no se pida nunca. **El día que baje ese margen,
-el prepago deja de pedirse y no da ningún error**: la cita nace confirmada, nadie pide el
-comprobante y nadie se entera.
+### 4.2 Decir «sí voy» no confirma, salvo si ya mandó el comprobante
 
-Por eso `agendar` no puede depender de ese margen: **con prepago, la cita nunca nace confirmada,
-punto**. Es una línea, y es la que convierte una coincidencia en una regla.
+Con prepago, `confirmar` **no muta**: devuelve la petición del comprobante y ahí se queda. Lo que
+confirma es el archivo. Cuando el archivo llega, `mandar_comprobante` lo pega y **confirma la cita
+en el mismo acto**, siempre que siga viva y en el futuro. El cobro sigue pendiente: recibir no es
+acreditar.
 
-### 4.3 Decir «sí voy» no confirma
+**Si ella ya mandó su comprobante, no se le pide de nuevo** y «sí voy» confirma normal, como con
+cualquier otra profesional. Volver a pedir lo que ya está pegado es el error que más rápido le
+enseña a la paciente que del otro lado no hay nadie leyendo.
 
-Con prepago, `confirmar` **no muta**: devuelve la petición del comprobante y el turno se cierra.
-Lo que confirma es el archivo. Cuando el archivo llega, `mandar_comprobante` pega el comprobante y
-**confirma la cita en el mismo acto**, siempre que siga viva y en el futuro. El cobro sigue
-pendiente: recibir no es acreditar.
+### 4.3 Si el comprobante no llega, no pasa nada
 
-Ese acuse no repite el reloj de 24 horas. El reloj arranca al agendar y ya se lo dijo el cierre.
+**Nada cancela citas solo.** No hay reloj. La cita se queda apartada, sin confirmar y con el
+comprobante pedido, y ahí se queda: es la única forma de que la profesional vea en su app que se
+pidió un pago y no ha llegado, y de ahí decide ella.
 
-### 4.4 Si el comprobante no llega
+**Ningún cierre de prepago le pone plazo al comprobante y ninguno amenaza con cancelar.** Lo único
+automático es un recordatorio por plantilla, del trabajo programado, cuando faltan 26 horas para la
+sesión.
 
-A las veinticuatro horas de la petición, el reloj **cancela la cita, condona el cobro y libera el
-horario**. Después avisa a la paciente por plantilla, y el orden importa: encolado antes, el mismo
-apagado de avisos que dispara la cancelación se lo llevaría por delante. El corte real es de 24
-horas más lo que tarde el barrido en pasar, y esas 24 se escriben literales porque son un valor
-fijo del producto: la única excepción a D5. **Ese barrido todavía no existe** (§9.10).
+**Si tiene un comprobante pendiente y escribe por otra cosa, el agente no lo menciona.** Contesta lo
+que le preguntaron y ya. Colgarle el pendiente a cada mensaje convierte al agente en cobrador, y no
+lo es: el recordatorio ya sale solo y a su hora.
 
-**No se abre decisión de cobro**, y es deliberado: no hubo sesión perdida ni aviso tardío. La cita
-nunca llegó a existir de verdad.
-
-**No hay ventana de gracia y la cita no se reabre.** Si la paciente vuelve a escribir, agenda de
-cero. La cita muerta queda cancelada con su cobro condonado, así que no arrastra ninguna deuda.
+**Lo que se acepta a cambio.** El horario no se libera solo, así que una cita de prepago que nunca
+se pagó ocupa un hueco hasta que la profesional la cierre. Es un costo elegido: liberar el horario
+obliga a cancelar la cita, y cancelar citas por su cuenta es justo lo que una máquina no debe hacer.
 
 ---
 
 ## 5. El cambio tardío
 
-El cambio tardío se permite siempre —cancelar y reprogramar—. Lo único que cambia es que **se
-avisa antes de tocar nada** y se pregunta. El plazo del aviso sale de la ficha de esa profesional,
-nunca de una constante.
+**El plazo ya no bloquea nada.** Cancelar, reprogramar y pasar el pago se permiten siempre, a
+cualquier hora. Lo único que cambia es que **se avisa antes de tocar nada** y se pregunta, y que
+después el dinero se congela en vez de condonarse. El plazo del aviso sale de la ficha de esa
+profesional, nunca de una constante.
+
+**La única excepción vive fuera de este archivo:** el cambio de modalidad sí sigue bloqueado por el
+plazo, porque la profesional necesita saber con tiempo si va al consultorio. Y es, precisamente, el
+único cambio que no toca dinero.
 
 ### 5.1 Reprogramar tarde: se cobran las dos sesiones
 
@@ -221,9 +232,10 @@ y decide cobrar la vieja. Lo único que el agente añade encima es **abrir la de
 
 ### 5.3 La decisión de cobro nace fuera de la app de la profesional
 
-Nadie más la produce. Hoy hay **cero decisiones abiertas** en la base y **dos ya resueltas**, que
-son el estado *después* de que la profesional decidió. **La forma congelada no se ha visto nunca.**
-El agente va a ser su único productor, y las va a producir todas. (Regla 12.)
+Nadie más la produce. La app de la profesional produce el cobro congelado cuando ella misma mueve
+una cita, pero **la decisión abierta encima de ese cobro no la abre nadie hoy**. El agente va a ser
+su único productor, y las va a producir todas: las de reprogramar tarde, las de cancelar tarde y las
+de cancelar con dinero adentro.
 
 ### 5.4 Lo que la profesional puede hacer con un cobro congelado
 
@@ -236,6 +248,9 @@ Tocando la tarjeta de esa cita ve el marcador «Pendiente de decisión» y dos b
 | Comprobante pedido | Transferencia recibida, o volver a pedir comprobante. **El efectivo está bloqueado**: el cobro se comprometió como transferencia |
 | Comprobante recibido | Acreditar el pago, por transferencia. Volver a pedir está bloqueado: sólo cabe un comprobante por cobro |
 | Acreditado | Retener el prepago. No pregunta método: el dinero ya está dentro |
+
+**Las dos últimas filas son las de cancelar con dinero adentro** (§6): ahí el cobro congelado llega
+con el archivo pegado o ya acreditado. El de un cambio tardío casi siempre cae en las dos primeras.
 
 **Del lado de la profesional no hay nada que construir.** Las tres acciones —acreditar el cobro,
 pedir comprobante y condonar— existen, están conectadas y cubren las cuatro filas de arriba.
@@ -250,49 +265,66 @@ Igual que reprogramar tarde, sin cita nueva: el cobro se congela, se reclasifica
 abierta la decisión. La diferencia práctica es que aquí sí hubo un hueco perdido, y por eso el
 aviso previo dice sencillamente que la sesión se le cobra.
 
-Con dinero adentro no se llega aquí: esa cita no se cancela, ni tarde ni a tiempo (§6).
+Con dinero adentro se llega al mismo sitio por otro camino, y sin mirar el reloj (§6).
 
 ---
 
-## 6. El cerrojo: una cita con dinero adentro no se cancela
+## 6. Cancelar una cita con dinero adentro
 
-### 6.1 Qué tapa
+### 6.1 Se cancela. Antes se ofrecen dos salidas, una vez
 
-Sin el cerrojo, cancelar **a tiempo** una cita con dinero adentro tiene dos fugas, y las dos son
-silenciosas:
+**Una cita con dinero adentro sí se cancela.** Lo que el agente hace antes es ofrecerle las dos
+salidas que probablemente le convienen más:
 
-| Caso | Qué pasaría | Consecuencia |
-|---|---|---|
-| A tiempo, con comprobante recibido | El cobro se condonaría con el resto de los pendientes | La paciente transfirió de verdad y el registro dice «no se cobró» |
-| A tiempo, con prepago acreditado | No caería en ninguna rama | El dinero se queda colgando de una cita cancelada, no aparece en Cobros ni como acreditado ni como pendiente, y **ninguna acción de la profesional lo puede reabrir** |
+1. **Reprogramarla**, y el dinero se va con ella.
+2. **Cancelar ésta y dejar el pago en su próxima sesión** del mismo servicio, si de verdad existe
+   una (§7).
 
-### 6.2 Muerde a cualquier hora
+La segunda sólo se ofrece cuando hay próxima; si no la hay, el texto trae una sola salida. La
+primera línea cambia sola según el estado —«ya está pagada» o «ya mandaste tu comprobante»— y el
+agente no escoge cuál: la escoge el servidor. Los textos son `cancelar_dinero_adentro` y
+`cancelar_dinero_adentro_con_proxima`.
 
-Tarde el dinero no se perdería —se congelaría y decidiría la profesional—, y aun así tampoco se
-cancela. La regla 11 no lleva cláusula de reloj, y la respuesta no puede cambiar según a qué hora
-escriba: el dinero que ya entró se quedaría esperando una decisión que a la paciente nadie le
-cuenta (§9.1), mientras que moverlo o pasarlo lo deja sirviéndole.
+**Que las salidas ya se ofrecieron lo recuerda el servidor, no el modelo.** Si la función ya
+contestó una vez con la oferta, la llamada siguiente cancela.
 
-Las dos salidas de abajo valen igual sin tiempo mínimo. Lo único que cambia es que mover una cita
-tarde lleva antes su propio aviso, y entonces el dinero se comporta como en §5.1.
+### 6.2 Si dice que no a las dos, se cancela
 
-### 6.3 Las dos salidas
+La cita se cancela, **el estado del pago se conserva tal como estaba**, y se le dice lo único que
+necesita saber: que su pago queda registrado y que su profesional lo resuelve con ella
+(`cancelar_insiste`). **El agente no insiste una segunda vez.** Ella ya escuchó las dos salidas y
+las rechazó; repetírselas es discutir con una paciente que ya decidió.
 
-Con dinero adentro, la función no cancela y devuelve la negativa con lo que sí existe:
+Es la única excepción a D3, y es la correcta: aquí sí hay una decisión pendiente sobre dinero que
+ella metió de verdad, y callarlo la dejaría creyendo que lo perdió.
 
-1. **Moverla a otro día**, con el dinero y el comprobante yéndose con ella si alcanza el tiempo.
-2. **Pasar el pago a su próxima sesión**, sólo si hay una del mismo servicio (§7).
+### 6.3 Por qué se congela y no se condona
 
-La primera línea de la negativa cambia sola según el estado —«ya está pagada» o «ya mandaste tu
-comprobante»— y el agente no escoge cuál. Si insiste, `cancelar_insiste`: cancelarla no está del
-lado del agente, y se hace desde la app de su profesional. **El agente no cede.** (Regla 11.) La
-insistencia la cuenta el servidor, no el modelo.
+Cancelar «a tiempo», tal como está escrito para una cita sin dinero, **condona el cobro pendiente**.
+Con dinero adentro eso sale mal por los dos lados:
 
-### 6.4 El límite que el cerrojo crea
+| Estado del cobro | Qué pasaría si se condonara |
+|---|---|
+| Comprobante recibido | El registro diría «no se cobró» de una transferencia que la paciente sí hizo |
+| Prepago acreditado | Ni siquiera es un pendiente: no cae en esa rama, y el dinero se queda colgando de una cita cancelada, sin aparecer en Cobros ni como acreditado ni como pendiente, y sin ninguna acción de la profesional que lo alcance |
 
-Una paciente con dinero adentro, **sin próxima cita del mismo servicio** y **sin ningún hueco libre
-al cual moverse**, se queda sin salida por WhatsApp: tiene que escribirle a su profesional. Es
-consecuencia directa de la regla, no un defecto.
+Congelar cierra las dos: el cobro conserva su estado, se le reclasifica el motivo a cancelación
+—sin eso desaparece de la facturación aunque ella decida cobrar (D7)— y la decisión abierta lo pone
+al alcance de las tres acciones que la profesional ya tiene (§5.4).
+
+Por eso una cancelación con dinero adentro **se registra siempre como cancelación sin tiempo
+mínimo**, aunque ella avise con dos semanas. No es un castigo: es la única forma que deja el dinero
+donde alguien lo pueda resolver.
+
+### 6.4 Por qué se cancela y no se la manda con su profesional
+
+Mandarla con su profesional protege el dinero y crea algo peor. Ella avisa que no puede ir, nadie
+registra nada, la cita sigue en pie, y su profesional se entera el día de la sesión, cuando no
+llegó. Y deja un callejón sin salida —dinero adentro, sin próxima cita del mismo servicio y sin un
+hueco al cual moverse— del que sólo se sale escribiéndole a la profesional.
+
+Las dos salidas se ofrecen porque casi siempre le convienen más. Pero el «no» de la paciente se
+respeta. **El dinero no se pierde por cancelar:** se queda registrado, con motivo, y con dueño.
 
 ---
 
@@ -301,8 +333,8 @@ consecuencia directa de la regla, no un defecto.
 ### 7.1 Cuándo aplica
 
 Las dos condiciones, juntas: la cita **trae dinero adentro** y existe una **próxima cita viva del
-mismo servicio**, posterior a la que se cancela. El reloj no entra: ésta es la salida que ofrece el
-cerrojo, y el cerrojo vale a cualquier hora (§6.2).
+mismo servicio**, posterior a la que se cancela. El reloj no entra: pasar el pago se permite
+siempre, como cancelar y como reprogramar.
 
 ### 7.2 Qué resuelve el servidor
 
@@ -322,7 +354,7 @@ El traslado, por dentro:
 3. **Si lo que viaja es un comprobante, el archivo cambia de dueño: se mueve, no se copia.** Dos
    filas apuntando al mismo archivo son una bomba con mecha larga, porque la limpieza de archivos
    borra por ruta y nunca cuenta cuántas la usan. Además, moverlo con baja y alta es lo que apaga
-   la petición de prepago que la cita destino tuviera en cola; copiarlo dejaría a la paciente
+   la petición de comprobante que la cita destino tuviera en cola; copiarlo dejaría a la paciente
    recibiendo una petición del dinero que acaba de mover.
 4. El cobro viejo se cierra como trasladado y se reclasifica su motivo (D7).
 5. Quedan **dos asientos enlazados en la bitácora del dinero**, uno en cada cobro. No hace falta
@@ -330,30 +362,52 @@ El traslado, por dentro:
 
 El texto sale del resultado y no de lo que el modelo crea que pasó: `pasar_pago_acreditado` cuando
 viajó un pago acreditado, `pasar_pago_comprobante` cuando viajó un comprobante. En el segundo no
-aparecen «pagado» ni «aprobado» (D2).
+aparecen «pagado» ni «aprobado» (D2). Los dos nombran la cancelación de la cita vieja, porque eso es
+lo que de verdad le pasa y callarlo la dejaría creyendo que sigue en pie.
 
-### 7.3 Los tres casos en que no se traslada
+### 7.3 La única revisión, y las dos que no lo son
+
+**Lo único que se revisa es que la cita destino no traiga ya dinero suyo.** Sobrescribir un pago que
+ya estaba ahí borra un dato que nadie puede reconstruir, y fusionar dos dineros en un solo cobro no
+tiene forma de registrarse. Si lo trae, no se pasa: `pasar_pago_la_proxima_ya_tiene`, que dice que
+su profesional lo acomoda y ofrece mover la cita.
+
+Los otros dos casos no son revisiones, son falta de materia, y los dos llevan su salida escrita:
 
 - **No hay próxima del mismo servicio** → `pasar_pago_sin_proxima`, que ofrece mover, porque mover
-  traslada el dinero completo sin tocar importes.
-- **La próxima ya tiene dinero suyo o una decisión abierta.** Fusionar dos dineros en un solo cobro
-  no tiene forma de registrarse. Se dice y se ofrece mover.
-- **Los importes no coinciden.** Se dice y se ofrece mover.
+  traslada el dinero completo.
+- **Esa cita no trae dinero adentro** → `pasar_pago_sin_dinero`, que ofrece cancelarla o moverla.
 
-**Por qué los importes tienen que ser idénticos.** No hay dónde registrar un saldo parcial, y las
-dos cuentas salen mal: si viajan $800 a una sesión de $1 000, la paciente cree que no debe nada y
-debe $200 que nadie le va a cobrar; si viajan $1 000 a una de $800, o se le cobran $1 000 por una
-sesión de $800, o $200 se evaporan sin asiento. La salida es mover la cita. Hoy el caso no existe:
-las **19 combinaciones de paciente y servicio** que hay en la base tienen **un solo importe
-cobrado**. Aparecerá el día que una profesional cambie el precio entre dos citas.
+**Que los importes no coincidan no detiene nada.** No hay dónde registrar un saldo parcial, es
+cierto, pero la diferencia la arregla la profesional en un toque desde su app, y bloquear por eso
+deja a la paciente sin salida por una cuenta que no es suya. El pago se pasa con el importe que
+traía y **la profesional ajusta** (D8). El caso aparece en cuanto una profesional cambie el precio
+de un servicio entre dos citas de la misma paciente.
 
-### 7.4 Lo que la profesional ve, y lo que no
+### 7.4 La salida de la serie
+
+Cuando la cita que se quiere mover es de una serie y la paciente ya tiene agendada la siguiente
+ocurrencia, `reprogramar` ofrece una segunda salida antes de buscar día: dejarla en esa próxima. Es
+lo que casi siempre quiere quien falta a una sesión de una serie semanal, y no gasta un hueco de la
+agenda.
+
+Si acepta, el dinero se mueve exactamente como en §7.2, con la misma revisión. Tres precisiones que
+hacen la diferencia:
+
+- **La cita vieja queda cancelada, no reprogramada.** Es lo único que evita que la serie termine con
+  dos citas donde había una.
+- **La ocurrencia que ya existía no se toca**: ni su día, ni su hora, ni su modalidad.
+- **El aviso a la profesional es de cancelación**, como en cualquier traslado (§8).
+
+La oferta es `reprogramar_recurrencia_dos_salidas` y el cierre `reprogramar_pasada_a_la_proxima`. La
+frase del pago, en ese cierre, sólo va cuando esa cita traía pago.
+
+### 7.5 Lo que la profesional ve, y lo que no
 
 Le llega el aviso de que la paciente canceló esa cita. **No le llega el traslado**: no existe un
 tipo de aviso para eso, y uno nuevo caería en el aviso genérico, que no dice nada del dinero ni de
-la cita. El registro del traslado queda completo
-en la bitácora del dinero, y la tarjeta de la cita destino dirá que está pagada cuando la abra.
-Se acepta así.
+la cita. El registro del traslado queda completo en la bitácora del dinero, y la tarjeta de la cita
+destino dirá que está pagada cuando la abra. Se acepta así.
 
 ---
 
@@ -366,9 +420,10 @@ el aviso genérico y la push también.
 | Movimiento | `type` |
 |---|---|
 | Agendó, con o sin prepago | `appointment_created_by_patient` |
-| Confirmó, cobrando después | `appointment_confirmed` |
-| Canceló, con o sin decisión abierta | `appointment_cancelled_by_patient` |
+| Confirmó, cobrando después o con el comprobante ya pegado | `appointment_confirmed`, uno por cita |
+| Canceló, con o sin dinero adentro, con o sin decisión abierta | `appointment_cancelled_by_patient` |
 | Pasó su pago a la próxima | `appointment_cancelled_by_patient` |
+| Pasó su cita de la serie a la próxima | `appointment_cancelled_by_patient` |
 | Movió su cita, a tiempo o tarde | `appointment_rescheduled_by_patient` |
 | Mandó comprobante | `payment_proof_received` |
 
@@ -380,7 +435,8 @@ Tres cosas propias del dinero:
    «entraron $800», que es exactamente lo que D2 prohíbe decir.
 2. **No existe un aviso de «tienes una decisión de cobro pendiente».** Lo que llega es el aviso de
    la cancelación o del cambio, y la decisión se encuentra tocando la tarjeta de ese día.
-3. **Pasar el pago se avisa como cancelación**, porque eso es lo que de verdad le pasa a la cita.
+3. **Los dos traslados se avisan como cancelación**, el de `pasar_pago` y el de la serie, porque eso
+   es lo que de verdad le pasa a la cita.
 
 ---
 
@@ -398,11 +454,13 @@ noticia.
 aviso que la anunció se borra con el tiempo. El único camino es tocar la tarjeta del día.
 
 **9.3 · Condonar un prepago queda registrado como «no se cobró».** El dinero entró de verdad y no
-hay devolución en el producto ni dónde representarla. Es una decisión de producto, no un arreglo
-barato.
+hay devolución en el producto ni dónde representarla. Con las cancelaciones con dinero adentro esto
+deja de ser un caso raro: es la salida natural de **[No cobrar]** sobre un cobro acreditado. Es una
+decisión de producto, no un arreglo barato.
 
-**9.4 · El agente va a producir todas las decisiones tardías.** Hoy no las produce nadie, y por eso
-9.2 no molesta todavía. Deja de ser cierto el día que esto se despliegue.
+**9.4 · El agente va a producir todas las decisiones de cobro.** Hoy no las produce nadie, y por eso
+9.2 no molesta. Deja de ser cierto el día que esto se despliegue, y el volumen no va a ser pequeño:
+las produce cancelar tarde, reprogramar tarde y cancelar con dinero adentro.
 
 **9.5 · Una foto equivocada queda pegada para siempre.** Cabe un solo comprobante por cobro y la
 app no tiene por dónde reemplazarlo. Por eso `mandar_comprobante` **siempre pregunta** antes de
@@ -412,19 +470,15 @@ una.
 **9.6 · La paciente no elige a cuál cita va su dinero.** Siempre a la más próxima del mismo
 servicio. Si tiene dos y quería la segunda, eso lo ve con su profesional.
 
-**9.7 · Cancelar con dinero adentro puede quedarse sin salida.** Sin próxima del mismo servicio y
-sin hueco libre, la única puerta es escribirle a su profesional (§6.4).
+**9.7 · Un pago puede acabar sobre una sesión que cuesta distinto.** Los importes ya no bloquean el
+traslado, así que la cita destino puede quedar con un cobro que no coincide con su precio. Lo
+resuelve la profesional ajustando el importe, y hasta que lo haga la cuenta está torcida. Se prefiere
+así antes que dejar a la paciente sin salida.
 
-**9.8 · El prepago vencido se avisa con un tipo que la app no conoce, o con uno que miente.** O
-el aviso genérico, honesto pero mudo, o tarjeta legible que dice que canceló la paciente cuando la
-canceló el reloj. La app no se toca esta ronda, así que no hay tercera. Queda escogido el genérico.
+**9.8 · Un prepago sin comprobante ocupa el horario indefinidamente.** Nada lo cancela y nada lo
+libera. La profesional lo ve en su app y decide cuándo cerrarlo (§4.3).
 
-**9.9 · Casi nada de esto se puede ver contra los datos de hoy.** Cero comprobantes, cero
-decisiones abiertas, cero citas futuras con dinero adentro y cero movimientos de dinero hechos por
-el agente. Lo que sí hay para probar: 30 citas futuras vivas, una serie semanal, y los 3 cobros
-esperando comprobante —uno de una sesión a la que no se asistió, uno de una sesión que sí ocurrió,
-y uno de una cita futura de prepago—.
-
-**9.10 · El reloj de 24 horas todavía no existe.** De los siete trabajos automáticos que corren
-hoy, ninguno cancela un prepago vencido. Mientras no exista, una cita de prepago sin comprobante se
-queda apartada indefinidamente y el horario no se libera.
+**9.9 · Nada de esto tiene precedente.** El cobro congelado, la decisión abierta y el traslado de un
+pago entre citas son formas que ninguna superficie ha producido todavía. Lo primero que hay que
+mirar cuando esto salga no son los textos: es si la tarjeta de la profesional muestra bien un cobro
+congelado con archivo pegado.
