@@ -24,8 +24,8 @@ se cita en vez de repetirlo.
 ## 2. La lista cerrada
 
 Estos once archivos describen un solo agente: el que conversa por texto, corre dentro de nuestra
-función de borde y contesta con lo que el servidor ya redactó. Antes hubo otros diseños, y de
-ninguno queda nada aquí.
+función de borde y nunca redacta lo que contesta —el texto viene hecho, del prompt o del servidor—.
+Antes hubo otros diseños, y de ninguno queda nada aquí.
 
 **Ninguna pieza de un diseño anterior aparece en ningún archivo.** No se menciona «para contexto»,
 no se explica «por si acaso», no va en una nota al pie, ni en un ejemplo, ni en un comentario del
@@ -50,6 +50,18 @@ reconozca y lo quite:
   en ningún texto.
 - **`no_pudimos_saber`** y cualquier respuesta que deje a la paciente sin saber si su petición
   ocurrió. Si el servidor no está seguro, lee de vuelta y contesta con certeza.
+- **`pasar_pago` como función,** con su ficha, su parámetro, su fila en el enrutamiento, su flujo
+  propio y su renglón en la tabla de candidatas. Pasar el pago a la próxima cita es hoy una salida
+  que el servidor ofrece cuando ya comprobó que hay dinero adentro, y se ejecuta con un booleano de
+  la función en curso: `cancelar(pasa_el_pago: true)` o `reprogramar(a_la_proxima: true)`. Así el
+  modelo no puede mover dinero sobre una cita que él eligió. La clave `pasar_pago_no_se_pudo` sigue
+  viva y no cae en esta lista: es el resultado de esa salida, no la función.
+- **El parámetro `mover_cita`.** La cita que se está moviendo la guarda el servidor en la memoria
+  de la conversación, en la columna `subject`, y con eso un número de lista sólo vale contra la
+  última lista de esa función, sin ninguna excepción.
+- **`vas_muy_rapido`** y las piezas que lo sostenían. Nunca se definió el tope, ni la ventana, ni
+  dónde se contaba, así que era una protección escrita y no construida. Los dos frenos que sí
+  existen son el agrupamiento de la mensajería y el candado por conversación.
 
 **De rondas anteriores siguen fuera:** el expediente y su función de apertura, los identificadores
 opacos con sus tokens y sus errores, el traspaso a una persona —el soporte es otro número donde
@@ -62,8 +74,9 @@ algo cae en la lista pregunta antes de escribirlo, porque adivinar aquí sale ca
 viejo que sobrevive en un renglón le enseña al siguiente lector una arquitectura que ya nadie va a
 construir.
 
-**La única excepción es este archivo.** La lista de arriba es el único lugar del repositorio donde
-esos nombres se escriben. Ni `README.md` ni ningún archivo de `docs/` los menciona.
+**La excepción es este archivo.** La lista de arriba es el único lugar donde esos nombres se
+escriben como diseño. `docs/08-implementacion.md` nombra además los objetos que ya se borraron de la
+base, y sólo ésos, porque contar qué se borró es su trabajo. Ningún otro archivo los menciona.
 
 ## 3. Datos de producción, ninguno
 
@@ -84,25 +97,36 @@ política vigente de alguien.
 Ninguno se escribe sin haberlo leído de lo desplegado. **Ni de memoria, ni de un corte anterior, ni
 de otro archivo de este repo.** Lo escrito no es evidencia: lo que un repositorio declara y lo que
 corre se separan solos, y con este agente ya se separaron. Si un número no se pudo verificar, se
-dice «no se pudo comprobar»: **no se estima, no se redondea y no se hereda.** Los únicos números que
-se escriben son los del sistema —la ventana del aviso automático, el tope de llamadas por mensaje,
-la ventana de agrupamiento de la mensajería—, y cada uno lleva su fecha de corte.
+dice «no se pudo comprobar»: **no se estima, no se redondea y no se hereda.** Los números que sí se
+escriben son los del sistema —la ventana del aviso automático, el tope de llamadas por mensaje, los
+plazos y las vueltas del recorrido de un mensaje, la ventana de agrupamiento de la mensajería, la
+vigencia de la memoria y los días que se guarda el texto—, iguales para todas las profesionales y
+cada uno con un solo archivo dueño. El número que se leyó de lo desplegado lleva su fecha de corte.
+
+**Los conteos también son números.** Cada uno se recalcula en su archivo dueño y los demás lo citan
+en vez de repetirlo: las diecinueve reglas, en `docs/00-el-agente.md`; los nueve flujos, en
+`docs/01-conversaciones.md`; el catálogo de **diez funciones**, en `docs/02-funciones.md`; el índice
+de claves de texto, en `docs/06-textos.md`. Quien agregue o quite una pieza corrige primero al dueño
+y después las citas. Un conteo escrito a mano en cuatro archivos se queda viejo en tres.
 
 ## 5. Los textos
 
 `docs/06-textos.md` es la **única** fuente de lo que la paciente lee. Los demás archivos citan por
-clave —«el texto `paciente_inactivo`»— y sólo reproducen la frase cuando la conversación no se
-entiende sin ella, en `docs/01-conversaciones.md`. Si una cita y `06` difieren, **manda `06`**, y la
-corrección se hace primero ahí. Ningún texto se retoca en dos archivos a la vez: así una frase nunca
-tiene dos versiones vivas.
+clave —«el texto `paciente_inactivo`»— y sólo reproducen la frase en dos sitios: en
+`docs/01-conversaciones.md`, cuando la conversación no se entiende sin ella, y en
+`docs/05-prompt.md`, porque los textos de prompt viajan literales dentro del prompt. Si una cita y
+`06` difieren, **manda `06`**. Ningún texto se retoca fuera de `06`: se corrige ahí y después se
+arrastra la cita, así una frase nunca tiene dos versiones vivas.
 
 ## 6. Los plazos
 
-Ningún plazo se escribe a mano dentro de un texto que la paciente lee. Sale de la ficha de su
-profesional y viaja en un hueco. Las profesionales no piden el mismo aviso, así que un «24 horas»
-escrito a mano le miente a las pacientes de quien pide 48, y esa mentira les cuesta un cargo. No hay
-excepciones. El único plazo que no sale de una ficha es la ventana del aviso automático, que es una
-constante del sistema, igual para todas, y no aparece dentro de ningún texto.
+Ningún plazo se escribe a mano dentro de un texto que la paciente lee. El aviso de cambio sale de la
+ficha de su profesional, viaja en un hueco y sólo aparece en los avisos de cambio. Las profesionales
+no piden el mismo aviso, así que un «24 horas» escrito a mano le miente a las pacientes de quien
+pide 48, y esa mentira les cuesta un cargo. No hay excepciones. La anticipación mínima también sale
+de la ficha, pero nunca se le dice: recorta los días que se le ofrecen y ahí se acaba. El único
+plazo que no sale de una ficha es la ventana del aviso automático, que es una constante del sistema,
+igual para todas, y no aparece dentro de ningún texto.
 
 ## 7. El género
 
@@ -118,6 +142,10 @@ matices: varias piezas que parecen del agente por el nombre las escribe o las le
 la misma transacción, y quitarlas rompe cosas que las profesionales usan a diario.
 `docs/08-implementacion.md` sólo habla de lo que se construye; lo que ya se borró del andamio del
 agente se cuenta ahí como hecho, no como propuesta.
+
+Esta regla estaba numerada en `docs/00-el-agente.md` y se mudó aquí: es una regla de cómo se edita
+el repositorio, no de cómo se comporta el agente. Allá ya no está y no se cita por número, así que
+quien la necesite la lee en este renglón.
 
 ## 9. El tono
 

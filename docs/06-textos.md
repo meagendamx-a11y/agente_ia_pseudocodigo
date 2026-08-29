@@ -1,20 +1,81 @@
 # Los textos
 
 Ésta es la **única fuente** de lo que la paciente lee. Los demás archivos citan por clave —«el
-texto `paciente_inactivo`»— y no vuelven a escribir la frase.
+texto `paciente_inactivo`»— y no vuelven a escribir la frase. El conteo de claves también se lleva
+aquí y sólo aquí: los demás lo citan.
 
-Dos orígenes y sólo dos. **Los nueve de borde viven literales en el prompt**, se rellenan con lo
-que la admisión ya resolvió del mensaje y cuestan cero llamadas. **Los de las once funciones los
-compone el servidor** y llegan en la clave `texto`; el agente los copia palabra por palabra.
+Dos orígenes y sólo dos. **Los once de prompt viven literales en el prompt**, se rellenan con lo que
+el borde ya resolvió del mensaje y cuestan cero llamadas. **Los de las diez funciones los compone el
+servidor** y llegan en la clave `texto`; el agente los copia palabra por palabra.
 
 Tres cuidados atraviesan todo lo de aquí. **Nada de género en la paciente:** hay pacientes hombres,
 así que ni «activa» ni «activo» aplicados a ella. **Nada de género en la profesional:** se le nombra
 por su nombre de pila. **Ningún plazo escrito a mano:** sale de la ficha de cada profesional y viaja
-en `{plazo}`. Sin excepciones: ya no hay ningún reloj fijo del producto.
+en `{plazo}`, y `{plazo}` sólo aparece en los cuatro avisos de cambio. Sin excepciones: ya no hay
+ningún reloj fijo del producto.
 
 ---
 
-## 1. Los textos de borde
+## 1. Los textos de prompt
+
+Once textos, cero llamadas. Van en el orden en que el prompt los comprueba, y el primero es la
+crisis.
+
+### `crisis`
+
+**Cuándo.** Cualquier señal de riesgo para ella o para alguien más. Se comprueba **antes que
+cualquier otra cosa, incluido el estado de identidad**, y vale para todos los estados: teléfono
+desconocido, cuenta dada de baja, paciente activa, todos. Va sola y no lleva pregunta de cierre.
+
+> Si necesitas ayuda inmediata: Agenda Psi no es un servicio de emergencias. Si tú o alguien más se
+> encuentra en peligro, llama al 911. Para recibir apoyo en salud mental, comunícate gratis, las 24
+> horas, a Línea de la Vida: 800 911 2000.
+
+**No lo compone nadie:** vive literal en el prompt, sin un solo hueco, y cierra. No tiene huecos a
+propósito, así no depende de la red ni del tope de llamadas: ni un límite de tráfico ni una caída
+del servidor pueden dejar a alguien sin esta respuesta. Y por eso el borde nunca contesta antes de
+correr el modelo: si cortara en la identidad, la crisis de un teléfono desconocido no se detectaría
+nunca. Las 24 horas de aquí son el horario de la línea, no un plazo del producto.
+
+### `no_te_reconocemos`
+
+**Cuándo.** El teléfono no tiene vínculo con ninguna profesional. Nunca fue paciente.
+
+> Hola. Este número es el asistente de Agenda Psi, y desde aquí sólo puedo ayudar a pacientes que
+> ya están con un psicólogo o psicóloga de la plataforma.
+>
+> Si estás buscando uno, aquí puedes ver quiénes están disponibles: https://agendapsi.mx
+
+**Compone** el prompt, con cero llamadas; cualquiera de las diez funciones lo devuelve también, por
+su cerrojo propio. Cierra. El directorio se ofrece aquí y sólo aquí: quien nunca fue paciente
+necesita encontrar a alguien.
+
+### `paciente_inactivo`
+
+**Cuándo.** El teléfono sí tiene vínculo, pero la paciente está dada de baja.
+
+> Por ahora tu cuenta con {profesional} no aparece activa, así que desde aquí no puedo ayudarte con
+> tus citas. Escríbele para que te reactive y seguimos por aquí.
+
+**Compone** el prompt, con `{profesional}` y cero llamadas. Cierra. Dice «tu cuenta no aparece
+activa» y no «no apareces como paciente activo» porque lo segundo le pone género a quien lee. Y no
+manda al directorio: **nunca fue paciente → directorio; fue y ya no → que la reactiven.**
+
+### `con_cual_profesional`
+
+**Cuándo.** El teléfono tiene vínculo con más de una profesional. **Se pregunta antes de nada**, y
+de ahí toda la conversación es de esa profesional.
+
+> Estás con más de una persona de Agenda Psi. ¿Con quién es lo que necesitas?
+>
+> {lista}
+
+**Compone** el prompt, con `{lista}` de nombres de pila numerados. La conversación sigue abierta.
+Es lo único que espera el borde por su cuenta, y por eso no entra en los siete valores de `espera`
+de las funciones: el borde anota la respuesta en la fila de la conversación y no se vuelve a
+preguntar. Nunca se adivina por la última plantilla ni por la cita más próxima: adivinar aquí manda
+toda la conversación a la profesional equivocada, y la paciente no tiene forma de darse cuenta a
+tiempo.
 
 ### `fuera_de_alcance`
 
@@ -44,110 +105,69 @@ está armado el resto.
 para «¿cuánto le debo?»: eso tiene datos detrás y lo contesta `mis_citas`. Tampoco para «ya te mandé
 el comprobante, ¿ya quedó?», que lo contesta `mandar_comprobante`.
 
-### `no_te_reconocemos`
-
-**Cuándo.** El teléfono no tiene vínculo con ninguna profesional. Nunca fue paciente.
-
-> Hola. Este número es el asistente de Agenda Psi, y desde aquí sólo puedo ayudar a pacientes que
-> ya están con un psicólogo o psicóloga de la plataforma.
->
-> Si estás buscando uno, aquí puedes ver quiénes están disponibles: https://agendapsi.mx
-
-**Compone** el prompt; cualquiera de las once funciones lo devuelve también, por su cerrojo propio.
-Cierra. El directorio se ofrece aquí y sólo aquí: quien nunca fue paciente necesita encontrar a
-alguien.
-
-### `con_cual_profesional`
-
-**Cuándo.** El teléfono tiene vínculo con más de una profesional. **Se pregunta antes de nada**, y
-de ahí toda la conversación es de esa profesional.
-
-> Estás con más de una persona de Agenda Psi. ¿Con quién es lo que necesitas?
->
-> {lista}
-
-**Compone** el prompt, con `{lista}` de nombres de pila numerados. La conversación sigue abierta,
-`espera: "profesional"`. Nunca se adivina por la última plantilla ni por la cita más próxima:
-adivinar aquí manda toda la conversación a la profesional equivocada, y la paciente no tiene forma
-de darse cuenta a tiempo. La respuesta se guarda en la memoria de la conversación y no se vuelve a
-preguntar.
-
-### `paciente_inactivo`
-
-**Cuándo.** El teléfono sí tiene vínculo, pero la paciente está dada de baja.
-
-> Por ahora tu cuenta con {profesional} no aparece activa, así que desde aquí no puedo ayudarte con
-> tus citas. Escríbele para que te reactive y seguimos por aquí.
-
-**Compone** el prompt, con `{profesional}`. Cierra. Dice «tu cuenta no aparece activa» y no «no
-apareces como paciente activo» porque lo segundo le pone género a quien lee. Y no manda al
-directorio: **nunca fue paciente → directorio; fue y ya no → que la reactiven.**
-
-### `sin_horarios`
-
-**Cuándo.** La profesional no tiene ni un bloque de horario guardado, o tiene apagado el agendado
-por parte de la paciente. Lo devuelve `ver_servicios`, y `buscar_horarios` si se llega ahí.
-
-> Ahorita {profesional} no tiene horarios abiertos para las próximas semanas. Escríbele directamente
-> para que te dé un espacio.
-
-**Compone** la función que lo devuelve. La conversación sigue abierta. Dice «las próximas semanas» y
-no «los próximos 30 días»: decir el horizonte en días invita a preguntar por el día 31.
-
-### `crisis`
-
-**Cuándo.** Cualquier señal de riesgo para ella o para alguien más. Va **sola y primero**: no se
-mezcla con nada y no lleva pregunta de cierre.
-
-> Si necesitas ayuda inmediata: Agenda Psi no es un servicio de emergencias. Si tú o alguien más se
-> encuentra en peligro, llama al 911. Para recibir apoyo en salud mental, comunícate gratis, las 24
-> horas, a Línea de la Vida: 800 911 2000.
-
-**No lo compone nadie:** vive literal en el prompt, sin un solo hueco, y cierra. No tiene huecos a
-propósito, así no depende de la red ni del tope de llamadas: ni un límite de tráfico ni una caída
-del servidor pueden dejar a alguien sin esta respuesta. Las 24 horas de aquí son el horario de la
-línea, no un plazo del producto.
-
-### `vas_muy_rapido`
-
-**Cuándo.** Se pasó alguno de los topes de tráfico. Lo manda el borde de entrada, antes de que el
-agente arranque, y como mucho **uno cada quince minutos por teléfono**.
-
-> Recibí varios mensajes seguidos y necesito un momento para ponerme al día. Espérame un minuto y
-> escríbeme otra vez, por favor.
-
-**Compone** el borde de entrada. Es un mensaje suelto. No dice «límite» ni «bloqueo», dice la única
-acción que sirve. Hoy este envío no existe —la admisión marca el rechazo y ahí se acaba, así que
-ella no recibe nada— y por eso está en lo que hay que construir.
-
 ### `no_entendi`
 
 **Cuándo.** El mensaje es genuinamente ininteligible. **No** es para un saludo ni para «¿qué
-tengo?»: eso es `mis_citas`.
+tengo?»: eso es `mis_citas`. Es también el desenlace de un número suelto sin nada pendiente —«la 2»
+al día siguiente, cuando la fila de la conversación ya caducó—, y el de un audio, un video, un
+sticker o cualquier otro archivo que no sea imagen o PDF.
 
 > No te entendí. Por aquí te puedo ayudar con tus citas —{verbos}— y con lo de tus pagos. ¿Qué
 > necesitas?
 
 **Compone** el prompt, con `{verbos}` del sobre. La conversación sigue abierta. Los verbos salen del
 menú personalizado: si esa profesional no permite cambios de modalidad, no se menciona. Ejemplo de
-`{verbos}`: «agendar, mover, cancelar o confirmar».
+`{verbos}`: «agendar, mover, cancelar o confirmar». Ante un número suelto sin lista viva **no se
+adivina de qué lista era**: se contesta esto y ella lo vuelve a decir con palabras.
 
 ### `se_acabo_el_espacio`
 
-**Cuándo.** Se acabaron las **tres llamadas de este mensaje**. El tope es por mensaje, no por
-conversación: existe para que un modelo confundido no llame funciones en círculo.
+**Cuándo.** Se acabaron las **tres llamadas de este mensaje** —el tope cuenta cada intento,
+incluidos los que el borde rechaza por malformados—, o se agotó el presupuesto de tiempo del
+mensaje.
 
 > Se me acabó el espacio de esta consulta. Escríbeme otra vez y seguimos justo desde donde nos
 > quedamos.
 
-**Compone** el prompt. Cierra. Vive ahí y no en una función porque cuando hace falta ya no queda
-ninguna llamada disponible: una herramienta que sólo se puede usar cuando no se puede usar ninguna
-es una herramienta rota. Y dice la verdad: la memoria de la conversación guarda qué se preguntó y
-qué opciones se ofrecieron, así que el mensaje siguiente sí retoma donde se quedó.
+**Lo compone el borde**, no el modelo, y cierra. Vive fuera de las funciones porque cuando hace
+falta ya no queda ninguna llamada disponible: una herramienta que sólo se puede usar cuando no se
+puede usar ninguna es una herramienta rota. Si el modelo escribe otra cosa en su lugar, el borde la
+sustituye por este texto. Y dice la verdad: la fila de la conversación guarda qué se preguntó y qué
+opciones se ofrecieron, así que el mensaje siguiente sí retoma donde se quedó.
+
+**Antes de mandarlo por una llamada que escribe y no contestó**, el borde relee el estado y responde
+con lo que encuentre. Si la cita quedó creada y ella lee «se me acabó el espacio», su siguiente «sí»
+acaba en dos citas.
+
+### `pendiente_lo_otro`
+
+**Cuándo.** En un mismo lote pidió dos cosas —«cancélame la del martes y agéndame una para el
+jueves»— y sólo se atendió la primera.
+
+> De lo otro que me pediste hablamos en cuanto me lo vuelvas a escribir.
+
+**Compone** el prompt. No lleva huecos. Se pega **al final** del texto que ya devolvió la función, y
+es la **única excepción** a la regla de copiar el texto sin agregar nada antes ni después. Se
+escribe aquí como excepción justo para que no se lea como permiso general.
+
+### `resena_pide_calificacion`
+
+**Cuándo.** Dejó un comentario y no dijo estrellas.
+
+> Gracias por escribirlo. ¿Cuántas estrellas le pones, del 1 al 5?
+
+### `resena_pide_comentario`
+
+**Cuándo.** Dijo estrellas y no dejó comentario.
+
+> Gracias. ¿Quieres agregar un comentario para su perfil? Si no, así la dejo.
+
+**Componen** el prompt las dos. No llevan ni un dato adentro, así que no son resultados de
+`dejar_resena` y no gastan llamada. Se pregunta una vez y no se insiste.
 
 ---
 
-## 2. Los textos de las once funciones
+## 2. Los textos de las diez funciones
 
 En el orden del catálogo. El servidor los compone enteros; el agente sólo escoge a cuál función
 llamar.
@@ -163,15 +183,24 @@ llamar.
 | `{modalidad}` | «presencial» o «en línea», ya en español |
 | `{plazo}` | El plazo de esa ficha: «24 horas», «12 horas» |
 | `{ritmo}` · `{parte_del_dia}` | «cada semana» · «mañana», «mediodía», «tarde», «noche» |
-| `{zona}` | La zona horaria del negocio, en palabras: «la Ciudad de México» |
-| `{lista}` | Las opciones numeradas, máximo cinco, con su etiqueta ya escrita |
+| `{zona}` | La marca corta de la zona horaria: «Hora CDMX» |
+| `{lista}` | Las opciones numeradas, máximo cinco —hasta ocho sólo en la lista de servicios—, con su etiqueta ya escrita |
 | `{verbos}` | Sólo lo que esa profesional permite |
-| `{banco}` · `{titular}` · `{clabe}` | Los datos de transferencia del perfil |
+| `{como_pagar}` | Cómo transferir, en una de dos frases fijas |
+| `{banco}` · `{titular}` · `{clabe}` | Los datos de transferencia del perfil, sólo dentro de `{como_pagar}` |
 | `{direccion}` | Dónde es |
 
-Ninguno lo rellena el modelo: llegan ya escritos dentro de `texto`. La tabla existe para leer las
-plantillas de abajo, no para componerlas a mano. **No hay hueco de liga:** la liga de la sesión en
-línea se manda en el aviso de una hora antes y en ningún otro lado.
+`{como_pagar}` tiene **exactamente dos valores**, y los escoge el servidor según el perfil:
+
+- Con datos de transferencia guardados: «Transfiere a {banco}, a nombre de {titular}, CLABE
+  {clabe}, y mándame el comprobante por aquí.»
+- Sin datos guardados: «Pídele los datos para la transferencia y mándame el comprobante por aquí.»
+
+La segunda no repite el nombre de la profesional porque el texto que la recibe ya lo dijo.
+
+Ninguno de los huecos lo rellena el modelo: llegan ya escritos dentro de `texto`. La tabla existe
+para leer las plantillas de abajo, no para componerlas a mano. **No hay hueco de liga:** la liga de
+la sesión en línea se manda en el aviso de una hora antes y en ningún otro lado.
 
 ### 2.1 `ver_servicios`
 
@@ -186,23 +215,20 @@ un viaje:
 >
 > Dime cuál te interesa, qué días te quedan mejor y a qué hora.
 
-Cada renglón de `{lista}` es `{servicio} · {duracion} · {monto}`. Con un solo servicio se dice cuál
-es y se pasa directo a los filtros, `espera: "filtros"`:
+Cada renglón de `{lista}` es `{servicio} · {duracion} · {monto}`. **Ésta es la única lista que puede
+pasar de cinco renglones: llega hasta ocho.** El catálogo es corto, estable y no caduca como una
+lista de horas. Con más de ocho servicios se muestran ocho y se le pide que diga cuál busca.
+
+Con un solo servicio se dice cuál es y se pasa directo a los filtros, `espera: "filtros"`:
 
 **`servicios_uno`**
 
 > Hola {paciente}. Con gusto te agendo con {profesional}. {servicio}, {duracion}, {monto}. ¿Qué
 > días te quedan mejor y a qué hora?
 
-Con `para: "precio"`, los mismos datos y otro cierre:
-
-**`servicios_precios`**
-
-> Hola {paciente}. Con {profesional} los precios son estos:
->
-> {lista}
->
-> ¿Te agendo alguna?
+Este mismo texto es el que sale cuando **pide por su nombre un servicio que sí tiene**: se le
+confirma cuál es y se le preguntan los filtros. Preguntarle «¿cuál te interesa?» después de que lo
+acaba de decir es hacerle repetir.
 
 El aviso de recurrencia va **antes** de todo lo demás y se lleva la pregunta:
 
@@ -211,37 +237,69 @@ El aviso de recurrencia va **antes** de todo lo demás y se lleva la pregunta:
 > Ya tienes {servicio} {ritmo}, los {dia} a las {hora}, y tu próxima es el {dia} a las {hora}.
 > ¿Quieres agendar otra sesión aparte de ésa?
 
-Y si tiene una próxima sin recurrencia:
+`espera: "confirmado"`. Es el único aviso previo que queda al agendar: quien tiene una cita suelta y
+pide otra no recibe aviso, porque el cierre le nombra servicio, día y hora, y `mis_citas` se lo
+enseña cuando quiera.
 
-**`aviso_cita_proxima`**
-
-> Hola {paciente}. Ya tienes {servicio} el {dia} a las {hora}, {modalidad}. ¿Quieres mover ésa de
-> día, o agendar otra sesión aparte?
-
-Si pidió por su nombre un servicio que no está en su lista:
+Si pidió por su nombre un servicio que su profesional sí tiene pero a ella no le está asignado:
 
 **`servicio_no_asignado`**
 
 > Ese servicio no lo tienes asignado, así que desde aquí no te lo puedo agendar. Pídele a
 > {profesional} que te lo habilite y con gusto te lo agendo.
 
-La lista es la que le toca: sus servicios asignados si tiene alguno, y el catálogo completo de su
-profesional si no tiene ninguno. Este texto es para lo que quedó fuera de esa lista, y no ofrece
-alternativas a propósito: cambiarle el servicio por otro parecido es decidir por ella.
+Y si pidió uno que su profesional **no ofrece en absoluto**:
 
-Si la profesional no tiene horarios abiertos, devuelve `sin_horarios` y ahí termina.
+**`servicio_no_existe`**
+
+> Ese servicio no está entre los de {profesional}. Sus servicios son:
+>
+> {lista}
+>
+> ¿Te agendo alguno?
+
+`espera: "servicio"`. Son dos textos y no uno porque prometen cosas distintas: uno se arregla
+pidiéndole a la profesional que lo habilite, y el otro no se arregla de ninguna manera. Decirle
+«pídele que te lo habilite» de algo que no existe es mandarla a una conversación que no lleva a
+nada.
+
+El nombre libre se empareja **sin acentos y sin mayúsculas, contra el nombre completo del servicio y
+contra cada palabra suya de tres letras o más**. Si empareja con más de uno, no se adivina: sale
+`servicios_varios` con la lista.
+
+La lista es la que le toca: sus servicios asignados si tiene alguno, y el catálogo completo de su
+profesional si no tiene ninguno.
+
+Si la profesional no tiene horarios abiertos, devuelve `sin_horarios` y ahí termina:
+
+**`sin_horarios`**
+
+> Ahorita {profesional} no tiene horarios abiertos para las próximas semanas. Escríbele directamente
+> para que te dé un espacio.
+
+**Cuándo.** La profesional no tiene ni un bloque de horario guardado, o tiene apagado el agendado
+por parte de la paciente. Lo devuelve `ver_servicios`, y `buscar_horarios` si se llega ahí. La
+conversación sigue abierta. Dice «las próximas semanas» y no «los próximos 30 días»: decir el
+horizonte en días invita a preguntar por el día 31.
 
 ### 2.2 `buscar_horarios`
 
-Hasta cinco opciones, cada una con día y hora, `espera: "opcion"`:
+Hasta cinco opciones, cada una con día y hora, `espera: "opcion"`. **El encabezado lleva la marca de
+zona horaria**, aquí y en toda lista de horas:
 
 **`horarios_lista`**
 
-> Para el {dia}, {modalidad}, tengo estas horas:
+> Para el {dia}, {modalidad}, tengo estas horas ({zona}):
 >
 > {lista}
 >
 > Dime cuál te acomoda.
+
+Ejemplo: «Para el miércoles 2 de septiembre, en línea, tengo estas horas (Hora CDMX):».
+
+La marca va **pegada a la lista, cada vez**, y no una sola vez al cerrar. Si se dice sólo al final,
+ella escoge una hora y se entera del huso cuando la cita ya está apartada. Es corta a propósito:
+cuatro palabras entre paréntesis no estorban y contestan la duda antes de que la tenga.
 
 No dice «y te la aparto» porque todavía no se aparta nada: antes de crear la cita se pregunta otra
 vez, y ese texto es de `agendar`.
@@ -251,14 +309,16 @@ las del martes», porque son las mismas horas de los dos días:
 
 **`horarios_lista_compartida`**
 
-> El {dia} y el {dia} tengo estas horas:
+> El {dia} y el {dia} tengo estas horas ({zona}):
 >
 > {lista}
 >
 > Dime la hora y en cuál de los dos días.
 
-Al escoger la hora siempre se sabe el día: o lo dice ella aquí, o ya venía determinado porque dijo
-día y hora juntos desde el principio, y entonces no se vuelve a preguntar.
+`espera: "opcion"`. El número identifica la hora pero no el día, y por eso ésta es la única lista
+tras la cual `agendar` recibe también el parámetro `dia`. Al escoger la hora siempre se sabe el día:
+o lo dice ella aquí, o ya venía determinado porque dijo día y hora juntos desde el principio, y
+entonces no se vuelve a preguntar.
 
 Cuando no hay ninguna, el texto es uno de los cinco motivos de la sección 3. **Nunca una lista
 vacía y nunca «no hay nada».**
@@ -269,6 +329,23 @@ vacía y nunca «no hay nada».**
 
 Es el único origen de ese valor al agendar: si `ver_servicios` ya lo había resuelto porque el
 servicio admite una sola modalidad, esta rama no ocurre.
+
+**`modalidad_no_disponible_en_servicio`** — pidió una modalidad que ese servicio no admite. `espera: "modalidad"`.
+
+> {servicio} sólo se da {modalidad}. ¿Te busco día así, o prefieres otro servicio?
+
+Se comprueba **antes que los cinco motivos**, porque no depende de la agenda. Sin esta rama, pedir
+«en línea» de un servicio que sólo es presencial sale por «no hay consulta esos días», que es falso
+y la manda a buscar otro día cuando lo que hay que cambiar es la modalidad.
+
+**`fuera_del_horizonte`** — pidió una fecha más allá de lo que se alcanza a ver. `espera: "filtros"`.
+
+> Hasta esa fecha todavía no alcanzo a ver la agenda. Puedo buscarte algo dentro de las próximas
+> semanas. ¿Te busco día?
+
+Tampoco aquí se dice el horizonte en días, por lo mismo que en `sin_horarios`. Una fecha sin año se
+resuelve siempre **hacia adelante**: «el 20 de agosto» dicho un 27 de agosto es el 20 de septiembre,
+y la etiqueta del día con su mes es la única corrección que hace falta.
 
 ### 2.3 `agendar`
 
@@ -282,48 +359,52 @@ servicio admite una sola modalidad, esta rama no ocurre.
 Cuesta un mensaje y evita el error caro: un «la 3» mal entendido crea una cita real que después hay
 que cancelar, con su aviso a la profesional y su hueco bloqueado mientras tanto.
 
+Si dice que no, `hecho: false` y cierra:
+
+**`agendar_no_aparta`**
+
+> Va, no la aparto. Cuando quieras, dime qué días te quedan mejor y te busco.
+
 Cobra después: servicio, día, hora, modalidad y profesional, y **ni una palabra de pago**.
 
 **`agendar_cierre_cobra_despues`**
 
 > Listo, {paciente}. Aparté tu {servicio} del {dia} a las {hora}, {modalidad}, con {profesional}.
-> Las horas te las doy en horario de {zona}.
 
-Cobra por adelantado y llenó sus datos de transferencia:
+Si esa cita cae dentro de la ventana del aviso automático, **nace confirmada** y el cierre es el
+mismo: no se le pide confirmar algo que ya quedó confirmado, y tampoco se le anuncia el mecanismo.
 
-**`agendar_cierre_prepago_con_datos`**
+Cobra por adelantado, **siempre**, falte lo que falte para la sesión:
 
-> Listo, {paciente}. Aparté tu {servicio} del {dia} a las {hora}, {modalidad}, con {profesional}.
-> Son {monto}, y las horas te las doy en horario de {zona}.
->
-> Para confirmarla, transfiere a {banco}, a nombre de {titular}, CLABE {clabe}, y mándame el
-> comprobante por aquí.
-
-Cobra por adelantado y no llenó sus datos:
-
-**`agendar_cierre_prepago_sin_datos`**
+**`agendar_cierre_prepago`**
 
 > Listo, {paciente}. Aparté tu {servicio} del {dia} a las {hora}, {modalidad}, con {profesional}.
-> Son {monto}, y las horas te las doy en horario de {zona}.
+> Son {monto}, y para confirmarla necesito tu comprobante.
 >
-> Para confirmarla necesito tu comprobante. Pídele los datos para la transferencia y mándame el
-> comprobante por aquí.
+> {como_pagar}
 
-**Ninguna de las tres pone plazo al comprobante, y ninguna amenaza con cancelar.** Nada cancela
-citas solo: la cita queda apartada y sin confirmar, con el comprobante pedido, y ahí se queda hasta
-que llegue. La profesional ve en su app que se pidió y no ha llegado, y el recordatorio sale por
-plantilla desde el trabajo programado, no del agente.
+Lo que confirma esta cita es el comprobante, no el reloj: por eso se pide igual a treinta días que a
+tres horas. Lo único que cambia dentro de la ventana del aviso es que **no se le encola el
+recordatorio**, para que no reciba por plantilla lo que acaba de leer aquí.
 
-La zona horaria se dice **una sola vez**, aquí, para que sepa en qué horario está viendo las horas.
-No se repite en ningún otro mensaje. El monto se dice en las dos de prepago y no en la de cobro
-después: donde hay que transferir, callar la cantidad sería inútil.
+**Ninguno de los dos cierres lleva la marca de zona horaria** —ya iba pegada a la lista donde
+escogió— y **ninguno pone plazo al comprobante ni amenaza con cancelar.** Nada cancela citas solo:
+la cita queda apartada y sin confirmar, con el comprobante pedido, y ahí se queda hasta que llegue.
+La profesional ve en su app que se pidió y no ha llegado. El monto se dice en la de prepago y no en
+la de cobro después: donde hay que transferir, callar la cantidad sería inútil.
 
 Al apartar se valida que el hueco siga libre. Si se ocupó mientras conversaban, `hecho: false` y las
 alternativas del mismo día, renumeradas por dentro. Se dice siempre, nunca se calla:
 
 **`horario_ocupado`**
 
-> Se acaba de ocupar esa hora. Ese mismo día tengo {lista}. ¿Te sirve alguna, o te busco otra fecha?
+> Se acaba de ocupar esa hora. Ese mismo día tengo estas horas ({zona}):
+>
+> {lista}
+>
+> ¿Te sirve alguna, o te busco otra fecha?
+
+`espera: "opcion"`. Lo devuelve también `reprogramar` cuando la carrera se pierde al mover.
 
 ### 2.4 `confirmar`
 
@@ -342,22 +423,16 @@ y una sola transacción:
 
 Cobra por adelantado: **decir «sí voy» no confirma**, así que no muta y pide el archivo.
 
-**`comprobante_pedido_con_datos`**
+**`comprobante_pedido`**
 
-> Tu cita del {dia} a las {hora} se confirma con tu comprobante. Transfiere a {banco}, a nombre de
-> {titular}, CLABE {clabe}, y mándame la foto por aquí.
+> Tu cita del {dia} a las {hora} se confirma con tu comprobante.
+>
+> {como_pagar}
 
-Sin datos de pago en el perfil:
+Tampoco pone plazo, por lo mismo: no hay reloj que cumplir. Si ella ya mandó su comprobante, no se
+le pide de nuevo y «sí voy» confirma normal.
 
-**`comprobante_pedido_sin_datos`**
-
-> Tu cita del {dia} a las {hora} se confirma con tu comprobante. Pídele a {profesional} los datos
-> para la transferencia y mándame la foto por aquí.
-
-Estas dos tampoco ponen plazo, por lo mismo: no hay reloj que cumplir. Si ella ya mandó su
-comprobante, no se le pide de nuevo y «sí voy» confirma normal.
-
-Con varias esperando confirmación, `espera: "cita"`:
+Con varias esperando confirmación, `espera: "citas"` —en plural, porque puede contestar «ambas»—:
 
 **`confirmar_lista`**
 
@@ -373,30 +448,35 @@ próxima.
 > No tengo ninguna cita tuya esperando confirmación. Tu próxima es el {dia} a las {hora}, y ya está
 > confirmada.
 
-**`confirmar_ya_confirmada`** — esa cita ya estaba confirmada. No muta, `hecho: false`, y se dice sin
-que parezca un error.
-
-> Esa ya estaba confirmada: tu cita del {dia} a las {hora} sigue en pie.
+Cubre también el caso de la cita que ya estaba confirmada: una cita confirmada no entra en las
+candidatas, así que no hace falta un texto aparte para decírselo.
 
 ### 2.5 `reprogramar`
 
-Reprogramar **se permite siempre**. El plazo ya no bloquea nada: sólo decide si hay que avisar de un
-cobro.
+**Dos cosas distintas, que hay que decir por separado.** El aviso de cambio no bloquea: mover se
+puede aunque falten horas, y el plazo sólo decide si se cobran las dos sesiones. Lo que sí corta es
+**la anticipación mínima de la ficha**, que decide desde cuándo se puede tomar un horario nuevo, y
+vale igual al agendar que al mover.
+
+Las dos pueden aparecer en la misma gestión: primero el aviso de que se cobran las dos sesiones, y
+después una lista que empieza en el primer día que la anticipación permite. No es un error: son dos
+números distintos de la misma ficha, y cada uno contesta una pregunta distinta.
 
 Primera llamada, a tiempo, `espera: "filtros"`:
 
 **`reprogramar_pregunta_dia`**
 
 > Va, muevo tu cita del {dia} a las {hora}. ¿Qué días te quedan mejor y a qué hora?
+>
+> Tu cita nueva la puedes tomar presencial o en línea, dime también cómo la prefieres.
 
-La modalidad **sí se vuelve a preguntar**, porque puede querer cambiarla en la cita nueva. El
-servicio no: viene de la cita que se mueve. `espera: "modalidad"`:
+El segundo párrafo es **condicional**: va sólo cuando el servicio admite las dos modalidades. La
+modalidad sí se vuelve a preguntar, porque puede querer cambiarla en la cita nueva; el servicio no,
+que viene de la cita que se mueve. Van en el mismo mensaje y con una sola `espera` porque un mensaje
+no puede esperar dos datos distintos a la vez: la respuesta trae los filtros y, si se preguntó, la
+modalidad adentro.
 
-**`reprogramar_pregunta_modalidad`**
-
-> Tu cita nueva la puedes tomar presencial o en línea. ¿Cómo la prefieres?
-
-Primera llamada, sin tiempo mínimo, `espera: "confirmado"`:
+Primera llamada, sin tiempo mínimo de aviso, `espera: "confirmado"`:
 
 **`reprogramar_aviso_tardio`**
 
@@ -405,7 +485,15 @@ Primera llamada, sin tiempo mínimo, `espera: "confirmado"`:
 >
 > ¿La movemos?
 
-Es un aviso, no una negativa: diga lo que diga el reloj, si ella dice que sí, se mueve.
+Es un aviso, no una negativa: diga lo que diga el reloj, si ella dice que sí, se mueve. Se da
+siempre que haya algo que cobrar, aunque todavía no haya pagado nada: es lo único que hace que el
+plazo signifique algo para quien cobra al cerrar. Con precio efectivo cero no se menciona dinero.
+
+Si dice que no, `hecho: false` y cierra:
+
+**`reprogramar_no_mueve`**
+
+> Va, la dejo como está: tu cita del {dia} a las {hora} sigue en pie.
 
 Con varias candidatas, `espera: "cita"`:
 
@@ -415,7 +503,7 @@ Con varias candidatas, `espera: "cita"`:
 >
 > {lista}
 
-El cierre, que **no repite el aviso de cobro** porque ya se dio antes de mover:
+El cierre normal, que **no repite el aviso de cobro** porque ya se dio antes de mover:
 
 **`reprogramar_cierre`**
 
@@ -423,62 +511,117 @@ El cierre, que **no repite el aviso de cobro** porque ya se dio antes de mover:
 
 Ejemplo: «Listo, moví tu cita al miércoles 2 de septiembre a las 4:00, presencial.»
 
-El aviso tardío **sólo se da cuando hay algo que cobrar**: con precio efectivo cero se mueve sin
-mencionar dinero, porque decirle «se te cobra» de una sesión de cero pesos es mentirle en la otra
-dirección. Lo mismo vale para el aviso de `cancelar`.
+Sale cuando a ella no le queda nada por pagar: cobra después, o el precio es cero, o se movió con
+tiempo mínimo y el cobro nuevo heredó lo que traía el viejo. **Con tiempo mínimo, si ya había
+comprobante, se copia y no se le vuelve a pedir**; si estaba acreditado, nace acreditado.
+
+El otro cierre, cuando la cita nueva nace con un cobro que necesita comprobante:
+
+**`reprogramar_cierre_prepago`**
+
+> Listo, moví tu cita al {dia} a las {hora}, {modalidad}. Son {monto}, y para confirmarla necesito
+> tu comprobante.
+>
+> {como_pagar}
+
+Sale en dos casos, y hay que decir por qué en cada uno. **Sin tiempo mínimo**, el cobro viejo se
+queda congelado en la cita de origen y el nuevo nace desde cero: por eso se cobran las dos sesiones,
+y por eso el aviso va antes de mover y no después. **Con tiempo mínimo**, cuando el cobro viejo
+estaba pendiente y sin archivo y su profesional cobra por adelantado: no hay nada que heredar, así
+que la petición se vuelve a sellar sobre el cobro nuevo.
+
+El caso duro se dice en voz alta: **si cobra por adelantado, ella ya mandó comprobante, y mueve sin
+tiempo mínimo, su comprobante se queda en la cita vieja y la nueva le pide otro.** Va a pagar dos
+veces salvo que su profesional condone la primera. Eso es exactamente lo que significa «se cobran
+las dos sesiones», y es la razón de que se avise antes.
 
 Cuando la cita que se mueve es de una serie, hay una segunda salida: no buscar día nuevo, sino
-juntarla con la próxima que ya tiene agendada. `espera: "confirmado"`:
+juntarla con la próxima ocurrencia viva de esa serie. `espera: null`, `cierra: false` —la respuesta
+puede ser cualquiera de las dos y las dos llaman a `reprogramar`, así que la salida queda abierta y
+no se declara ningún parámetro—:
 
 **`reprogramar_recurrencia_dos_salidas`**
 
 > Esa cita es de tus sesiones {ritmo}. Te busco otro día, o te la paso a tu próxima del {dia} a las
 > {hora} y cancelo ésta. ¿Cuál prefieres?
 
-Y el cierre de esa segunda salida:
+Se ofrece con pago o sin él, y no pasa por ninguna función de dinero: consolidar la serie es una
+salida de `reprogramar`. Si no hay pago, cierra igual, sin la frase del dinero.
+
+El cierre de esa segunda salida, con tiempo mínimo:
 
 **`reprogramar_pasada_a_la_proxima`**
 
 > Listo, cancelé tu cita del {dia}. Tu próxima sigue en pie, el {dia} a las {hora}, y tu pago quedó
 > ahí.
 
-La última frase sólo va cuando esa cita traía pago. La vieja queda **cancelada**, no reprogramada, y
-la ocurrencia que ya existía no se toca: es la única forma de que la serie no acabe con dos citas
-donde había una.
+Y el gemelo sin tiempo mínimo, **sin la frase del pago mudado**, porque sin tiempo mínimo el pago no
+viaja:
+
+**`reprogramar_pasada_a_la_proxima_tarde`**
+
+> Listo, cancelé tu cita del {dia}. Tu próxima sigue en pie, el {dia} a las {hora}.
+
+La última frase del primero sólo va cuando esa cita traía pago. En los dos, la vieja queda
+**cancelada**, no reprogramada, y la ocurrencia que ya existía no se toca: es la única forma de que
+la serie no acabe con dos citas donde había una. Pasar el pago a una ocurrencia que ya existe **no
+toca la anticipación mínima**, porque ahí no se está tomando un horario nuevo.
 
 **`reprogramar_nada_que_mover`** — sin ninguna cita futura que mover. Cierra.
 
 > No tengo ninguna cita tuya por mover. Si quieres agendar una, dime qué días te quedan mejor.
 
 **`reprogramar_solo_la_proxima`** — de una serie sólo se mueve la más próxima, y ella pidió otra.
+`espera: "confirmado"`.
 
 > De tus sesiones {ritmo} sólo puedo mover la más próxima, la del {dia} a las {hora}. Las de después
 > las ajusta {profesional} desde su app. ¿Muevo ésa?
 
+Si la carrera se pierde al apartar, devuelve `horario_ocupado`. Si la cita de origen dejó de estar
+donde estaba, los tres textos de la sección 4.3.
+
 ### 2.6 `cancelar`
 
-Cancelar **se permite siempre**, con dinero adentro o sin él. El plazo sólo decide si hay cargo.
+**Cancelar no se bloquea nunca**, con dinero adentro o sin él. La anticipación mínima no entra
+aquí: cancelar no toma ningún horario. El plazo de aviso sólo decide si hay cargo.
 
-Sin dinero adentro y a tiempo. **No se pregunta**: cancela y cierra.
+El cierre es **uno solo**, y el servidor le pega al final la coletilla que corresponda:
 
 **`cancelar_cierre`**
 
-> Listo, cancelé tu cita del {dia} a las {hora}. No te queda ningún cobro pendiente por ella.
+> Listo, cancelé tu cita del {dia} a las {hora}.
 
-Sin dinero adentro y tarde, `espera: "confirmado"`:
+Las cuatro coletillas, y las escoge el resultado, no lo que el modelo crea que pasó:
+
+| Cómo quedó | Qué se pega al final |
+|---|---|
+| A tiempo y sin cobro | «No te queda ningún cobro pendiente por ella.» |
+| Sin tiempo mínimo, ya se avisó del cargo | nada |
+| Con dinero adentro y sin pasarlo | «Tu pago queda registrado y {profesional} lo resuelve contigo.» |
+| Con el pago pasado a su próxima | «Tu pago quedó en tu sesión del {dia} a las {hora}.» |
+
+Es una sola clave y no tres porque la frase que cambia es la última: tres plantillas enteras para
+una coletilla obligan a mantener la misma primera línea en tres sitios. Y desde que la cita con
+dinero adentro sí se cancela, el cierre con el pago abierto dejó de ser una negativa: es el cierre
+normal.
+
+Sin dinero adentro y tarde se avisa antes, `espera: "confirmado"`:
 
 **`cancelar_aviso_tardio`**
 
 > Te la cancelo, pero antes te aviso: {profesional} pide {plazo} de aviso y ya faltan menos, así
 > que la sesión se te cobra. ¿La cancelo de todos modos?
 
-Y al confirmar, el cierre corto, sin repetir el aviso:
+Con precio efectivo cero no se menciona dinero, aquí ni en el aviso de `reprogramar`: decirle «se te
+cobra» de una sesión de cero pesos es mentirle en la otra dirección.
 
-**`cancelar_cierre_tardio`**
+Si dice que no, `hecho: false` y cierra:
 
-> Listo, cancelé tu cita del {dia} a las {hora}.
+**`cancelar_no_cancela`**
 
-Con varias candidatas:
+> Va, no la cancelo: tu cita del {dia} a las {hora} sigue en pie.
+
+Con varias candidatas, `espera: "cita"`:
 
 **`cancelar_lista`**
 
@@ -492,12 +635,19 @@ Con cero, se dice con una salida. Nunca un error:
 
 > No tengo ninguna cita tuya por cancelar. Si quieres agendar una, dime qué días te quedan mejor.
 
-Los tres textos de la cita con dinero adentro están en la sección 4.
+Los textos de la cita con dinero adentro están en la sección 4.2, y los de la cita que dejó de estar
+donde estaba en la 4.3.
 
 ### 2.7 `cambiar_modalidad`
 
 Es el único cambio que **sí sigue bloqueado por el plazo**: la profesional necesita saber con tiempo
 si va al consultorio.
+
+Las candidatas son las citas **vivas, en el futuro, de un servicio que admite las dos
+modalidades**. Ésas son las dos únicas condiciones que filtran. El permiso de esa profesional y la
+anticipación **no filtran: deciden el texto**, que es para lo que existen. Si filtraran, una cita a
+la que le falta el tiempo saldría por «no tengo ninguna cita a la que le pueda cambiar la
+modalidad», cuando lo que pasó es que llegó tarde.
 
 La propuesta, con la dirección del cambio, `espera: "confirmado"`:
 
@@ -511,7 +661,14 @@ El cierre:
 
 > Listo, tu cita del {dia} a las {hora} queda {modalidad}.
 
-Con varias, cada renglón con su modalidad actual y **sin dar por hecho a cuál dirección**:
+Si dice que no, `hecho: false` y cierra:
+
+**`modalidad_no_cambia`**
+
+> Va, la dejo como está: tu cita del {dia} se queda {modalidad}.
+
+Con varias, cada renglón con su modalidad actual y **sin dar por hecho a cuál dirección**,
+`espera: "cita"`:
 
 **`modalidad_lista`**
 
@@ -519,61 +676,28 @@ Con varias, cada renglón con su modalidad actual y **sin dar por hecho a cuál 
 >
 > {lista}
 
-Ejemplo de `{lista}`: «1. Jueves 27, 5:00 p.m. — presencial / 2. Sábado 29, 11:00 a.m. — en línea».
-Las dos negativas están en la sección 4.
+Ejemplo de `{lista}`, con datos inventados: «1. Jueves 27, 5:00 p.m. — presencial / 2. Sábado 29,
+11:00 a.m. — en línea».
 
-**`modalidad_nada_que_cambiar`** — ninguna cita cumple las cuatro condiciones. Cierra.
+**`modalidad_nada_que_cambiar`** — ninguna cita viva y futura de un servicio con dos modalidades. Cierra.
 
 > Ahorita no tengo ninguna cita tuya a la que le pueda cambiar la modalidad.
 
-### 2.8 `pasar_pago`
+Las dos negativas por plazo y por permiso están en la sección 4.1. **Cambiar la modalidad no toca
+dinero nunca.**
 
-El destino no se señala nunca: lo resuelve el servidor y se dice literal. El estado se mueve tal
-cual —comprobante o acreditado— y la cita vieja queda cancelada. Dos variantes, y la escoge el
-resultado, no lo que el modelo crea que pasó:
-
-**`pasar_pago_acreditado`**
-
-> Listo, tu pago quedó acreditado en tu sesión del {dia} a las {hora}, y cancelé la del {dia}.
-
-**`pasar_pago_comprobante`**
-
-> Listo, pasé tu comprobante a tu sesión del {dia} a las {hora}, y cancelé la del {dia}.
-
-Si no hay próxima del mismo servicio, se dice y se ofrece mover:
-
-**`pasar_pago_sin_proxima`**
-
-> No tienes otra sesión de {servicio} donde pasarlo. Lo que sí puedo es moverte esa cita a otro día
-> y tu pago se va con ella. ¿Te busco día?
-
-Las tres nombran la cancelación de la cita vieja porque eso es lo que de verdad le pasa, y callarlo
-la dejaría creyendo que sigue en pie.
-
-**Sólo hay dos revisiones**, y cada una tiene su texto. Ninguna es un error y las dos ofrecen algo:
-
-**`pasar_pago_sin_dinero`**
-
-> Esa cita no tiene ningún pago tuyo adentro, así que no hay nada que pasar. Si quieres, te la
-> cancelo o te la muevo de día.
-
-**`pasar_pago_la_proxima_ya_tiene`**
-
-> Tu sesión del {dia} ya tiene su propio pago, así que no le puedo encimar éste. {profesional} lo
-> acomoda contigo. Si prefieres, te muevo la del {dia} a otro día y tu pago se va con ella.
-
-**Que el importe sea distinto no detiene nada.** Si la sesión de destino cuesta más o cuesta menos,
-el pago se pasa igual y la profesional ajusta desde su app: no hay texto para ese caso porque ese
-caso no para. Y el tiempo mínimo tampoco: pasar el pago se permite siempre, como cancelar y como
-reprogramar.
-
-### 2.9 `mandar_comprobante`
+### 2.8 `mandar_comprobante`
 
 **Siempre se pregunta antes de guardar**, aunque haya un solo cobro esperando y aunque la plantilla
 nombre la cita. La base admite un comprobante por cobro para siempre y no hay pantalla para
 reemplazarlo: una foto equivocada queda pegada.
 
-Una sola candidata:
+Las candidatas son **cobros, no citas**: todo cobro suyo pendiente y sin archivo pegado, sin
+importar el estado de la cita —cancelada, reprogramada o pasada—, más el de su próxima cita futura;
+de una serie, sólo el de la ocurrencia más próxima. Por eso funciona el comprobante de una
+cancelación tardía, que es el único camino que hay para cobrarla.
+
+Una sola candidata, `espera: "confirmado"`:
 
 **`comprobante_pregunta_una`**
 
@@ -582,13 +706,23 @@ Una sola candidata:
 El cobro se identifica por **fecha**. La hora se agrega sólo cuando hay dos o más cobros del mismo
 día, que es el único caso en que la fecha sola no alcanza.
 
-Varias, con fecha y monto, la más antigua primero:
+Varias, con fecha y monto, la más antigua primero, `espera: "cita"`:
 
 **`comprobante_lista`**
 
 > ¿De cuál de estas es tu comprobante?
 >
 > {lista}
+
+Si en un mismo lote llegaron varias imágenes, `espera: "confirmado"`:
+
+**`comprobante_varias_imagenes`**
+
+> Me llegaron varias imágenes. Me quedo con la última. ¿Es el comprobante de tu cita del {dia}?
+
+Se toma **la última** y se dice cuál. La fila de la conversación guarda de qué archivo se preguntó,
+y si llega uno nuevo antes de que ella conteste, la pregunta se rehace sobre el nuevo: sin eso, el
+«sí» de ella pegaría una foto que no es la que acaba de mandar.
 
 El acuse de una cita futura:
 
@@ -621,24 +755,14 @@ porque no se puede.
 
 > No me llegó ninguna imagen. Mándame la foto o el PDF del comprobante por aquí.
 
-**Nunca «pagado» ni «aprobado»:** el agente recibe y avisa, no acredita. Y recibir comprobantes vale
-para todas las profesionales, cobren antes o después de la sesión; lo que sólo aplica al cobro por
-adelantado es pedir el pago al agendar.
+**Nunca «pagado» ni «aprobado»:** el agente pega el archivo y el cobro sigue pendiente. **El agente
+no acredita nunca.** Y recibir comprobantes vale para todas las profesionales, cobren antes o
+después de la sesión; lo que sólo aplica al cobro por adelantado es pedir el pago al agendar.
 
-### 2.10 `dejar_resena`
+### 2.9 `dejar_resena`
 
-Las dos preguntas que faltan cuestan **cero llamadas**: viven en el prompt porque no llevan ni un
-dato adentro. Se pregunta una vez y no se insiste.
-
-**`resena_pide_comentario`**
-
-> Gracias. ¿Quieres agregar un comentario para su perfil? Si no, así la dejo.
-
-**`resena_pide_calificacion`**
-
-> Gracias por escribirlo. ¿Cuántas estrellas le pones, del 1 al 5?
-
-El cierre, que sí sale de la función:
+Sólo dos textos: los dos que llevan datos. Las dos preguntas que faltan viven en el prompt y cuestan
+cero llamadas.
 
 **`resena_gracias`**
 
@@ -654,7 +778,7 @@ El cierre, que sí sale de la función:
 > Ya tenemos tu reseña de {profesional}, y te lo agradecemos mucho. Si quieres cambiarla,
 > coméntaselo.
 
-### 2.11 `mis_citas`
+### 2.10 `mis_citas`
 
 Cubre las tres preguntas de la misma familia: qué citas tengo, dónde es, y cuánto debo.
 
@@ -683,18 +807,16 @@ Dónde es, presencial y en línea:
 
 > Tu cita del {dia} a las {hora} es presencial. La dirección es {direccion}.
 
+Cuando no hay dirección guardada, el servidor cambia **sólo la segunda frase** por «La dirección te
+la comparte {profesional} directamente». La primera se queda siempre: sin ella, la versión sin
+dirección perdía el día, la hora y el dato de que es presencial.
+
 **`mis_citas_donde_en_linea`**
 
 > Tu cita del {dia} a las {hora} es en línea. La liga te llega una hora antes.
 
 **La liga no se manda aquí.** Sale una sola vez, en el aviso de una hora antes, para que ella la
 tenga a la mano cuando la necesita y no la busque tres días atrás en la conversación.
-
-Sin dirección guardada:
-
-**`mis_citas_sin_direccion`**
-
-> La dirección te la comparte {profesional} directamente.
 
 Cuánto debe:
 
@@ -728,11 +850,27 @@ La diferencia entre contestar «lo más cercano es el 17» y contestar «el 17 t
 alcanzo»: convierte un hueco de agenda en un reproche a quien la atiende. Se dice lo que hay y lo
 que sí se puede.
 
+**La `espera` no es la misma en los cinco**, y de eso depende dónde aterriza el «la 2» siguiente:
+
+| Motivo | Qué trae la lista | `espera` |
+|---|---|---|
+| `sin_hueco_fuera_de_horario` | Horas apartables de ese día | `opcion` |
+| `sin_hueco_dias_que_no_trabaja` | Otros días, sin hora | `filtros` |
+| `sin_hueco_ausencia` | Horas apartables del día más cercano | `opcion` |
+| `sin_hueco_lleno` | Horas apartables, cada renglón con su día | `opcion` |
+| `sin_hueco_demasiado_pronto` | Horas apartables del día más cercano | `opcion` |
+
+Cuatro de los cinco ofrecen horas que se pueden apartar, así que el número siguiente va a
+`agendar`. Sólo el de los días que no trabaja propone otra ventana, y ése sí espera filtros. Declarar
+`filtros` en los cinco atoraba la conversación justo cuando ella ya había escogido, y es la salida
+más frecuente de agendar con la agenda apretada.
+
 **No hay consulta a esa hora.**
 
 **`sin_hueco_fuera_de_horario`**
 
-> Por la {parte_del_dia} no hay consultas. El horario es de {hora} a {hora}, y para el {dia} tengo:
+> Por la {parte_del_dia} no hay consultas. El horario es de {hora} a {hora}, y para el {dia} tengo
+> estas horas ({zona}):
 >
 > {lista}
 >
@@ -748,11 +886,15 @@ que sí se puede.
 >
 > ¿Te sirve alguno, o te busco otra fecha?
 
+Éste es el único de los cinco cuya lista no lleva horas, y por eso el único sin marca de zona: no
+hay ninguna hora que situar.
+
 **Esos días concretos no va a haber.**
 
 **`sin_hueco_ausencia`**
 
-> El {dia} y el {dia} no hay consultas. Lo más cercano es el {dia}, y ahí tengo:
+> El {dia} y el {dia} no hay consultas. Lo más cercano es el {dia}, y ahí tengo estas horas
+> ({zona}):
 >
 > {lista}
 >
@@ -764,7 +906,7 @@ días, y otras horas en el mismo día.
 **`sin_hueco_lleno`**
 
 > Para esos días ya no tengo espacio a esa hora. Esa misma hora la tengo el {dia}, y ese mismo día
-> tengo otras horas:
+> tengo otras horas ({zona}):
 >
 > {lista}
 >
@@ -777,25 +919,29 @@ manda a preguntar otra vez por la que no se le ofreció.
 
 **`sin_hueco_demasiado_pronto`**
 
-> Para el {dia} ya no alcanzo: se necesitan {plazo} de anticipación. Lo más cercano es el {dia}, y
-> ahí tengo:
+> Para el {dia} ya no alcanzo. Lo más cercano es el {dia}, y ahí tengo estas horas ({zona}):
 >
 > {lista}
 >
 > ¿Te sirve alguno, o te busco otra fecha?
 
-Ese `{plazo}` es la anticipación mínima de la paciente, no el aviso de cambio: son dos números
-distintos de la misma ficha y ninguno se escribe a mano. El sexto caso —que la profesional no tenga
-ni un bloque de horario guardado— no es un motivo: es el texto `sin_horarios`.
+**No dice cuánta anticipación pide la profesional.** Dice cuál sería la cita más próxima posible y
+ofrece la salida, que es lo único que ella puede usar. El número es política de quien la atiende, y
+ponerlo aquí convierte un hueco de agenda en un reproche, igual que nombrarla.
+
+Este motivo sale **igual al agendar y al reprogramar**: la anticipación mínima decide desde cuándo
+se puede tomar un horario, y mover una cita también toma uno. El sexto caso —que la profesional no
+tenga ni un bloque de horario guardado— no es un motivo: es el texto `sin_horarios`.
 
 ---
 
-## 4. Modalidad que no se puede, y la cita con dinero adentro
+## 4. Las negativas de modalidad, el dinero adentro, y la cita que se movió sola
 
 ### 4.1 Las dos negativas de modalidad
 
 Son las únicas dos negativas por plazo que quedan en todo el sistema. No hay versión tardía con
-cargo: o alcanza el tiempo, o no se cambia.
+cargo: o alcanza el tiempo, o no se cambia. Se alcanzan porque el permiso y la anticipación ya no
+filtran las candidatas: deciden cuál de estos dos textos sale.
 
 Esa profesional no permite esa dirección:
 
@@ -814,39 +960,102 @@ Las dos nombran la dirección y no la modalidad deseada, porque el permiso es po
 cita presencial sólo puede ir a en línea. Y las dos dicen cómo queda la cita, para que no quede
 duda de si algo cambió.
 
-### 4.2 Los tres textos de la cita con dinero adentro
+### 4.2 La cita con dinero adentro
+
+**Dinero adentro tiene una sola definición:** el cobro está **acreditado**, o hay un **comprobante
+pegado**. Un cobro al que sólo se le pidió comprobante, sin archivo, no es dinero adentro y no
+dispara nada de esta sección.
 
 **Una cita con dinero adentro sí se cancela.** Lo que hace el agente antes es ofrecer las salidas
 que quizá le convienen más, una vez y sólo una. La primera línea la escoge el servidor según el
-estado —«ya está pagada» o «ya mandaste tu comprobante»— y el agente no elige cuál.
+estado —«ya está pagada» si está acreditado, «ya mandaste tu comprobante» si sólo hay archivo—, y
+**acreditado gana siempre**: los dos estados conviven, y sin una precedencia escrita el texto queda
+al azar.
 
-Sin próxima cita del mismo servicio hay una sola salida. `espera: "confirmado"`:
+Los tres textos dejan la conversación **abierta y sin `espera`**: `espera: null`, `cierra: false`.
+Es lo único correcto, porque la respuesta puede ir a `cancelar` o a `reprogramar` y no hay un
+parámetro que declarar. Declarar `confirmado` aquí hacía que un «reprográmala» aterrizara en
+`cancelar(confirmado: true)` y le cancelara la cita que pidió mover, con su dinero adentro.
+
+A tiempo, sin próxima ocurrencia viva de su serie, hay una sola salida:
 
 **`cancelar_dinero_adentro`**
 
 > Esa cita ya está pagada. Antes de cancelarla: puedo reprogramarla y tu pago se va con ella. ¿Te
 > busco día, o te la cancelo?
 
-Con una próxima del mismo servicio hay dos. `espera: "confirmado"`:
+A tiempo y con una próxima ocurrencia viva de su serie, hay dos:
 
 **`cancelar_dinero_adentro_con_proxima`**
 
 > Ya mandaste tu comprobante de esa cita. Antes de cancelarla: puedo reprogramarla, o cancelar ésta
 > y dejar el pago en la próxima, la del {dia}. ¿Cuál prefieres, o te la cancelo?
 
-Si dice que no a las dos, se cancela. **El agente no insiste una segunda vez:**
+El destino del pago es **la próxima ocurrencia viva de la serie de esa cita**, no la próxima del
+mismo servicio. Si la cita no es de una serie, no hay destino y esta salida no se ofrece: es la
+diferencia entre nombrarle un día y que el dinero acabe en otro.
 
-**`cancelar_insiste`**
+Sin tiempo mínimo, el pago **no se pasa**, y se dice antes de que lo pida:
 
-> Listo, cancelé tu cita del {dia} a las {hora}. Tu pago queda registrado y {profesional} lo
-> resuelve contigo.
+**`cancelar_dinero_adentro_tarde`**
 
-La cita queda cancelada sin tiempo mínimo y el estado del pago se conserva tal como estaba, para que
-la profesional decida si lo cobra o lo condona. A la paciente no se le pide que adivine cuál de las
-dos: se le dice lo único que necesita saber, que su dinero no se perdió y con quién se ve.
+> Esa cita ya está pagada, y para cambios {profesional} pide {plazo} de aviso: ya faltan menos, así
+> que tu pago se queda en ésta y la nueva se cobra aparte. Aun así te la puedo mover. ¿Te busco
+> día, o te la cancelo?
 
-La cuenta la lleva el servidor: si la función ya ofreció las salidas una vez, la segunda llamada
-cancela. El modelo no lleva la cuenta de nada.
+Fuera de plazo se ofrece **sólo mover**, y con el precio dicho. La salida de dejar el pago en la
+próxima no se ofrece, porque fuera de plazo el pago se queda en la cancelada; ofrecerla sería
+prometerle un traslado que no ocurre. Y sí se sigue ofreciendo mover, porque ofrecer una salida
+antes de cancelar con el precio por delante es más honesto que no ofrecer ninguna.
+
+Pasar el pago exige **tres condiciones juntas**: dinero adentro, aviso dentro del plazo de esa
+ficha, y una próxima ocurrencia viva de su serie. Faltando cualquiera, la salida no se ofrece. El
+plazo sí bloquea aquí: si no bloqueara, el traslado cerraría el cobro viejo como no cobrado y la
+profesional perdería el cargo que su propia política le concede.
+
+Si acepta pasar el pago y entre la oferta y su respuesta la próxima se canceló o adquirió su propio
+cobro, `espera: null`, `cierra: false`:
+
+**`pasar_pago_no_se_pudo`**
+
+> Ya no pude dejar el pago en tu próxima sesión, así que no cancelé nada: tu cita del {dia} a las
+> {hora} sigue en pie. {profesional} lo acomoda contigo. ¿Te la muevo de día, o te la cancelo?
+
+Es un solo texto para las dos carreras porque a ella le pasa lo mismo en las dos, y no se cancela
+nada: cancelar una cita cuyo pago no llegó a moverse la dejaría peor de como estaba.
+
+**Que el importe sea distinto no detiene nada.** Si la sesión de destino cuesta más o cuesta menos,
+el pago se pasa igual y la profesional ajusta desde su app: no hay texto para ese caso porque ese
+caso no para.
+
+Si dice que no a todo, se cancela con `cancelar_cierre` y su coletilla de pago, y **el agente no
+insiste una segunda vez**. La cuenta la lleva el servidor: si la función ya ofreció las salidas una
+vez, la segunda llamada cancela. El modelo no lleva la cuenta de nada. A la paciente no se le pide
+que adivine qué pasa con su dinero: se le dice lo único que necesita saber, que no se perdió y con
+quién se ve.
+
+### 4.3 La cita dejó de estar donde estaba
+
+Reprogramar son tres llamadas en tres mensajes, y entre la primera y la última la profesional puede
+haber tocado esa cita desde su app. La llamada que escribe **relee el estado de la cita de origen
+dentro de su propia transacción**, y si cambió, sale uno de estos tres. `hecho: false` en los tres.
+
+**`cita_ya_no_esta`** — la cancelaron mientras conversaban. Cierra.
+
+> Esa cita ya no está: se canceló mientras hablábamos. ¿Te busco día para otra?
+
+**`cita_cambio_de_lugar`** — la movieron de día. `espera: "confirmado"`.
+
+> Esa cita se movió mientras hablábamos: ahora es el {dia} a las {hora}. ¿Te la muevo desde ahí?
+
+**`cita_ya_paso`** — la sesión ya ocurrió, o el barrido la pasó a revisión. Cierra.
+
+> Esa cita ya pasó, así que desde aquí ya no la puedo cambiar. Si necesitas algo de ella,
+> coméntaselo a {profesional}.
+
+Los tres los devuelven `reprogramar` y `cancelar`; `cita_cambio_de_lugar` sólo `reprogramar`, porque
+cancelar una cita que se movió de día se cancela igual. Sin estos textos, el desenlace real era «se
+me acabó el espacio», que es falso y no dice lo único útil.
 
 ---
 
@@ -862,92 +1071,89 @@ Un texto nuevo se escribe aquí antes de existir en la función. Una rama nueva 
 una plantilla nueva en esta página y un despliegue, no una línea más de prompt: ése es el precio de
 que el agente no redacte, y es el que hace que no invente.
 
-**Ningún texto de aquí cita datos de producción.** Los nombres que aparecen en los ejemplos son
-inventados y están marcados como ejemplos. Cada regla se escribe sobre lo que la profesional
-configura, nunca sobre lo que hoy tiene configurado.
+**Ningún texto de aquí cita datos de producción.** Los nombres y los precios que aparecen en los
+ejemplos son inventados y están marcados como ejemplos. Cada regla se escribe sobre lo que la
+profesional configura, nunca sobre lo que hoy tiene configurado.
 
 ---
 
 ## 6. Índice de claves
 
-Las 83 claves de esta página, en el orden en que aparecen. Los demás archivos citan por
-clave; si una clave no está aquí, el texto no existe todavía.
+Las 84 claves de esta página, en el orden en que aparecen. Los demás archivos citan por clave y
+citan este número; si una clave no está aquí, el texto no existe todavía.
 
 | Clave | Sección |
 |---|---|
+| `crisis` | 1 |
+| `no_te_reconocemos` | 1 |
+| `paciente_inactivo` | 1 |
+| `con_cual_profesional` | 1 |
 | `fuera_de_alcance` | 1 |
 | `asunto_de_dinero` | 1 |
-| `no_te_reconocemos` | 1 |
-| `con_cual_profesional` | 1 |
-| `paciente_inactivo` | 1 |
-| `sin_horarios` | 1 |
-| `crisis` | 1 |
-| `vas_muy_rapido` | 1 |
 | `no_entendi` | 1 |
 | `se_acabo_el_espacio` | 1 |
+| `pendiente_lo_otro` | 1 |
+| `resena_pide_calificacion` | 1 |
+| `resena_pide_comentario` | 1 |
 | `servicios_varios` | 2.1 |
 | `servicios_uno` | 2.1 |
-| `servicios_precios` | 2.1 |
 | `aviso_recurrencia` | 2.1 |
-| `aviso_cita_proxima` | 2.1 |
 | `servicio_no_asignado` | 2.1 |
+| `servicio_no_existe` | 2.1 |
+| `sin_horarios` | 2.1 |
 | `horarios_lista` | 2.2 |
 | `horarios_lista_compartida` | 2.2 |
 | `horarios_falta_modalidad` | 2.2 |
+| `modalidad_no_disponible_en_servicio` | 2.2 |
+| `fuera_del_horizonte` | 2.2 |
 | `agendar_pregunta_confirmar` | 2.3 |
+| `agendar_no_aparta` | 2.3 |
 | `agendar_cierre_cobra_despues` | 2.3 |
-| `agendar_cierre_prepago_con_datos` | 2.3 |
-| `agendar_cierre_prepago_sin_datos` | 2.3 |
+| `agendar_cierre_prepago` | 2.3 |
 | `horario_ocupado` | 2.3 |
 | `confirmar_cierre` | 2.4 |
 | `confirmar_cierre_ambas` | 2.4 |
-| `comprobante_pedido_con_datos` | 2.4 |
-| `comprobante_pedido_sin_datos` | 2.4 |
+| `comprobante_pedido` | 2.4 |
 | `confirmar_lista` | 2.4 |
 | `confirmar_nada_que_confirmar` | 2.4 |
-| `confirmar_ya_confirmada` | 2.4 |
 | `reprogramar_pregunta_dia` | 2.5 |
-| `reprogramar_pregunta_modalidad` | 2.5 |
 | `reprogramar_aviso_tardio` | 2.5 |
+| `reprogramar_no_mueve` | 2.5 |
 | `reprogramar_lista` | 2.5 |
 | `reprogramar_cierre` | 2.5 |
+| `reprogramar_cierre_prepago` | 2.5 |
 | `reprogramar_recurrencia_dos_salidas` | 2.5 |
 | `reprogramar_pasada_a_la_proxima` | 2.5 |
+| `reprogramar_pasada_a_la_proxima_tarde` | 2.5 |
 | `reprogramar_nada_que_mover` | 2.5 |
 | `reprogramar_solo_la_proxima` | 2.5 |
 | `cancelar_cierre` | 2.6 |
 | `cancelar_aviso_tardio` | 2.6 |
-| `cancelar_cierre_tardio` | 2.6 |
+| `cancelar_no_cancela` | 2.6 |
 | `cancelar_lista` | 2.6 |
 | `cancelar_nada_que_cancelar` | 2.6 |
 | `modalidad_propuesta` | 2.7 |
 | `modalidad_cierre` | 2.7 |
+| `modalidad_no_cambia` | 2.7 |
 | `modalidad_lista` | 2.7 |
 | `modalidad_nada_que_cambiar` | 2.7 |
-| `pasar_pago_acreditado` | 2.8 |
-| `pasar_pago_comprobante` | 2.8 |
-| `pasar_pago_sin_proxima` | 2.8 |
-| `pasar_pago_sin_dinero` | 2.8 |
-| `pasar_pago_la_proxima_ya_tiene` | 2.8 |
-| `comprobante_pregunta_una` | 2.9 |
-| `comprobante_lista` | 2.9 |
-| `comprobante_acuse` | 2.9 |
-| `comprobante_acuse_sesion_pasada` | 2.9 |
-| `comprobante_nada_esperando` | 2.9 |
-| `comprobante_ya_hay_uno` | 2.9 |
-| `comprobante_sin_archivo` | 2.9 |
-| `resena_pide_comentario` | 2.10 |
-| `resena_pide_calificacion` | 2.10 |
-| `resena_gracias` | 2.10 |
-| `resena_ya_enviada` | 2.10 |
-| `mis_citas_lista` | 2.11 |
-| `mis_citas_una` | 2.11 |
-| `mis_citas_donde_presencial` | 2.11 |
-| `mis_citas_donde_en_linea` | 2.11 |
-| `mis_citas_sin_direccion` | 2.11 |
-| `mis_citas_adeudos` | 2.11 |
-| `mis_citas_sin_adeudos` | 2.11 |
-| `mis_citas_sin_citas` | 2.11 |
+| `comprobante_pregunta_una` | 2.8 |
+| `comprobante_lista` | 2.8 |
+| `comprobante_varias_imagenes` | 2.8 |
+| `comprobante_acuse` | 2.8 |
+| `comprobante_acuse_sesion_pasada` | 2.8 |
+| `comprobante_nada_esperando` | 2.8 |
+| `comprobante_ya_hay_uno` | 2.8 |
+| `comprobante_sin_archivo` | 2.8 |
+| `resena_gracias` | 2.9 |
+| `resena_ya_enviada` | 2.9 |
+| `mis_citas_lista` | 2.10 |
+| `mis_citas_una` | 2.10 |
+| `mis_citas_donde_presencial` | 2.10 |
+| `mis_citas_donde_en_linea` | 2.10 |
+| `mis_citas_adeudos` | 2.10 |
+| `mis_citas_sin_adeudos` | 2.10 |
+| `mis_citas_sin_citas` | 2.10 |
 | `sin_hueco_fuera_de_horario` | 3 |
 | `sin_hueco_dias_que_no_trabaja` | 3 |
 | `sin_hueco_ausencia` | 3 |
@@ -957,4 +1163,8 @@ clave; si una clave no está aquí, el texto no existe todavía.
 | `modalidad_sin_anticipacion` | 4.1 |
 | `cancelar_dinero_adentro` | 4.2 |
 | `cancelar_dinero_adentro_con_proxima` | 4.2 |
-| `cancelar_insiste` | 4.2 |
+| `cancelar_dinero_adentro_tarde` | 4.2 |
+| `pasar_pago_no_se_pudo` | 4.2 |
+| `cita_ya_no_esta` | 4.3 |
+| `cita_cambio_de_lugar` | 4.3 |
+| `cita_ya_paso` | 4.3 |

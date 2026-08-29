@@ -9,8 +9,10 @@ y viven en `docs/00-el-agente.md`.
 
 Tres reglas mandan sobre todo lo demás aquí. **El agente nunca calcula fechas** (regla 1):
 empareja lo que ella escribe contra una lista que el servidor ya resolvió. **Cinco opciones como
-máximo y horizonte de treinta días** (regla 7). **El «ahora» lo pone el servidor** (regla 19), y
-por eso el modelo no tiene con qué equivocarse de día.
+máximo y horizonte de treinta días** (regla 7); la única excepción de esa regla es la lista de
+servicios, que llega a ocho, y aquí no se listan servicios: todas las listas de esta página son de
+horas y ninguna pasa de cinco. **El «ahora» lo pone el servidor** (regla 19), y por eso el modelo
+no tiene con qué equivocarse de día.
 
 **Ningún ejemplo de esta página es de producción.** Los nombres, los horarios y los servicios que
 aparecen son inventados y están marcados como ejemplos. Cada regla se escribe sobre lo que la
@@ -54,17 +56,23 @@ tomables, no seis cuartos de hora de la mañana.
 | # | Arreglo | Qué cambia |
 |---|---|---|
 | 1 | **Subir el tope** | Deja de cortar en el sexto candidato. Se barre el día entero y de lo que queda se dicen cinco (regla 7) |
-| 2 | **Ofrecer en punto** | De los candidatos de cada quince minutos se conservan los de minuto cero, siempre. Si el horario abre a una hora rara, ese pedazo se desperdicia |
+| 2 | **Ofrecer en punto** | De los candidatos de cada quince minutos, la lista se arma **sólo con los de minuto cero**. Si el horario abre a una hora rara, ese pedazo se desperdicia |
 | 3 | **Quitar los traslapes** | En punto no basta: una sesión de hora y media que arranca a las 9:00 mata las 10:00. Se conserva la primera hora y se descarta todo lo que empiece antes de que ésa termine |
 | 4 | **Respetar la franja** | Se filtra por la hora de **inicio**: «por la tarde» quiere decir que la sesión empiece en la tarde, no que quepa ahí. El borde de arriba no entra: la sesión que arranca justo cuando la franja termina queda fuera |
 
 Los cuatro van juntos. Con el tope arriba y sin los otros tres se seguirían enseñando cuartos de
 hora seguidos de la mañana: el mismo defecto, sólo que barriendo más día para llegar a él.
 
-**Las medias horas sólo entran si ella las pide.** «A las 4:30» se revisa contra el horario y la
-agenda, y si cabe se le ofrece. Lo que no pasa nunca es que una media hora aparezca en una lista
-que ella no pidió: se prefiere desperdiciar un pedazo de la agenda a llenarle el mensaje de horas
-incómodas.
+**Las listas son de horas en punto. Los minutos sueltos sólo entran si ella los pide por su
+nombre**, y entonces vale cualquiera, no sólo la media: «a las 4:30» y «a las 4:15» se revisan
+igual contra el horario y la agenda, y si el motor tiene ese candidato se le ofrece. Lo que no pasa
+nunca es que un minuto suelto aparezca en una lista que ella no pidió: se prefiere desperdiciar un
+pedazo de la agenda a llenarle el mensaje de horas incómodas.
+
+**Y lo que se le ofrece se le puede apartar.** No hay una segunda regla que rechace los minutos al
+escribir: si el motor entregó ese candidato y se le dijo, la escritura lo acepta. Lo contrario
+—ofrecer una hora que el propio servidor va a rechazar un mensaje después— es justo lo que §7
+existe para evitar, y la web anterior lo hacía: al apartar exigía minuto 0 o 30.
 
 **Lo que se recorta no se pierde.** Un día abierto rara vez pasa de una docena de horas en punto
 una vez quitados los traslapes, y de ésas se dicen cinco. Las demás vuelven en cuanto ella pide
@@ -76,8 +84,9 @@ otra franja u otro día, y eso cuesta una llamada más de las tres de ese mensaj
 
 ### 2.1 Qué recibe
 
-Lo poco que ella dijo, tal cual: días de la semana por su nombre, números de día del mes, una hora
-exacta, o una franja del día. Los tipos están en `docs/02-funciones.md` §4.2.
+Lo poco que ella dijo, tal cual: días de la semana por su nombre, números de día del mes, una
+palabra relativa —«mañana», «la próxima semana»—, una hora exacta, o una franja del día. Los tipos
+están en `docs/02-funciones.md` §4.2.
 
 **Los números del mes viajan sin mes y sin año, y eso es a propósito.** Si dice «el 15 y el 16»,
 resolver de qué mes son es aritmética de calendario, que es justo lo prohibido por la regla 1.
@@ -85,10 +94,30 @@ Lo que el agente sí puede hacer sin calcular nada es copiar el número. El serv
 su próxima ocurrencia dentro del horizonte.
 
 Eso deja un hueco: «el 15 de diciembre» llega como un 15 a secas, y un 15 siempre cae dentro de
-una ventana de treinta días. **Se tapa por arriba, no por abajo.** Cada opción viaja con el mes en
-su etiqueta —«martes 15 de septiembre»—, así que ella ve de qué mes le estamos hablando y corrige
-en el mismo mensaje. Más allá de los treinta días no se busca: se consulta de nuevo cuando se
-acerque (regla 7).
+una ventana de treinta días. **Se tapa con la etiqueta.** Cada opción viaja con el mes puesto
+—«martes 15 de septiembre»—, así que ella ve de qué mes le estamos hablando y corrige en el mismo
+mensaje. Y esa etiqueta lleva el mes **también cuando ella dio números de día**, que es justo
+cuando hace falta.
+
+**La resolución es siempre hacia adelante.** «¿Tienes el 20?» un día 27 se resuelve al 20 del mes
+que viene, nunca al que ya pasó. Una fecha que ya pasó no se rechaza ni se corrige sola: acaba en
+su próxima ocurrencia, y la única corrección es la etiqueta de arriba.
+
+**«Mañana» y «la próxima semana» también viajan como palabra.** Para eso está `relativo`, con seis
+valores literales —`hoy`, `manana`, `pasado_manana`, `esta_semana`, `proxima_semana`,
+`fin_de_semana`—. El modelo copia lo que ella dijo y el servidor lo convierte con su propio
+«ahora». Sin ese parámetro, «¿tienes mañana?» obligaría al modelo a saber qué día es hoy y sumar
+uno, que es exactamente lo que la regla 1 prohíbe y lo que el sobre no le da.
+
+**Si no hay ocurrencia dentro del horizonte, se dice.** «El 31», cuando el próximo 31 cae más allá
+de los treinta días, no se resuelve a nada: sale `fuera_del_horizonte`, que reconoce que hasta ahí
+no alcanzamos a ver y ofrece buscar algo antes. Más allá de los treinta días no se busca: se
+consulta de nuevo cuando se acerque (regla 7).
+
+**Un mes suelto no tiene parámetro que lo reciba.** «¿Tienes algo para diciembre?» llega sin día de
+la semana, sin número y sin `relativo`, exactamente igual que «cuando sea», así que no se puede
+distinguir de ella y no se adivina: se busca en todo el horizonte y la etiqueta de cada opción, que
+lleva el mes, la corrige en el mismo mensaje.
 
 **La franja tampoco la traduce el modelo.** «Por la tarde» viaja como una de las cuatro franjas
 que la función admite, y quien la convierte en un par de horas es el servidor, con el horario de
@@ -97,8 +126,9 @@ esa profesional. La tarde de quien atiende de 3:00 a 7:00 no es la de quien atie
 ### 2.2 Cómo recorre los días por dentro
 
 Primero se arma la ventana: desde hoy hasta treinta días después, y nunca antes de la anticipación
-mínima que pide esa ficha. **Cada profesional configura la suya**, y esa cifra no se escribe a mano
-en ningún texto: sale de la ficha y viaja como `{plazo}` (regla 2).
+mínima que pide esa ficha. **Cada profesional configura la suya**, y esa cifra sale de la ficha
+(regla 2). No se escribe a mano en ningún texto y, además, **no se le dice**: el motivo «es
+demasiado pronto» sólo nombra el día más cercano al que sí alcanza (§3).
 
 **Esa ventana la pone la función, no el motor.** El núcleo de horarios recibe la anticipación
 mínima de la paciente como un interruptor que viene **apagado por omisión**, y del agendado por
@@ -107,8 +137,38 @@ cual devuelve la vista de la profesional —horas de mañana mismo, y horas de q
 agendado apagado—, que es justo lo contrario de lo que la paciente puede ver. Los dos cortes son
 del que llama.
 
+**La anticipación mínima corta igual al agendar y al reprogramar.** En los dos casos se está
+tomando un horario nuevo, así que el mismo corte aplica. La búsqueda no cambia de reglas según para
+qué sirva.
+
+**Son dos plazos distintos de la misma ficha y hay que decirlos por separado**, porque juntos se
+contradicen:
+
+| | Qué decide | ¿Bloquea? |
+|---|---|---|
+| **Aviso de cambio** | Si la cancelación o el cambio lleva cargo, y si el pago puede irse con la cita | No. Mover y cancelar se permiten sin importar el aviso |
+| **Anticipación mínima** | Desde cuándo se puede tomar un horario | Sí. Ningún día anterior al corte entra en la ventana |
+
+Por eso está mal escribir «se permite siempre» a secas. Lo cierto son dos frases: mover se permite
+sin importar el aviso, **y** el horario nuevo tiene que caber en la anticipación mínima.
+
+**Los dos pueden aparecer en la misma gestión, y no es un error.** Primero se le avisa que se
+cobran las dos sesiones —eso es el aviso de cambio— y después la búsqueda sólo le ofrece días a
+partir del primero que la anticipación permite.
+
+**El corte se cuenta desde ahora, no desde la cita que se mueve.** Ejemplo inventado, con una ficha
+que pide 48 horas: su cita es el jueves y hoy es martes; el jueves ya no alcanza, aunque sí
+alcanzaba el día que la agendó. Se recalcula hoy porque el horario nuevo se está tomando hoy.
+
+**Lo que la anticipación no toca es el dinero.** Pasar el pago a una ocurrencia de la serie que ya
+existe no toma ningún horario: usa uno que ya estaba apartado, así que ahí no corta. Y cancelar no
+la toca nunca, porque cancelar no toma horarios.
+
 Dentro de la ventana, los días candidatos salen de lo que ella dijo: los números del mes si los
-dio; si no, los días de la semana que nombró; si no nombró nada, todos.
+dio; si no, los días de la semana que nombró; si no nombró nada, todos. **`relativo` no escoge
+días: acorta la ventana** —«mañana» la deja en uno, «la próxima semana» en siete— y lo demás
+filtra dentro. Por eso «el martes de la próxima semana» se resuelve solo, sin que nadie sume
+fechas.
 
 Después vienen dos pasadas de distinto precio:
 
@@ -149,11 +209,26 @@ no cabría en ninguno.
 
 ---
 
-## 3. Los cinco motivos de que no haya nada
+## 3. Cuando no hay horas que ofrecer
 
 Una lista vacía la obliga a adivinar y al agente a preguntar otra vez, y cada pregunta cuesta
 una llamada y un mensaje. Por eso **nunca se devuelve una lista vacía**: se devuelve el motivo, y
 cada motivo lleva alternativas numeradas de verdad.
+
+### 3.1 Antes de los cinco: ¿el servicio admite esa modalidad?
+
+**Lo primero que se comprueba no es la agenda, es el servicio.** Si ella pide una modalidad que ese
+servicio no admite —un servicio que sólo se da en línea, pedido presencial—, no hay bloque de esa
+modalidad ningún día, así que caería en «no trabaja esos días». Eso es falso y además
+irrecuperable: se iría a buscar otro día cuando lo que hay que cambiar es la modalidad.
+
+Ese caso se contesta con `modalidad_no_disponible_en_servicio`, que dice cómo sí se da ese servicio
+y ofrece las dos salidas: buscar así, o ver otro servicio. Va antes que los cinco porque **no
+depende del día ni de la ocupación**: depende de la ficha del servicio, y comprobarlo cuesta cero.
+El mismo agujero existe al reprogramar, donde la modalidad se vuelve a preguntar sobre un servicio
+heredado (§5), y se tapa con la misma comprobación.
+
+### 3.2 Los cinco motivos
 
 | Motivo | Clave del texto | Cómo se distingue | ¿Cuesta el cálculo exacto? |
 |---|---|---|---|
@@ -161,13 +236,16 @@ cada motivo lleva alternativas numeradas de verdad.
 | No trabaja esos días | `sin_hueco_dias_que_no_trabaja` | No hay bloque de esa modalidad ese día de la semana, o el que hay mide menos que la sesión con su margen | no |
 | Esos días concretos no va a estar | `sin_hueco_ausencia` | Hay una excepción de calendario que cierra esa fecha, o un bloqueo que la cubre entera | no |
 | Sí trabaja, pero está llena | `sin_hueco_lleno` | Pasó los cuatro anteriores y el cálculo exacto no dejó ni una hora en lo que ella pidió | **sí** |
-| Es demasiado pronto | `sin_hueco_demasiado_pronto` | El día es anterior a la anticipación mínima de esa ficha | no |
+| Es demasiado pronto | `sin_hueco_demasiado_pronto` | El día es anterior a la anticipación mínima de esa ficha, contada desde hoy | no |
 
-Los textos están en `docs/06-textos.md` §3, en ese mismo orden.
+Los textos están en `docs/06-textos.md` §3, en ese mismo orden. Y hay un sexto texto que no es un
+motivo de agenda: `fuera_del_horizonte`, cuando la fecha que pidió cae más allá de los treinta días
+(§2.1).
 
-**Se clasifica día por día y gana el primero que aplica**, en este orden: primero el reloj, porque
-de nada sirve ofrecer un día al que ya no llega; después la fecha concreta, porque una excepción de
-calendario manda sobre el horario semanal; después la semana; después la hora; y al final la
+**Se clasifica día por día y gana el primero que aplica**, ya pasada la comprobación de §3.1, en
+este orden: primero el reloj, porque de nada sirve ofrecer un día al que ya no llega; después la
+fecha concreta, porque una excepción de calendario manda sobre el horario semanal; después la
+semana; después la hora; y al final la
 ocupación, que es lo único que exige el cálculo caro. **El motivo que se dice es el del primer día
 que ella pidió**, porque ésa fue su pregunta.
 
@@ -193,11 +271,14 @@ mismo día. Son dos preguntas distintas —«¿otro día a mi hora?» y «¿ese 
 contestar sólo una la manda a preguntar por la que faltó. Por eso esa lista mezcla las dos y cada
 renglón lleva día y hora.
 
-**En ningún motivo se nombra a la profesional.** Está mal escribir «Fulana necesita 48 horas, ya no
-alcanzo»: convierte un hueco de agenda en un reproche a quien la atiende. Se dice lo que hay —«para
-esos días ya no tengo espacio, y lo más cercano es el martes 1»— y se ofrece la salida.
+**En ningún motivo se nombra a la profesional, y tampoco su número.** Está mal escribir «Fulana
+necesita 48 horas, ya no alcanzo»: convierte un hueco de agenda en un reproche a quien la atiende.
+Y «es demasiado pronto» tampoco dice cuánta anticipación pide la ficha: sólo cuál es el día más
+cercano al que sí alcanza. Es el mismo criterio aplicado a la cifra —el motivo no explica la
+política de quien la atiende—. Se dice lo que hay —«Para el {dia} ya no alcanzo. Lo más cercano es
+el {dia}»— y se ofrece la salida.
 
-**Hay un sexto caso que no es un motivo:** que la profesional no tenga ni un bloque de horario
+**Y hay otro caso que tampoco es un motivo:** que la profesional no tenga ni un bloque de horario
 guardado, o tenga apagado el agendado por parte de la paciente. Eso es el texto `sin_horarios` y
 lo dice `ver_servicios` antes de llegar aquí, así que se resuelve con una sola llamada.
 
@@ -208,8 +289,8 @@ lo dice `ver_servicios` antes de llegar aquí, así que se resuelve con una sola
 Cinco reglas, todas de presentación. El servidor entrega las opciones ya etiquetadas con el nombre
 del día, la fecha y la hora; el agente las dice.
 
-**1 · En punto.** Todas las horas de una lista son de minuto cero. La única media hora que puede
-aparecer es la que ella pidió por su nombre.
+**1 · En punto.** Todas las horas de una lista son de minuto cero. La única hora con minutos que
+puede aparecer es la que ella pidió por su nombre, sea :30 o :15.
 
 **2 · Sin traslapes.** Viene resuelto del servidor. El agente nunca ofrece dos horas que no puedan
 coexistir.
@@ -218,9 +299,10 @@ coexistir.
 seis porque nunca recibe seis.
 
 **4 · Si dos días traen exactamente las mismas horas, se numeran una sola vez.** Se dice de qué dos
-días son y ahí se acaba: «el martes 8 y el jueves 10 tengo estas horas». **Está mal decir «te pongo
-las del martes»**, porque no son las del martes: son las mismas de los dos. Numerarlas dos veces es
-enseñarle diez opciones que en realidad son cinco. El texto está en `docs/06-textos.md` §2.2.
+días son y ahí se acaba: «El martes 8 y el jueves 10 tengo estas horas (Hora CDMX):». **Está mal
+decir «te pongo las del martes»**, porque no son las del martes: son las mismas de los dos.
+Numerarlas dos veces es enseñarle diez opciones que en realidad son cinco. El texto está en
+`docs/06-textos.md` §2.2.
 
 **5 · Si difieren, se numeran día y hora juntos**, copiando la etiqueta tal cual:
 
@@ -249,9 +331,13 @@ se crea. El detalle está en `docs/02-funciones.md` §4.3.
 
 ## 5. La cita que se mueve
 
-Cuando la búsqueda sirve para mover una cita, se le dice cuál es la que se mueve, y el servidor la
-**excluye de la agenda antes de calcular**. Sin eso pasan dos cosas feas, y las dos se ven en la
-conversación:
+Cuando la búsqueda sirve para mover una cita, el servidor la **excluye de la agenda antes de
+calcular**. Cuál es no se lo dice el modelo: la búsqueda no recibe ninguna cita. El servidor la
+saca de la memoria de la conversación, de la columna `subject`, donde `reprogramar` la dejó escrita
+al resolver el número —o al resolver una sola candidata sin listarla—. La memoria está definida en
+`docs/07-portero.md` §8.1.
+
+Sin la exclusión pasan dos cosas feas, y las dos se ven en la conversación:
 
 1. La cita se taparía a sí misma. La hora que ella tiene hoy no aparecería como disponible, y
    cambiar de modalidad conservando la hora sería imposible.
@@ -263,12 +349,19 @@ es la diferencia que importa: si ese servicio admite las dos, se le pregunta otr
 la cita es justo el momento en que puede querer cambiarla. Preguntar el servicio sería hacerla
 repetir algo que ya está decidido; no preguntar la modalidad sería decidir por ella.
 
-Y cuando hay una sola candidata, la cita ni siquiera lleva número: el servidor la resuelve por
-dentro y nunca llega a escribir la lista.
+Y cuando hay una sola candidata, la cita ni siquiera lleva número: `reprogramar` la resuelve por
+dentro, la deja en `subject` y nunca llega a escribir la lista. También ahí la búsqueda sabe cuál
+excluir.
 
 **La exclusión tiene que valer también en la comprobación de la escritura** (§7). Si la búsqueda
 excluye la cita que se mueve y la escritura no, el servidor le ofrece una hora que él mismo va a
-rechazar un mensaje después.
+rechazar un mensaje después: la del propio hueco que se está liberando, que es la más fácil de
+escoger cuando sólo quiere cambiar la modalidad.
+
+**Y la anticipación mínima sigue cortando aquí** (§2.2). Excluir la cita libera su hueco, pero no
+adelanta el reloj: con una ficha que pide 48 horas, el día de la cita que se mueve puede quedar
+fuera de la ventana aunque estuviera dentro cuando se agendó. Mover se permite sin importar el
+aviso de cambio; el horario nuevo tiene que caber en la anticipación.
 
 ---
 
@@ -284,10 +377,31 @@ como parámetro, así que no hay forma de que el modelo se equivoque de día: no
 Las horas se manejan como **hora de pared** —«martes 8, 12:00»— y se convierten a instante absoluto
 una sola vez, al apartar la cita.
 
-**La zona se nombra una sola vez: en el cierre de agendar**, para que sepa en qué horario está
-viendo las horas. No se repite en cada mensaje, no aparece en las listas y no aparece en las
-búsquedas. Repetirla convierte cada respuesta en un formulario; decirla cero veces deja a la
-paciente que está en otro huso creyendo que son sus horas.
+**La zona va pegada a la lista, cada vez que se listan horas.** Es una marca corta entre
+paréntesis, al final del renglón que introduce las horas:
+
+> Para el miércoles 2 de septiembre, en línea, tengo estas horas (Hora CDMX):
+>
+> 1. 3:00   2. 4:00   3. 5:00
+>
+> Dime cuál te acomoda.
+
+**Cada vez, no una sola vez.** Antes se decía una sola vez, en el cierre de agendar. Con eso, la
+paciente que está en otro huso escoge una hora y se entera del horario **después de que la cita ya
+está apartada**: tarde. La marca sirve para leer la lista, no para cerrar la gestión, así que va
+donde hay algo que escoger.
+
+**Dónde va.** En toda lista de horas: `horarios_lista`, `horarios_lista_compartida`,
+`horario_ocupado` y cuatro de los cinco `sin_hueco_*`. El quinto,
+`sin_hueco_dias_que_no_trabaja`, propone días sin horas, así que no lleva marca: no hay ninguna
+hora que situar. Al mover una cita las listas son estas mismas, porque las compone
+`buscar_horarios`. Y **en ningún cierre**: los cierres de `agendar` ya no llevan la frase «las
+horas te las doy en horario de {zona}», porque ahí ya no queda nada que escoger. Los textos están
+en `docs/06-textos.md`.
+
+**Es corta a propósito.** El hueco `{zona}` es «Hora CDMX», no «la Ciudad de México»: así cabe al
+final del encabezado sin convertir cada respuesta en un formulario. Cuando la ficha tiene otra
+zona, es la suya, con la misma forma breve.
 
 ---
 
@@ -302,9 +416,11 @@ martes, mientras lee la profesional aparta las 12:00 desde su app, y ella contes
 
 **Qué pasa por dentro.** Al apartar, el servidor toma el candado de esa agenda y **vuelve a
 comprobar, dentro de la misma escritura**, que la hora siga libre: misma profesional, cualquier
-cita viva que se traslape con el rango completo de la sesión. Si ya no está, **no devuelve un
-código: vuelve a buscar ahí mismo** y compone el texto `horario_ocupado` con las horas que quedan
-de ese mismo día, renumeradas, y `hecho: false`. Una llamada, no dos. El agente no dice «listo»
+cita viva **que no sea la que se mueve** y que se traslape con el rango completo de la sesión. Esa
+exclusión es la misma de §5 y tiene que estar en los dos lados; si sólo está en la búsqueda, mover
+una cita de las 10:00 a las 10:30 se rechaza por chocar consigo misma. Si ya no está, **no
+devuelve un código: vuelve a buscar ahí mismo** y compone el texto `horario_ocupado` con las horas
+que quedan de ese mismo día, renumeradas, y `hecho: false`. Una llamada, no dos. No dice «listo»
 porque `hecho` es falso, y ésa es toda la regla contra el falso éxito.
 
 Si era la última del día, entonces sí hace falta buscar otra vez, y eso cuesta una llamada más.

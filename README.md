@@ -9,9 +9,10 @@ producción; lo que se despliega se escribe en `agente_ia`, a partir de esto.
 ## Qué es el agente
 
 Un asistente que atiende por WhatsApp a las pacientes de las profesionales de Agenda Psi. Agenda,
-mueve de día, cancela, confirma, cambia la modalidad, recibe comprobantes, pasa un pago a la
-próxima sesión, guarda reseñas y contesta qué citas tiene, dónde es y cuánto debe, siempre dentro
-de lo que esa profesional tiene configurado. Nunca interviene una persona.
+mueve de día, cancela —y si esa cita traía un pago, el aviso alcanza y le queda una próxima de su
+serie, lo pasa ahí—, confirma, cambia la modalidad, recibe comprobantes, guarda reseñas y contesta
+qué citas tiene, dónde es y cuánto debe, siempre dentro de lo que esa profesional tiene
+configurado. Nunca interviene una persona.
 
 **El modelo corre en nuestro código.** Una sola función de borde, `kapso_inbound_webhook`, recibe
 el mensaje, lo guarda, contesta de inmediato —si tardara, Kapso reintenta y la paciente recibe dos
@@ -60,7 +61,7 @@ palabra: `docs/06-textos.md`. Los parámetros, el resultado o el aviso de una fu
 | `AGENTS.md` | Cómo se edita este repositorio: lo que no se nombra, lo que no se inventa y lo que no se propone borrar. |
 | `docs/00-el-agente.md` | El modelo en una página, el recorrido de un mensaje y las reglas numeradas. Los demás archivos las citan por número y no las repiten. |
 | `docs/01-conversaciones.md` | Los nueve flujos y los bordes, mensaje por mensaje. Es el archivo que se lee para saber cómo se siente el producto. |
-| `docs/02-funciones.md` | El catálogo: once funciones, con sus parámetros, su resultado, si escriben en la base y qué aviso le llega a la profesional. |
+| `docs/02-funciones.md` | El catálogo: diez funciones, con sus parámetros, su resultado, si escriben en la base y qué aviso le llega a la profesional. |
 | `docs/03-dinero.md` | Qué le pasa al pago en cada acción: el cobro por adelantado, el cambio tardío, pasar el pago, el comprobante. |
 | `docs/04-horarios.md` | Cómo se buscan y se ofrecen los horarios, y qué hay que arreglarle al motor antes de confiar en él. |
 | `docs/05-prompt.md` | El prompt completo que carga la función de borde, listo para pegar. |
@@ -68,11 +69,12 @@ palabra: `docs/06-textos.md`. Los parámetros, el resultado o el aviso de una fu
 | `docs/07-portero.md` | El recorrido de un mensaje por dentro: el candado por conversación, el tope de tres llamadas, la memoria de la conversación y los modos de fallo. |
 | `docs/08-implementacion.md` | Qué construir, en qué orden y cómo se prueba cada pieza; qué se borró de la base y qué queda por hacer. |
 
-Dos archivos son fuente única de su materia: las reglas sólo viven en `00` y los textos sólo viven
-en `06`. Una regla se busca por su número y un texto por su clave. El único que reproduce un texto
-completo es `docs/01-conversaciones.md`, y sólo cuando la conversación no se entiende sin él; si esa
-copia y `06` difieren, manda `06`. Cómo se editan sin partirlos en dos versiones vivas está en
-`AGENTS.md`.
+Tres archivos son fuente única de su materia: las reglas sólo viven en `00`, los textos sólo viven
+en `06` —y ahí se lleva el conteo de claves, para que ningún otro archivo lo repita—, y la memoria
+de la conversación sólo se define en `07`. Una regla se busca por su número y un texto por su
+clave. El único que reproduce un texto completo es `docs/01-conversaciones.md`, y sólo cuando la
+conversación no se entiende sin él; si esa copia y `06` difieren, manda `06`. Cómo se editan sin
+partirlos en dos versiones vivas está en `AGENTS.md`.
 
 ---
 
