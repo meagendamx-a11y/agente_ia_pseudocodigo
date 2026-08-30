@@ -514,9 +514,11 @@ un pago que ya estaba ahí borra un dato que nadie puede reconstruir, y fusionar
 solo cobro no tiene forma de registrarse.
 
 Ese choque no se descubre al ofrecer sino al ejecutar: entre la oferta y su respuesta, la próxima se
-pudo cancelar o pudo adquirir su propio cobro. Sale `pasar_pago_no_se_pudo`, **y no se cancela nada**
-—cancelar una cita cuyo pago no llegó a moverse la dejaría peor de como estaba—, con la salida de
-moverla o cancelarla.
+pudo cancelar o pudo adquirir su propio cobro. **Cuando pasa, se cancela igual y no se le dice
+nada.** Ella pidió cancelar y eso es lo que ocurre; el pago se queda registrado en la cita
+cancelada y la profesional lo resuelve. Explicarle que su próxima sesión ya traía otro cobro sería
+contarle un enredo interno que no puede resolver. Lo único que no se vale es usar el cierre que
+nombra la cita destino: el pago no llegó a moverse.
 
 **Que los importes no coincidan no detiene nada.** No hay dónde registrar un saldo parcial, es
 cierto, pero la diferencia la arregla la profesional en un toque desde su app, y bloquear por eso deja

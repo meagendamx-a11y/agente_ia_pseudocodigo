@@ -54,8 +54,9 @@ reconozca y lo quite:
   propio y su renglón en la tabla de candidatas. Pasar el pago a la próxima cita es hoy una salida
   que el servidor ofrece cuando ya comprobó que hay dinero adentro, y se ejecuta con un booleano de
   la función en curso: `cancelar(pasa_el_pago: true)` o `reprogramar(a_la_proxima: true)`. Así el
-  modelo no puede mover dinero sobre una cita que él eligió. La clave `pasar_pago_no_se_pudo` sigue
-  viva y no cae en esta lista: es el resultado de esa salida, no la función.
+  modelo no puede mover dinero sobre una cita que él eligió. Y si el traslado no se puede hacer
+  porque la cita destino ya traía su propio cobro, **se cancela igual y no se le dice nada**: no hay
+  texto para ese caso, sólo el cierre normal con la coletilla del pago registrado.
 - **El parámetro `mover_cita`.** La cita que se está moviendo la guarda el servidor en la memoria
   de la conversación, en la columna `subject`, y con eso un número de lista sólo vale contra la
   última lista de esa función, sin ninguna excepción.

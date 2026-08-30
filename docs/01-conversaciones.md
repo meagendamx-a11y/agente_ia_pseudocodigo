@@ -857,7 +857,7 @@ espacio», que es falso y no dice lo único útil.
 
 **Cancelar no se bloquea nunca**, con dinero adentro o sin él, con tiempo o sin él. La anticipación
 mínima no entra aquí: cancelar no toma ningún horario. El plazo de aviso sólo decide si queda un
-cargo, y lo único que cambia es qué se le ofrece antes.
+cargo, y con él cambia qué se le dice antes de cancelar: dos salidas, un aviso, o nada.
 
 ### 5.1 A tiempo y sin dinero adentro — 1 llamada
 
@@ -919,8 +919,8 @@ más, **una vez y sólo una**.
 ```
 >>  necesito cancelar la del martes
 
-<<  Ya mandaste tu comprobante de esa cita. Antes de cancelarla: puedo reprogramarla, o cancelar
-    ésta y dejar el pago en la próxima, la del martes 8. ¿Cuál prefieres, o te la cancelo?
+<<  Ya mandaste tu comprobante de esa cita. Puedo reprogramarla, o cancelarla y pasar tu
+    comprobante a la próxima, la del martes 8. ¿Qué prefieres?
 [cancelar() · 1 de 3 · no muta · la conversación sigue abierta]
 
 >>  va, muévela al miércoles en la tarde
@@ -941,8 +941,12 @@ más, **una vez y sólo una**.
 ```
 
 Cuando no hay una próxima ocurrencia viva de su serie, la salida es una sola y el texto lo dice así:
-«Esa cita ya está pagada. Antes de cancelarla: puedo reprogramarla y tu pago se va con ella. ¿Te
-busco día, o te la cancelo?».
+«Esa cita ya está pagada. Te la puedo reprogramar y tu pago se va con ella. ¿Te busco día?».
+
+**Ninguna de las dos ofrece cancelar**, y es a propósito. Poner la cancelación de tercera opción en
+la misma frase que las dos salidas que existen justo para evitarla se entiende mal: se lee como si
+las tres pesaran igual. Se ofrece lo que conserva su dinero, y ya. Cancelar no se
+le quita —basta con que lo vuelva a pedir, y es el §5.6—, sólo que no se le pone enfrente.
 
 **No hay que volver a decir cuál cita se mueve.** `cancelar` ya la resolvió y la anotó en la memoria
 de la conversación, así que la búsqueda y la escritura la leen de ahí. Y el cierre es el normal, sin
@@ -958,21 +962,28 @@ comprobante»— y el agente no escoge cuál. La conversación se queda abierta 
 esperar**, porque la cuenta de si ya se ofrecieron las salidas la lleva el servidor y la respuesta
 puede ir a dos funciones distintas.
 
-### 5.4 Con dinero adentro y sin tiempo mínimo — 3 llamadas
+### 5.4 Con dinero adentro y sin tiempo mínimo — 1 llamada
 
 ```
 >>  ya no voy a poder ir hoy, cancélala
 
-<<  Esa cita ya está pagada, y para cambios Lucía pide 24 horas de aviso: ya faltan menos, así
-    que tu pago se queda en ésta y la nueva se cobra aparte. Aun así te la puedo mover. ¿Te busco
-    día, o te la cancelo?
-[cancelar() · 1 de 3 · no muta · la conversación sigue abierta]
+<<  Listo, cancelé tu cita del jueves 27 de agosto a las 3:00. Como Lucía pide 24 horas de aviso
+    y ya faltaban menos, tu pago se queda registrado en ella y Lucía lo resuelve contigo.
+
+    Hora CDMX.
+[cancelar() · 1 de 3 · muta · aviso appointment_cancelled_by_patient · cierra]
 ```
 
-Fuera de plazo se ofrece **sólo mover, y con el precio dicho**. La salida de dejar el pago en la
-próxima **no se ofrece**, porque fuera de plazo el pago no se pasa: ofrecerla sería prometerle un
-traslado que no ocurre. Y mover se sigue ofreciendo, porque ofrecer una salida antes de cancelar con
-el precio por delante es más honesto que no ofrecer ninguna.
+**Fuera de plazo no se pregunta: se cancela y se dice cómo quedó el dinero.** Es el único caso con
+dinero adentro que cierra en la primera llamada, y el único cuyo cierre trae el cargo adentro en vez
+de avisarlo antes. Por eso este texto no usa el cierre común de cancelar ni ninguna de sus
+coletillas: es un cierre entero, con el plazo de esa ficha dicho dentro.
+
+**Antes ofrecía mover, y esa oferta se cayó.** Fuera de plazo mover no le ahorra el cargo —se cobran
+las dos sesiones—, así que la hacía escoger entre dos caminos que cuestan lo mismo, con un mensaje
+de más por delante. **Y la salida de dejar el pago en la próxima tampoco se ofrece**, porque fuera
+de plazo el pago no se pasa: ofrecerla sería prometerle un traslado que no ocurre. Dentro del plazo
+las dos sí se ofrecen, y es el §5.3.
 
 **Pasar el pago exige tres condiciones juntas:** dinero adentro, aviso dentro del plazo de esa
 ficha, y una próxima ocurrencia viva de su serie. Faltando cualquiera, la salida no se menciona. El
@@ -989,8 +1000,8 @@ ofreció esa salida, porque el único texto que la menciona es el suyo.
 ```
 >>  déjalo en la del 8
 
-<<  Listo, cancelé tu cita del martes 1 de septiembre a las 4:00. Tu pago quedó en tu sesión del
-    martes 8 de septiembre a las 4:00.
+<<  Listo, cancelé tu cita del martes 1 de septiembre a las 4:00. Tu comprobante quedó en tu
+    sesión del martes 8 de septiembre a las 4:00.
 
     Hora CDMX.
 [cancelar(pasa_el_pago: true) · 1 de 3 · muta · aviso appointment_cancelled_by_patient · cierra]
@@ -1000,9 +1011,11 @@ ofreció esa salida, porque el único texto que la menciona es el suyo.
 próxima ocurrencia viva de su serie. Así el modelo no puede mover dinero por iniciativa propia sobre
 una cita que él escogió, que era el riesgo de tenerlo como intención suya.
 
-La coletilla **nombra la cita destino, no el estado del cobro**, justo porque acreditado y
-comprobante conviven y decir cuál de los dos es adivinar. Y nombra la cancelación de la vieja,
-porque eso es lo que de verdad le pasa y callarlo la dejaría creyendo que sigue en pie.
+La coletilla **nombra la cita destino**, que es el dato que ella necesita, y dice **cuál de las dos
+cosas viajó**: «tu pago» cuando el cobro estaba acreditado, «tu comprobante» cuando lo que había era
+el archivo. Aquí es lo segundo, porque lo que mandó en el §5.3 fue un comprobante. El agente no
+escoge: los dos estados conviven y el que sabe cuál es el servidor. Y nombra la cancelación de la
+vieja, porque eso es lo que de verdad le pasa y callarlo la dejaría creyendo que sigue en pie.
 
 **Lo único que se revisa es que la cita destino no traiga ya dinero suyo.**
 
@@ -1092,22 +1105,28 @@ Si dice que no: «Va, la dejo como está: tu cita del miércoles 2 de septiembre
 ```
 >>  ¿me la puedes pasar a en línea?
 
-<<  Lucía no maneja cambios a en línea. Tu cita del martes 1 se queda presencial.
+<<  Esos cambios no los tengo permitidos. Tu cita del martes 1 se queda presencial. Si es
+    urgente, coméntaselo.
 [cambiar_modalidad() · 1 de 3 · no muta · cierra]
 ```
 
 ```
 >>  ¿la de hoy la puedo tomar en línea?
 
-<<  Para cambiar la modalidad Ramiro pide 12 horas de anticipación, y ya faltan menos. Tu cita
-    del jueves 27 se queda presencial. Si es urgente, coméntaselo.
+<<  Para eso Ramiro pide 12 horas de anticipación y ya faltan menos. Tu cita del jueves 27 se
+    queda presencial. Si es urgente, coméntaselo.
 [cambiar_modalidad() · 1 de 3 · no muta · cierra]
 ```
 
 Son las dos únicas negativas por plazo que quedan en todo el sistema, y **ahora sí se pueden
 alcanzar**, precisamente porque el permiso y la anticipación dejaron de filtrar. Las dos nombran la
 dirección, no la modalidad deseada, y las dos dicen cómo queda la cita para que no quede duda de si
-algo cambió. Y ninguna repite el nombre de la profesional dos veces.
+algo cambió. Y las dos cierran ofreciendo lo único que sí queda: decírselo a ella.
+
+**La primera no nombra a la profesional.** Ponerle nombre y apellido a una casilla de configuración
+—«Lucía no maneja cambios a en línea»— se lee como un reproche a quien la atiende. Es una
+regla de la casa, no un capricho suyo, y así se dice. La segunda sí la nombra, una sola vez, porque
+ahí el plazo sí es de ella.
 
 Para una profesional que no permite ningún cambio de modalidad, el verbo no se menciona en el menú
 (regla 8), así que esta intención casi nunca llega.
@@ -1375,15 +1394,20 @@ era**; se contesta esto y ella lo vuelve a decir con palabras.
 
     Hora CDMX.
 
-    De lo otro que me pediste hablamos en cuanto me lo vuelvas a escribir.
+    ¿Y en qué más te puedo ayudar?
 [cancelar() · 1 de 3 · muta · el segundo párrafo vive en el prompt · cierra]
 ```
 
-Una mutación por mensaje (regla 14). El agente contesta la primera y **dice que la segunda queda
-pendiente**, que es lo que antes no podía hacer: se contestaba una y de la otra no se decía ni una
+Una mutación por mensaje (regla 14). El agente contesta la primera y **le abre la puerta para lo
+otro**, que es lo que antes no podía hacer: se contestaba una y de la otra no se decía ni una
 palabra. Pegar ese párrafo al final es la **única excepción** a copiar el texto de la función sin
 agregar nada antes ni después, y está escrita como excepción justo para que no se lea como permiso
 general.
+
+**Y no le recuerda qué quedó pendiente.** Decía «de lo otro que me pediste hablamos en cuanto me lo
+vuelvas a escribir», que es la misma idea con cara de trámite: le devolvía su encargo convertido en
+tarea suya. Una pregunta abierta consigue lo mismo —que lo vuelva a pedir— y suena a servicio. No
+hace falta repetirle lo que acaba de escribir para que se acuerde.
 
 **Y va después de la marca de zona, no antes.** La marca cierra el texto que compuso la función;
 lo que el prompt agrega viene detrás. Si se colara en medio, la marca dejaría de leerse como parte

@@ -142,9 +142,10 @@ acaba en dos citas.
 ### `pendiente_lo_otro`
 
 **Cuándo.** En un mismo lote pidió dos cosas —«cancélame la del martes y agéndame una para el
-jueves»— y sólo se atendió la primera.
+jueves»— y sólo se atendió la primera. No le recuerda qué quedó pendiente: le abre la puerta para
+que lo vuelva a pedir, que es lo mismo y suena a servicio en vez de a trámite.
 
-> De lo otro que me pediste hablamos en cuanto me lo vuelvas a escribir.
+> ¿Y en qué más te puedo ayudar?
 
 **Compone** el prompt. No lleva huecos. Se pega **al final** del texto que ya devolvió la función, y
 es la **única excepción** a la regla de copiar el texto sin agregar nada antes ni después. Se
@@ -622,9 +623,9 @@ Las cuatro coletillas, y las escoge el resultado, no lo que el modelo crea que p
 | Cómo quedó | Qué se pega al final |
 |---|---|
 | A tiempo y sin cobro | «No te queda ningún cobro pendiente por ella.» |
-| Sin tiempo mínimo, ya se avisó del cargo | nada |
+| Sin tiempo mínimo | no usa esta clave: usa `cancelar_dinero_adentro_tarde`, que dice el cargo dentro del mismo cierre |
 | Con dinero adentro y sin pasarlo | «Tu pago queda registrado y {profesional} lo resuelve contigo.» |
-| Con el pago pasado a su próxima | «Tu pago quedó en tu sesión del {dia} a las {hora}.» |
+| Con el pago pasado a su próxima | «Tu pago quedó en tu sesión del {dia} a las {hora}.» — y «Tu comprobante quedó…» si lo que viajó fue el comprobante |
 
 Es una sola clave y no tres porque la frase que cambia es la última: tres plantillas enteras para
 una coletilla obligan a mantener la misma primera línea en tres sitios. Y desde que la cita con
@@ -973,14 +974,15 @@ Esa profesional no permite esa dirección:
 
 **`modalidad_no_permitida`**
 
-> {profesional} no maneja cambios a {modalidad}. Tu cita del {dia} se queda {modalidad}.
+> Esos cambios no los tengo permitidos. Tu cita del {dia} se queda {modalidad}. Si es urgente,
+> coméntaselo.
 
 No alcanza la anticipación:
 
 **`modalidad_sin_anticipacion`**
 
-> Para cambiar la modalidad {profesional} pide {plazo} de anticipación, y ya faltan menos. Tu cita
-> del {dia} se queda {modalidad}. Si es urgente, coméntaselo.
+> Para eso {profesional} pide {plazo} de anticipación y ya faltan menos. Tu cita del {dia} se queda
+> {modalidad}. Si es urgente, coméntaselo.
 
 Las dos nombran la dirección y no la modalidad deseada, porque el permiso es por dirección: una
 cita presencial sólo puede ir a en línea. Y las dos dicen cómo queda la cita, para que no quede
@@ -1007,15 +1009,14 @@ A tiempo, sin próxima ocurrencia viva de su serie, hay una sola salida:
 
 **`cancelar_dinero_adentro`**
 
-> Esa cita ya está pagada. Antes de cancelarla: puedo reprogramarla y tu pago se va con ella. ¿Te
-> busco día, o te la cancelo?
+> Esa cita ya está pagada. Te la puedo reprogramar y tu pago se va con ella. ¿Te busco día?
 
 A tiempo y con una próxima ocurrencia viva de su serie, hay dos:
 
 **`cancelar_dinero_adentro_con_proxima`**
 
-> Ya mandaste tu comprobante de esa cita. Antes de cancelarla: puedo reprogramarla, o cancelar ésta
-> y dejar el pago en la próxima, la del {dia}. ¿Cuál prefieres, o te la cancelo?
+> Ya mandaste tu comprobante de esa cita. Puedo reprogramarla, o cancelarla y pasar tu comprobante
+> a la próxima, la del {dia}. ¿Qué prefieres?
 
 El destino del pago es **la próxima ocurrencia viva de la serie de esa cita**, no la próxima del
 mismo servicio. Si la cita no es de una serie, no hay destino y esta salida no se ofrece: es la
@@ -1025,14 +1026,13 @@ Sin tiempo mínimo, el pago **no se pasa**, y se dice antes de que lo pida:
 
 **`cancelar_dinero_adentro_tarde`**
 
-> Esa cita ya está pagada, y para cambios {profesional} pide {plazo} de aviso: ya faltan menos, así
-> que tu pago se queda en ésta y la nueva se cobra aparte. Aun así te la puedo mover. ¿Te busco
-> día, o te la cancelo?
+> Listo, cancelé tu cita del {dia} a las {hora}. Como {profesional} pide {plazo} de aviso y ya
+> faltaban menos, tu pago se queda registrado en ella y {profesional} lo resuelve contigo.
 
-Fuera de plazo se ofrece **sólo mover**, y con el precio dicho. La salida de dejar el pago en la
-próxima no se ofrece, porque fuera de plazo el pago se queda en la cancelada; ofrecerla sería
-prometerle un traslado que no ocurre. Y sí se sigue ofreciendo mover, porque ofrecer una salida
-antes de cancelar con el precio por delante es más honesto que no ofrecer ninguna.
+**Fuera de plazo se cancela y ya, sin ofrecer nada.** No se ofrece mover, porque moverla no le
+ahorra el cargo: fuera de plazo se cobran las dos. Y no se ofrece pasar el pago, porque fuera de
+plazo el pago se queda en la cancelada — ofrecerlo sería prometerle un traslado que no ocurre.
+Dentro del plazo sí se ofrece, y por eso los otros dos textos preguntan antes.
 
 Pasar el pago exige **tres condiciones juntas**: dinero adentro, aviso dentro del plazo de esa
 ficha, y una próxima ocurrencia viva de su serie. Faltando cualquiera, la salida no se ofrece. El
@@ -1040,15 +1040,14 @@ plazo sí bloquea aquí: si no bloqueara, el traslado cerraría el cobro viejo c
 profesional perdería el cargo que su propia política le concede.
 
 Si acepta pasar el pago y entre la oferta y su respuesta la próxima se canceló o adquirió su propio
-cobro, `espera: null`, `cierra: false`:
+cobro, **no hay texto para eso: se cancela igual y no se le dice nada**. Ella pidió cancelar, y eso
+es lo que pasa. El cierre es `cancelar_cierre` con la coletilla de que su pago queda registrado, que
+es la única cierta — **nunca la que nombra la cita destino**, porque el pago no llegó a moverse y
+decírselo sería prometerle un traslado que no ocurrió.
 
-**`pasar_pago_no_se_pudo`**
-
-> Ya no pude dejar el pago en tu próxima sesión, así que no cancelé nada: tu cita del {dia} a las
-> {hora} sigue en pie. {profesional} lo acomoda contigo. ¿Te la muevo de día, o te la cancelo?
-
-Es un solo texto para las dos carreras porque a ella le pasa lo mismo en las dos, y no se cancela
-nada: cancelar una cita cuyo pago no llegó a moverse la dejaría peor de como estaba.
+Explicarle que su próxima sesión ya traía otro cobro sería contarle un enredo interno que no puede
+resolver ni le cambia nada: su cita queda cancelada y su dinero registrado, igual que si nunca
+hubiera existido la salida.
 
 **Que el importe sea distinto no detiene nada.** Si la sesión de destino cuesta más o cuesta menos,
 el pago se pasa igual y la profesional ajusta desde su app: no hay texto para ese caso porque ese
@@ -1105,7 +1104,7 @@ profesional configura, nunca sobre lo que hoy tiene configurado.
 
 ## 6. Índice de claves
 
-Las 84 claves de esta página, en el orden en que aparecen. Los demás archivos citan por clave y
+Las 83 claves de esta página, en el orden en que aparecen. Los demás archivos citan por clave y
 citan este número; si una clave no está aquí, el texto no existe todavía.
 
 | Clave | Sección |
@@ -1190,7 +1189,6 @@ citan este número; si una clave no está aquí, el texto no existe todavía.
 | `cancelar_dinero_adentro` | 4.2 |
 | `cancelar_dinero_adentro_con_proxima` | 4.2 |
 | `cancelar_dinero_adentro_tarde` | 4.2 |
-| `pasar_pago_no_se_pudo` | 4.2 |
 | `cita_ya_no_esta` | 4.3 |
 | `cita_cambio_de_lugar` | 4.3 |
 | `cita_ya_paso` | 4.3 |

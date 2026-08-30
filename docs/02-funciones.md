@@ -77,8 +77,10 @@ respuesta**: sólo dice si la conversación quedó abierta.
 | El texto cierra la conversación y no hay nada que continuar | verdadero: `sin_horarios`, el acuse del comprobante, la petición de comprobante de `confirmar` con prepago, y `mis_citas` |
 
 **Una salida abierta va con `espera: null` y `cierra: false`, nunca con un `espera` prestado.** Son
-cuatro: `reprogramar_recurrencia_dos_salidas`, `cancelar_dinero_adentro`,
-`cancelar_dinero_adentro_con_proxima` y `cancelar_dinero_adentro_tarde`. Poner ahí `confirmado`
+tres: `reprogramar_recurrencia_dos_salidas`, `cancelar_dinero_adentro` y
+`cancelar_dinero_adentro_con_proxima`. `cancelar_dinero_adentro_tarde` **no es una salida abierta**:
+fuera de plazo se cancela y ya, así que es un cierre —muta, `hecho: true`, `cierra: true`— y no
+pregunta nada. Poner ahí `confirmado`
 manda la respuesta a la rama contraria: un «reprográmala» después de la oferta de cancelar acabaría
 **cancelando la cita que ella pidió mover**, con dinero adentro. Un `espera` que nombra el
 parámetro equivocado no es un detalle de redacción: es el enrutamiento haciendo lo contrario de lo
@@ -591,7 +593,7 @@ dinero: decirle «se te cobra» de una sesión de cero pesos es mentirle en la o
 | Llamada final, la cita nueva es de prepago | `reprogramar_cierre_prepago` | nulo | **verdadero** | verdadero |
 | Salida de la serie, con tiempo mínimo | `reprogramar_pasada_a_la_proxima` | nulo | **verdadero** | verdadero |
 | Salida de la serie, sin tiempo mínimo | `reprogramar_pasada_a_la_proxima_tarde` | nulo | **verdadero** | verdadero |
-| La próxima se canceló o ya tiene su propio pago | `pasar_pago_no_se_pudo` | nulo | falso | falso |
+| La próxima se canceló o ya tiene su propio pago | `cancelar_cierre`, coletilla de pago registrado | nulo | **verdadero** | verdadero |
 | El hueco elegido se ocupó | `horario_ocupado` | `opcion` | falso | falso |
 | La cita de origen ya no está | `cita_ya_no_esta` | nulo | falso | falso |
 | La cita de origen cambió de día u hora | `cita_cambio_de_lugar` | nulo | falso | falso |
@@ -685,10 +687,10 @@ pagada»—, con la precedencia de `03` §2. El agente no escoge cuál.
 | Tarde, sin dinero adentro | `cancelar_aviso_tardio` | `confirmado` | falso | falso |
 | A tiempo, con dinero adentro, sin próxima viva de su serie | `cancelar_dinero_adentro` | nulo | falso | **falso** |
 | A tiempo, con dinero adentro, con próxima viva de su serie | `cancelar_dinero_adentro_con_proxima` | nulo | falso | **falso** |
-| Sin tiempo mínimo, con dinero adentro | `cancelar_dinero_adentro_tarde` | nulo | falso | **falso** |
+| Sin tiempo mínimo, con dinero adentro | `cancelar_dinero_adentro_tarde` | nulo | **verdadero** | verdadero |
 | Confirmó la cancelación, o dijo que no a las salidas | `cancelar_cierre` | nulo | **verdadero** | verdadero |
 | Aceptó dejar el pago en la próxima | `cancelar_cierre` | nulo | **verdadero** | verdadero |
-| La próxima se canceló o ya tiene su propio pago | `pasar_pago_no_se_pudo` | nulo | falso | falso |
+| La próxima se canceló o ya tiene su propio pago | `cancelar_cierre`, coletilla de pago registrado | nulo | **verdadero** | verdadero |
 | Dijo que mejor no la cancele | `cancelar_no_cancela` | nulo | falso | verdadero |
 | La cita ya no está | `cita_ya_no_esta` | nulo | falso | falso |
 | La cita ya pasó | `cita_ya_paso` | nulo | falso | falso |
@@ -702,9 +704,11 @@ ella, cuando había dinero adentro; y que su pago quedó en la cita destino, cua
 textos literales están en `06`. **La coletilla del traslado nombra la cita destino, no el estado del
 cobro**, justo porque acreditado y comprobante conviven.
 
-`pasar_pago_no_se_pudo` es una carrera, no una política: entre que se ofreció la salida y ella
-contestó, la próxima se canceló o adquirió su propio pago. Sobrescribir un pago que ya estaba ahí
-borra un dato que nadie puede reconstruir. **Que los importes no coincidan no bloquea nada**: se pasa
+**Que la próxima ya traiga su propio pago es una carrera, no una política:** entre que se ofreció la
+salida y ella contestó, esa cita se canceló o adquirió un cobro. Sobrescribirlo borraría un dato que
+nadie puede reconstruir, así que el traslado no ocurre — pero **la cancelación sí, y sin decirle
+nada**. Ella pidió cancelar. El cierre lleva la coletilla del pago registrado, nunca la que nombra la
+cita destino. **Que los importes no coincidan no bloquea nada**: se pasa
 igual y la profesional ajusta desde su app, que es donde se ajustan los importes.
 
 **Cancelar tarde, y cancelar con dinero adentro, tienen que poderse.** Rechazarlo deja el peor
