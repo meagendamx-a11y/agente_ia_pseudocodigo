@@ -656,11 +656,12 @@ abierta** (`late_change_decision = 'pending'`). Es lo único de esta ficha que n
 - **Con dinero adentro y a tiempo.** No cancela todavía: **ofrece las salidas que conservan su dinero
   donde sirve** —reprogramar esta cita, y el pago se va con ella; y, sólo si existe una próxima
   ocurrencia viva de su serie, cancelar ésta y dejar el pago ahí—.
-- **Con dinero adentro y sin tiempo mínimo.** Se ofrece mover, **pero diciendo la verdad**: el pago se
-  queda en esta cita y la nueva se cobra aparte. **La salida de dejar el pago en la próxima no se
-  ofrece**, porque sin tiempo mínimo el pago no se pasa. Ofrecerla dejaría la cancelación tardía sin
-  cargo: el traslado cierra el cobro viejo como condonado con motivo, que en Cobros se lee «no se
-  cobró», y la profesional perdería el cargo que su propia política le concede.
+- **Con dinero adentro y sin tiempo mínimo.** **No se ofrece nada: se cancela.** Mover no le ahorra
+  el cargo —fuera de plazo se cobran las dos sesiones—, y pasar el pago dejaría la cancelación
+  tardía sin cargo, porque el traslado cierra el cobro viejo como condonado con motivo, que en
+  Cobros se lee «no se cobró», y la profesional perdería el cargo que su propia política le concede.
+  Ofrecer una salida que no mejora nada sólo alarga la conversación. El cierre dice el cargo dentro
+  del mismo mensaje.
 - **Dijo que no a las salidas.** **Se cancela.** Se registra como cancelación sin tiempo mínimo y **el
   estado del pago se conserva tal cual**, con la decisión abierta, para que su profesional decida si
   lo cobra o lo condona. Se le dice que su pago queda registrado. **El agente no insiste una segunda
@@ -1162,6 +1163,12 @@ avisos y se confirman todas, o no se confirma ninguna**.
 Las claves salen del contrato de la app, que arma el texto con el nombre de la paciente y la hora de
 la cita. **Se leyeron del switch de la app y no se inventan**, en
 `flutter_application_1/lib/pages/notifications/notification_models.dart`.
+
+**El aviso no lleva zona horaria, y no hay que agregársela.** Guarda el instante de la cita y nada
+más. Cuando la profesional abre su app, la función que le lista sus avisos consulta **en ese
+momento** la zona de su ficha y se la devuelve junto con los datos: la hora se pinta al leerla, no
+al escribirla. Si algún día ella cambia de zona, sus tarjetas viejas se vuelven a pintar bien solas
+— cosa que no pasaría si cada una llevara la zona congelada adentro. Comprobado contra la base.
 
 | `type` | Claves del `payload` | Quién lo escribe |
 |---|---|---|

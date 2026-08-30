@@ -893,7 +893,7 @@ primera línea en tres sitios es cómo se separan.
 <<  Listo, cancelé tu cita del jueves 27 de agosto a las 5:00.
 
     Hora CDMX.
-[cancelar(confirmado: true) · 1 de 3 · muta · cierra]
+[cancelar(confirmado: true) · 1 de 3 · muta · aviso appointment_cancelled_by_patient · cierra]
 ```
 
 **Cancelar tarde sí se puede.** Rechazarlo deja el peor camino: ella avisó que no podía ir, nadie
