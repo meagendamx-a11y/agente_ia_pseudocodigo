@@ -30,9 +30,15 @@ ventana de 26 horas, que decide si una cita nace confirmada y cuándo sale el re
 comprobante. Es un solo número para todas, y es el mismo que ya usa el trabajo programado, para que
 el agente y el aviso automático nunca se pisen.
 
-**D2 · El agente abre la decisión de cobro; nunca la cierra.** Cerrarla es de la profesional, desde
-su app, y son las mismas dos salidas de siempre: cobrar o no cobrar. **En ningún caso se cobra
-solo.**
+**D2 · La decisión de cobro sólo se abre cuando el cambio fue tarde.** Es la única situación donde
+queda un cargo que alguien tiene que resolver, y sus dos salidas son cobrar o no cobrar. La abre el
+agente al cancelar o al mover sin el aviso mínimo, y **la cierra siempre la profesional**, desde su
+app. **En ningún caso se cobra solo.**
+
+**Todo lo demás no la toca.** Agendar, confirmar, cancelar a tiempo y mover a tiempo no abren
+ninguna decisión: o no hay cargo, o el cobro simplemente viaja con la cita. Y **mandar el
+comprobante tampoco**: pega el archivo y el cobro sigue pendiente. Acreditarlo es otra cosa, es de
+la profesional, y no tiene nada que ver con el aviso mínimo.
 
 **D3 · Cuando una cita se cierra, el motivo del cobro se reclasifica en el mismo acto.** De «sesión»
 a «cancelación» o a «cambio». Es la parte que no se puede olvidar: sin ella la fila desaparece de la
@@ -128,7 +134,7 @@ tiempo mínimo, se cobran las dos sesiones, y por eso el aviso va **antes** de m
 | **Reprogramar** | El cobro viejo se salda como pasado adelante y **el nuevo hereda**: acreditado nace acreditado; con comprobante, el comprobante se copia y **no se le vuelve a pedir**; pendiente a secas nace pendiente y ahí manda cómo cobra esa profesional; sin costo nace sin costo. Cierre `reprogramar_cierre`, o `reprogramar_cierre_prepago` cuando el nuevo queda pendiente de prepago | El cobro viejo **no se salda**: se congela tal como esté sobre la cita movida, con la decisión abierta. El nuevo **nace desde cero**, tratado según cómo cobre esa profesional. Antes de mover, `reprogramar_aviso_tardio`; al cerrar, `reprogramar_cierre` o `reprogramar_cierre_prepago` |
 | **Pasar la cita de la serie a su próxima** | La vieja **queda cancelada**, la ocurrencia que ya existía no se toca, y el pago viaja a ella si lo había. Cierre `reprogramar_pasada_a_la_proxima` | La vieja queda cancelada con su cobro **congelado**: el pago **no viaja**. La próxima sigue en pie tal cual. Cierre `reprogramar_pasada_a_la_proxima_tarde`, sin la frase del pago mudado |
 | **Cancelar**, sin dinero adentro | El cobro pendiente **se condona**. Tarjeta «No cobrada», sin botones. Cierre `cancelar_cierre` con la coletilla de que no le queda nada pendiente | Se avisa antes (`cancelar_aviso_tardio`), y al confirmar el cobro **se congela** con la decisión abierta. Cierre `cancelar_cierre` sin coletilla: el cargo ya se avisó |
-| **Cancelar**, con dinero adentro | Se ofrecen las salidas (§3.3). Si dice que no, se cancela y **el cobro se congela tal como estaba**, con la decisión abierta | Se ofrece **sólo mover**, con el precio dicho (§3.3). Si dice que no, se cancela y el cobro se congela igual |
+| **Cancelar**, con dinero adentro | Se ofrecen las salidas (§3.3). Si dice que no, se cancela y **el cobro se congela tal como estaba**, con la decisión abierta | **No se ofrece nada: se cancela.** El cobro se congela con la decisión abierta, y el cierre dice el cargo dentro del mismo mensaje |
 
 Tres precisiones que valen para toda la tabla:
 
@@ -376,18 +382,23 @@ decidir si cancela (§6).
 
 ## 6. Cancelar una cita con dinero adentro
 
-### 6.1 Se cancela. Antes se ofrecen las salidas, una vez
+### 6.1 Se cancela. A tiempo, antes se ofrecen las salidas
 
-**Una cita con dinero adentro sí se cancela.** Lo que el agente hace antes es ofrecerle las salidas
-que probablemente le convienen más, y cuáles son depende del reloj (§3.3):
+**Una cita con dinero adentro sí se cancela.** Lo que cambia es si antes se le ofrece algo, y eso
+depende del reloj:
 
-- **A tiempo:** reprogramarla, y el dinero se va con ella. Y, sólo si existe una próxima ocurrencia
-  viva de su serie, cancelar ésta y dejar el pago ahí.
-- **Sin tiempo mínimo:** sólo moverla, y diciéndolo completo: el pago se queda en ésta y la nueva se
-  cobra aparte.
+- **A tiempo:** se le ofrece reprogramarla, y el dinero se va con ella. Y, sólo si existe una
+  próxima ocurrencia viva de su serie, cancelar ésta y dejar el pago ahí. Son dos salidas y ninguna
+  incluye cancelar a secas: cancelar sigue disponible con que lo vuelva a pedir, sólo que no se le
+  pone enfrente.
+- **Sin tiempo mínimo: no se le ofrece nada, se cancela.** Moverla no le ahorra el cargo, porque
+  fuera de plazo se cobran las dos sesiones, y pasar el pago cerraría el cobro viejo como no
+  cobrado y le quitaría a la profesional el cargo que su propia política le concede. Ofrecer una
+  salida que no mejora nada sólo alarga la conversación. El cierre dice el cargo dentro del mismo
+  mensaje.
 
-La primera línea cambia sola según el estado —«ya está pagada» o «ya mandaste tu comprobante»— y el
-agente no escoge cuál: la escoge el servidor, con la precedencia de §2.2.
+La primera línea de las ofertas cambia sola según el estado —«ya está pagada» o «ya mandaste tu
+comprobante»— y el agente no escoge cuál: la escoge el servidor, con la precedencia de §2.2.
 
 **Que las salidas ya se ofrecieron lo recuerda el servidor, no el modelo.** Si la función ya contestó
 una vez con la oferta, la llamada siguiente cancela.
