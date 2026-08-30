@@ -193,9 +193,11 @@ llamar.
 
 ### 2.0.1 La marca de zona horaria la pone el servidor, no el texto
 
-**Todo mensaje que diga una hora lleva su zona.** Son veintiséis textos y ninguno la trae escrita
-adentro: la pone el servidor al componer, con una sola regla, para que no haya que acordarse
-veintiséis veces.
+**Todo mensaje que diga una hora lleva su zona.** Son **treinta y siete** textos —los treinta y dos
+que traen `{hora}` o `({zona})` escritos en la plantilla, más las cinco listas cuyos renglones
+llevan hora: `confirmar_lista`, `reprogramar_lista`, `cancelar_lista`, `modalidad_lista` y
+`mis_citas_lista`— y ninguno trae la marca escrita adentro: la pone el servidor al componer, con una
+sola regla, para que no haya que acordarse treinta y siete veces.
 
 **En las listas de horas va en el encabezado**, entre paréntesis, pegada a donde se leen las horas:
 
@@ -305,8 +307,10 @@ Si la profesional no tiene horarios abiertos, devuelve `sin_horarios` y ahí ter
 > para que te dé un espacio.
 
 **Cuándo.** La profesional no tiene ni un bloque de horario guardado, o tiene apagado el agendado
-por parte de la paciente. Lo devuelve `ver_servicios`, y `buscar_horarios` si se llega ahí. La
-conversación sigue abierta. Dice «las próximas semanas» y no «los próximos 30 días»: decir el
+por parte de la paciente. Lo devuelve `ver_servicios`, y `buscar_horarios` si se llega ahí.
+**Cierra**: es una salida sin alternativa —no hay ni un bloque de horario que ofrecer—, y dejar la
+conversación viva aquí invita a que el siguiente monosílabo se resuelva contra una lista que nunca
+existió. Dice «las próximas semanas» y no «los próximos 30 días»: decir el
 horizonte en días invita a preguntar por el día 31.
 
 ### 2.2 `buscar_horarios`
@@ -623,9 +627,12 @@ Las cuatro coletillas, y las escoge el resultado, no lo que el modelo crea que p
 | Cómo quedó | Qué se pega al final |
 |---|---|
 | A tiempo y sin cobro | «No te queda ningún cobro pendiente por ella.» |
-| Sin tiempo mínimo | no usa esta clave: usa `cancelar_dinero_adentro_tarde`, que dice el cargo dentro del mismo cierre |
+| Sin tiempo mínimo y sin dinero adentro | nada: el cobro se congeló y el cargo ya se avisó con `cancelar_aviso_tardio` |
 | Con dinero adentro y sin pasarlo | «Tu pago queda registrado y {profesional} lo resuelve contigo.» |
 | Con el pago pasado a su próxima | «Tu pago quedó en tu sesión del {dia} a las {hora}.» — y «Tu comprobante quedó…» si lo que viajó fue el comprobante |
+
+**Sin tiempo mínimo y con dinero adentro no se usa esta clave:** ahí el cierre es
+`cancelar_dinero_adentro_tarde`, que dice el cargo dentro del mismo texto (sección 4.2).
 
 Es una sola clave y no tres porque la frase que cambia es la última: tres plantillas enteras para
 una coletilla obligan a mantener la misma primera línea en tres sitios. Y desde que la cita con
@@ -719,12 +726,15 @@ dinero nunca.**
 nombre la cita. La base admite un comprobante por cobro para siempre y no hay pantalla para
 reemplazarlo: una foto equivocada queda pegada.
 
-Las candidatas son **cobros, no citas**: todo cobro suyo pendiente y sin archivo pegado, sin
-importar el estado de la cita —cancelada, reprogramada o pasada—, más el de su próxima cita futura;
-de una serie, sólo el de la ocurrencia más próxima. Por eso funciona el comprobante de una
-cancelación tardía, que es el único camino que hay para cobrarla.
+Las candidatas son **cobros, no citas**: todo cobro suyo que siga pendiente, **con la petición
+sellada** y sin archivo pegado, sin importar el estado de la cita —programada, cancelada, movida o
+pasada—; de una serie, sólo el de la ocurrencia más próxima. La definición completa, con el cuándo
+se sella la petición en cada forma de cobrar, está en `docs/03-dinero.md` §2.3. Por eso funciona el
+comprobante de una cancelación tardía, que es el único camino que hay para cobrarla.
 
-Una sola candidata, `espera: "confirmado"`:
+Una sola candidata, `espera: "cita"` —**hay número aunque la candidata sea una sola**: la pregunta
+nombra la cita y la respuesta vuelve como `cita: 1`; esta función no tiene ningún parámetro
+`confirmado`—:
 
 **`comprobante_pregunta_una`**
 
@@ -741,7 +751,7 @@ Varias, con fecha y monto, la más antigua primero, `espera: "cita"`:
 >
 > {lista}
 
-Si en un mismo lote llegaron varias imágenes, `espera: "confirmado"`:
+Si en un mismo lote llegaron varias imágenes, `espera: "cita"`:
 
 **`comprobante_varias_imagenes`**
 
@@ -1000,10 +1010,15 @@ estado —«ya está pagada» si está acreditado, «ya mandaste tu comprobante�
 **acreditado gana siempre**: los dos estados conviven, y sin una precedencia escrita el texto queda
 al azar.
 
-Los tres textos dejan la conversación **abierta y sin `espera`**: `espera: null`, `cierra: false`.
-Es lo único correcto, porque la respuesta puede ir a `cancelar` o a `reprogramar` y no hay un
-parámetro que declarar. Declarar `confirmado` aquí hacía que un «reprográmala» aterrizara en
-`cancelar(confirmado: true)` y le cancelara la cita que pidió mover, con su dinero adentro.
+**Los dos textos que ofrecen algo** —`cancelar_dinero_adentro` y
+`cancelar_dinero_adentro_con_proxima`— dejan la conversación **abierta y sin `espera`**:
+`espera: null`, `cierra: false`. Es lo único correcto, porque la respuesta puede ir a `cancelar` o a
+`reprogramar` y no hay un parámetro que declarar. Declarar `confirmado` aquí hacía que un
+«reprográmala» aterrizara en `cancelar(confirmado: true)` y le cancelara la cita que pidió mover,
+con su dinero adentro.
+
+**El tercero, `cancelar_dinero_adentro_tarde`, no es una salida abierta:** fuera de plazo se cancela
+y ya, así que es un cierre —muta, `hecho: true`, `cierra: true`, `espera: null`— y no pregunta nada.
 
 A tiempo, sin próxima ocurrencia viva de su serie, hay una sola salida:
 
@@ -1063,17 +1078,20 @@ quién se ve.
 
 Reprogramar son tres llamadas en tres mensajes, y entre la primera y la última la profesional puede
 haber tocado esa cita desde su app. La llamada que escribe **relee el estado de la cita de origen
-dentro de su propia transacción**, y si cambió, sale uno de estos tres. `hecho: false` en los tres.
+dentro de su propia transacción**, y si cambió, sale uno de estos tres. Los tres van igual:
+`hecho: false`, `espera: null` y **`cierra: false`**, porque los tres traen su salida dentro del
+texto —agendar otra, mover la que ahora existe, o pedirle lo que necesite a su profesional— y la
+conversación sigue abierta.
 
-**`cita_ya_no_esta`** — la cancelaron mientras conversaban. Cierra.
+**`cita_ya_no_esta`** — la cancelaron mientras conversaban.
 
 > Esa cita ya no está: se canceló mientras hablábamos. ¿Te busco día para otra?
 
-**`cita_cambio_de_lugar`** — la movieron de día. `espera: "confirmado"`.
+**`cita_cambio_de_lugar`** — la movieron de día.
 
 > Esa cita se movió mientras hablábamos: ahora es el {dia} a las {hora}. ¿Te la muevo desde ahí?
 
-**`cita_ya_paso`** — la sesión ya ocurrió, o el barrido la pasó a revisión. Cierra.
+**`cita_ya_paso`** — la sesión ya ocurrió, o el barrido la pasó a revisión.
 
 > Esa cita ya pasó, así que desde aquí ya no la puedo cambiar. Si necesitas algo de ella,
 > coméntaselo a {profesional}.
@@ -1088,9 +1106,10 @@ me acabó el espacio», que es falso y no dice lo único útil.
 
 **Ningún texto se retoca en otro archivo.** Si una cita en cualquier otro archivo difiere de lo que
 está aquí, manda este archivo: la corrección se hace **primero aquí** y después en la cita. Nunca al
-revés y nunca en los dos a la vez. Los demás archivos citan por clave; sólo
-`docs/01-conversaciones.md` reproduce un texto completo, y únicamente cuando la conversación no se
-entiende sin él.
+revés y nunca en los dos a la vez. Los demás archivos citan por clave; un texto
+completo se reproduce en dos sitios y en ninguno más: en `docs/01-conversaciones.md`, cuando la
+conversación no se entiende sin él, y en `docs/05-prompt.md`, porque los textos de prompt viajan
+literales dentro del prompt. La regla entera está en `AGENTS.md` §5.
 
 Un texto nuevo se escribe aquí antes de existir en la función. Una rama nueva de conversación es
 una plantilla nueva en esta página y un despliegue, no una línea más de prompt: ése es el precio de

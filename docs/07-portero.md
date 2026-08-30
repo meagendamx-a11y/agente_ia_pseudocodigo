@@ -167,12 +167,17 @@ veces. `whatsapp_inbound_messages` lo para con dos índices únicos que ya exist
 
 | Llave | De qué es | Para qué sirve |
 |---|---|---|
-| `webhook_delivery_key` | **De la entrega**: una por lote | Reconocer que el lote entero es un reintento |
+| `webhook_delivery_key` | **De la entrega**: una por lote, y **en un solo renglón del lote** | Reconocer que el lote entero es un reintento |
 | `message_sid` | **De cada mensaje**: uno por renglón | Reconocer que ese mensaje ya se guardó |
 
 **La llave de entrega se anota en un solo renglón del lote: el del último mensaje**, que es el que
-dispara la respuesta. Los demás renglones van sin ella y se defienden con su `message_sid`. Es por
-el índice: dos renglones con la misma llave chocarían, y ese choque tumbaría la entrega completa.
+dispara la respuesta. **Los demás renglones del lote la dejan nula** y se defienden con su
+`message_sid`. Se guardan todos los mensajes del lote —eso no cambia—; **lo único que no se repite
+es la llave de entrega**.
+
+Es por el índice, y no admite la otra lectura: `uq_whatsapp_inbound_delivery` es **único** sobre
+`webhook_delivery_key`. Escribir la misma llave en los cinco renglones de una ráfaga **revienta la
+inserción entera**, no sólo el renglón repetido, y con ella se cae la entrega completa.
 
 Se guarda también `payload_sha256`, el hash del cuerpo. Distingue un reintento idéntico —lo normal—
 de la misma llave con otro contenido, que no debería ocurrir nunca y por eso hay que poder verlo.
@@ -184,9 +189,13 @@ ya salió una respuesta. Si el borde se cae después de guardar y antes del 200,
 de Kapso chocan contra los índices, se descartan como duplicados, y **ella escribió, quedó guardada
 y no recibe nada, nunca**.
 
-Por eso la respuesta se anota aparte, cuando el texto sale: la hora en `processed_at` y el
-identificador del mensaje que salió en `response_message_sid`. Las dos columnas ya existen en la
-tabla desplegada.
+Por eso la respuesta se anota aparte, cuando el texto sale. **La marca de «ya contesté» es
+`processed_at`** —la hora en que salió el texto—, y el identificador del mensaje que salió va en
+`response_message_sid`. **Ésos son los dos nombres, aquí se dicen una sola vez y no hay otro.**
+
+**Las dos columnas ya existen en la tabla desplegada, con esos nombres**: para marcar la respuesta
+**no hay ninguna columna que crear**, y no debe aparecer en ninguna lista de lo que hay que
+construir.
 
 Con eso, la regla queda en tres renglones:
 
@@ -286,8 +295,9 @@ el «sí» siguiente de ella terminaría en dos citas.
 
 ### 7.2 El tope de tráfico que hoy no existe
 
-No hay ningún tope de mensajes por teléfono, y no se inventa uno aquí: los dos frenos decididos son
-el agrupamiento (§4) y el candado (§6). **Anotar la fecha: el 1 de octubre de 2026 Meta deja de dar
+No hay ningún tope de mensajes por teléfono, y no se inventa uno aquí: los dos frenos de tráfico decididos son
+el agrupamiento (§4) y el candado (§6) —los dos frenos del mensaje son otros, y viven en
+`docs/08-implementacion.md` §1—. **Anotar la fecha: el 1 de octubre de 2026 Meta deja de dar
 gratis las respuestas libres dentro de la ventana de 24 horas**, y cada respuesta del agente empieza
 a costar. Ése es el día de fijar el tope, con su ventana y su texto, no antes.
 
@@ -428,9 +438,15 @@ es una sola entrega con dos renglones. **Se toma el último y se dice** —el te
 `comprobante_varias_imagenes`—, y el identificador de ése es el que queda en `file_id` (§8.1). Se
 toma el último porque el caso normal de mandar dos es haberse arrepentido de la primera.
 
-El archivo se guarda y `mandar_comprobante` lo toma del renglón del mensaje entrante. Hoy no hay
-una línea que lo descargue ni una columna donde anotarlo, así que **`mandar_comprobante` no
-funciona aunque todo lo demás esté**. Eso está en `docs/08-implementacion.md`.
+El archivo se guarda en el bucket `comprobantes`, y **la ruta con la que quedó guardado se anota en
+el renglón del mensaje entrante, en `media_storage_path`**. De ahí lo toma `mandar_comprobante`. Es
+otra cosa que `file_id` (§8.1): `file_id` guarda el identificador que da el proveedor, no dónde
+quedó el archivo.
+
+**Esa columna hay que crearla**: `media_storage_path`, texto y nula, en `whatsapp_inbound_messages`,
+que hoy no tiene ninguna columna de medios. Y tampoco hay hoy una línea que descargue el archivo,
+así que **`mandar_comprobante` no funciona aunque todo lo demás esté**. Las dos cosas se construyen
+en `docs/08-implementacion.md`.
 
 ---
 

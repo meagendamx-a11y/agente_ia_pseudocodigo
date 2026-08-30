@@ -202,7 +202,7 @@ milisegundos mientras se arma el plan; dentro de una función el plan se guarda 
 paga una vez por conexión.
 
 **Y todo eso es una sola llamada del agente.** Aunque el servidor mire treinta días y toque el
-cálculo exacto en diez, el agente hizo un viaje. **El único freno cuenta viajes del agente al
+cálculo exacto en diez, el agente hizo un viaje. **El freno cuenta viajes del agente al
 servidor, no trabajo de la base:** tres llamadas por mensaje de ella (regla 9). Buscar horarios
 gasta una, y por eso preguntar por treinta días cabe holgado en un mensaje; preguntar día por día
 no cabría en ninguno.
@@ -391,8 +391,8 @@ paciente que está en otro huso escoge una hora y se entera del horario **despu�
 está apartada**: tarde. La marca sirve para leer la lista, no para cerrar la gestión, así que va
 donde hay algo que escoger.
 
-**Dónde va: en todo mensaje que diga una hora.** Son veintiséis textos, y la regla de
-composición está en `docs/06-textos.md` §2.0.1. En resumen:
+**Dónde va: en todo mensaje que diga una hora.** Son treinta y siete textos —el conteo y la regla de
+composición viven en `docs/06-textos.md` §2.0.1, que es su dueño—. En resumen:
 
 - **En las listas de horas**, dentro del encabezado y entre paréntesis, pegada a donde se leen:
   `horarios_lista`, `horarios_lista_compartida`, `horario_ocupado` y cuatro de los cinco
@@ -405,7 +405,7 @@ composición está en `docs/06-textos.md` §2.0.1. En resumen:
 - **En ningún mensaje sin hora.** Un «no tengo ninguna cita tuya por cancelar» no lleva marca: no
   hay nada que situar. Y `sin_hueco_dias_que_no_trabaja` tampoco, porque propone días, no horas.
 
-**No la escribe el texto, la pone el servidor al componer.** Si cada uno de los veintiséis la
+**No la escribe el texto, la pone el servidor al componer.** Si cada uno de los treinta y siete la
 trajera escrita adentro, bastaría olvidarla en uno para que ese mensaje mintiera en silencio.
 
 **Es corta a propósito.** El hueco `{zona}` es «Hora CDMX», no «la Ciudad de México»: así cabe al

@@ -6,6 +6,12 @@ Corte: 2026-08-29.
 profesionales, los ocho flujos y los bordes, mensaje por mensaje. Debajo de cada respuesta, una
 línea dice qué función se llamó y cuántas llamadas van de las tres de ese mensaje.
 
+**Son ocho flujos, y este archivo es el dueño de ese número:** agendar, mandar el comprobante,
+confirmar, reprogramar, cancelar, cambiar de modalidad, dejar reseña y consultar — del §1 al §8, uno
+por sección. El §0 es el paso previo de escoger profesional y no es un flujo: por eso se nombra
+aparte. El §9 son los bordes y el §10 la cuenta de las llamadas. **Donde se lea «nueve flujos», está
+viejo y se corrige contra este renglón.**
+
 El agente detecta la intención, llama a una función y **copia el texto que le llega palabra por
 palabra**. No arma frases, no calcula fechas y no ramifica. Si algo de aquí se lee raro, el
 arreglo está en `docs/06-textos.md`, nunca en el prompt.
@@ -450,9 +456,15 @@ del diseño a la regla de actuar cuando hay una sola candidata.
 Quien cobra al cerrar también recibe transferencias por WhatsApp. Lo único que aplica sólo al cobro
 por adelantado es **pedir el pago al agendar**.
 
-**Las candidatas son cobros, no citas.** Todo cobro suyo que siga pendiente y sin archivo pegado,
-**sin importar el estado de la cita** —cancelada, movida o pasada—, más el de su próxima cita
-futura; de una serie, sólo el de la ocurrencia más próxima.
+**Las candidatas son cobros, no citas.** Todo cobro suyo que siga pendiente, **con la petición
+sellada** y sin archivo pegado, **sin importar el estado de la cita** —programada, cancelada, movida
+o pasada—. De una serie, sólo el de la ocurrencia más próxima.
+
+**La petición sellada es la condición**, y es una sola regla para las dos formas de cobrar: con
+cobro por adelantado se sella al agendar, así que la cita futura entra desde el primer momento; con
+cobro después se sella cuando la profesional lo pide, normalmente al cerrar la sesión, y antes de
+eso ese cobro no acepta comprobante porque nadie se lo ha pedido. La misma condición gobierna lo que
+se le dice que debe. La definición completa vive una sola vez, en `docs/03-dinero.md` §2.3.
 
 ### 2.1 Una sola pendiente — 2 llamadas, una por mensaje
 
@@ -1022,21 +1034,31 @@ vieja, porque eso es lo que de verdad le pasa y callarlo la dejaría creyendo qu
 ```
 >>  pásalo a la siguiente
 
-<<  Ya no pude dejar el pago en tu próxima sesión, así que no cancelé nada: tu cita del martes 1
-    de septiembre a las 4:00 sigue en pie. Lucía lo acomoda contigo. ¿Te la muevo de día, o te la
-    cancelo?
+<<  Listo, cancelé tu cita del martes 1 de septiembre a las 4:00. Tu pago queda registrado y
+    Lucía lo resuelve contigo.
 
     Hora CDMX.
-[cancelar(pasa_el_pago: true) · 1 de 3 · no muta · la conversación sigue abierta]
+[cancelar(pasa_el_pago: true) · 1 de 3 · muta · aviso appointment_cancelled_by_patient · cierra]
 ```
 
 Es una carrera, no una política: entre que se ofreció la salida y ella contestó, la próxima se
-canceló o adquirió su propio pago. Un solo texto para las dos, porque a ella le pasa lo mismo en las
-dos. **Y no se cancela nada**: cancelar una cita cuyo pago no llegó a moverse la dejaría peor de
-como estaba. Sobrescribir un pago que ya estaba ahí borra un dato que nadie puede reconstruir.
+canceló o adquirió su propio pago. Sobrescribir un pago que ya estaba ahí borra un dato que nadie
+puede reconstruir, así que el traslado no ocurre — **pero la cancelación sí, y sin decirle nada.**
+Ella pidió cancelar y eso es lo que pasa.
 
-**Que los importes no coincidan no detiene nada**: se pasa igual y la profesional ajusta desde su
-app, que es donde se ajustan los importes.
+**No hay texto propio para este caso**: sale el mismo `cancelar_cierre` del §5.6, con la coletilla
+del pago registrado, que es la única cierta — **nunca la que nombra la cita destino**, porque el
+pago no llegó a moverse y decírselo sería prometerle un traslado que no ocurrió. Explicarle que su
+próxima sesión ya traía otro cobro sería contarle un enredo interno que no puede resolver ni le
+cambia nada: su cita queda cancelada y su dinero registrado, igual que si nunca hubiera existido la
+salida.
+
+**Esta rama gasta lo mismo que la de arriba: una llamada, y cierra en ella.** Las dos son el mismo
+`cancelar(pasa_el_pago: true)`; lo único que cambia es la coletilla que el servidor le pega al
+cierre.
+
+**El importe no entra en esa revisión.** Que no coincida no detiene nada: el pago se pasa igual, con
+el importe que traía, y la profesional ajusta desde su app, que es donde se ajustan los importes.
 
 ### 5.6 Y si dice que no a las dos, se cancela — 2 llamadas
 
@@ -1465,7 +1487,7 @@ del mismo teléfono al mismo tiempo, el segundo espera a que el primero termine.
 el martes» escrito dos veces son dos citas.
 
 **No hay ningún texto de «vas muy rápido», y es a propósito.** Un tope de tráfico por teléfono se
-puede escribir el día que haya un número que defender: hoy los dos frenos que existen son el
+puede escribir el día que haya un número que defender: hoy los dos frenos de tráfico que existen son el
 agrupamiento y el candado, y los dos alcanzan. La fecha que hay que apuntar es el **1 de octubre de
 2026**, cuando cada respuesta empieza a costar dinero; ése es el día de decidir el tope, no antes.
 

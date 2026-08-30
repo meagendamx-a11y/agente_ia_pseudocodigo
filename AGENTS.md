@@ -61,7 +61,7 @@ reconozca y lo quite:
   de la conversación, en la columna `subject`, y con eso un número de lista sólo vale contra la
   última lista de esa función, sin ninguna excepción.
 - **`vas_muy_rapido`** y las piezas que lo sostenían. Nunca se definió el tope, ni la ventana, ni
-  dónde se contaba, así que era una protección escrita y no construida. Los dos frenos que sí
+  dónde se contaba, así que era una protección escrita y no construida. Los dos frenos de tráfico que sí
   existen son el agrupamiento de la mensajería y el candado por conversación.
 
 **De rondas anteriores siguen fuera:** el expediente y su función de apertura, los identificadores
@@ -105,7 +105,7 @@ vigencia de la memoria y los días que se guarda el texto—, iguales para todas
 cada uno con un solo archivo dueño. El número que se leyó de lo desplegado lleva su fecha de corte.
 
 **Los conteos también son números.** Cada uno se recalcula en su archivo dueño y los demás lo citan
-en vez de repetirlo: las diecinueve reglas, en `docs/00-el-agente.md`; los nueve flujos, en
+en vez de repetirlo: las diecinueve reglas, en `docs/00-el-agente.md`; los ocho flujos, en
 `docs/01-conversaciones.md`; el catálogo de **diez funciones**, en `docs/02-funciones.md`; el índice
 de claves de texto, en `docs/06-textos.md`. Quien agregue o quite una pieza corrige primero al dueño
 y después las citas. Un conteo escrito a mano en cuatro archivos se queda viejo en tres.

@@ -27,7 +27,8 @@ De ahí salen cuatro frentes y ninguno depende de Kapso para existir.
 | La memoria | La tabla `whatsapp_conversation_state`, una fila por teléfono. Se define en `docs/07-portero.md` §8.1 | Un «la 2» aterriza en la función equivocada |
 | Los medios | Bajar la foto o el PDF del comprobante y guardarlo | `mandar_comprobante` no funciona aunque todo lo demás esté |
 
-**Los dos frenos nuevos**, que sustituyen a todo el andamio que se borró:
+**Los dos frenos del mensaje** —los del trabajo de un mensaje, distintos de los dos frenos de
+tráfico de `docs/07-portero.md` §7.2—, que sustituyen a todo el andamio que se borró:
 
 - **Tres llamadas por mensaje.** No por gestión: por mensaje. Sin tope, un modelo confundido llama
   funciones en círculo y nadie lo detiene. Tres alcanzan porque lo más largo que ocurre dentro de
@@ -89,11 +90,17 @@ queremos mover.
    lote máximo de 50. Con eso encendido **todas** las entregas llegan en formato de lote, aunque
    venga un solo mensaje. Suponer un mensaje suelto es el error clásico, y la versión desplegada
    hoy hace justo lo contrario: rechaza los lotes.
-3. **Guarda cada mensaje del lote** en `whatsapp_inbound_messages`, con su `webhook_delivery_key` y
-   su `message_sid`. **Recibido no es atendido**: la llave dice que llegó, y `respondido_at` dice
-   que se contestó. Una entrega ya guardada **y respondida** se contesta 200 y no se ejecuta nada;
-   una guardada **y sin responder** se atiende, porque si no, el mensaje que se cayó a media
-   respuesta nunca recibe una.
+3. **Guarda cada mensaje del lote** en `whatsapp_inbound_messages`, cada uno con su `message_sid`.
+   **La llave de entrega va en un solo renglón del lote: el del último mensaje**, que es el que
+   dispara la respuesta; los demás van sin ella (`docs/07-portero.md` §5). No es un detalle:
+   `uq_whatsapp_inbound_delivery` es un índice **único** sobre `webhook_delivery_key`, así que
+   escribir la misma llave en los cinco renglones de una ráfaga revienta la inserción entera,
+   devuelve algo distinto de 200 y alimenta el auto-apagado del webhook (§11).
+   **Recibido no es atendido**: la llave dice que llegó, y la respuesta se anota aparte cuando el
+   texto sale —`processed_at` y `response_message_sid`, las dos columnas que ya existen en la tabla
+   desplegada (`docs/07-portero.md` §5)—. Una entrega ya guardada **y respondida** se contesta 200 y
+   no se ejecuta nada; una guardada **y sin responder** se atiende, porque si no, el mensaje que se
+   cayó a media respuesta nunca recibe una.
 4. **Contesta 200 de inmediato** y sigue trabajando en segundo plano. Si tardara en contestar,
    Kapso reintenta la entrega y la paciente recibe dos respuestas al mismo mensaje.
 5. **Toma el candado de la conversación.** `pg_try_advisory_lock` sobre el hash del teléfono, en
@@ -138,8 +145,10 @@ queremos mover.
     como plantilla. No pasa por la cola de salida: esa cola sólo produce plantillas y sólo la usan
     los trabajos programados. Si el envío falla después de haber mutado —la cita ya se movió y el
     aviso ya le llegó a la profesional— se reintenta **una vez, a los dos segundos**.
-13. **Anota `respondido_at`, guarda lo que se contestó y suelta el candado.** El texto de entrada y
-    el de salida quedan en `whatsapp_inbound_messages`, que ya se limpia sola a los 30 días.
+13. **Anota la respuesta, guarda lo que se contestó y suelta el candado.** La hora en
+    `processed_at` y el identificador del mensaje que salió en `response_message_sid`. El texto de
+    entrada y el de salida quedan en `whatsapp_inbound_messages`, que ya se limpia sola a los 30
+    días.
 
 Los modos de fallo de cada paso —el modelo que no contesta, la base que no contesta, el envío que
 falla— están en `docs/07-portero.md` §10.
@@ -167,7 +176,7 @@ pone margen.
 
 | Número | Valor | Dónde vive |
 |---|---|---|
-| Vueltas máximas del ciclo del modelo | 16 | Variable de entorno de la función de borde |
+| Vueltas máximas del ciclo del modelo | 16 | Techo duro del bucle de la función de borde. El dueño del número es `docs/07-portero.md` §7 |
 | Tokens de salida | 2048 | Variable de entorno |
 | Presupuesto total por mensaje | 60 segundos | Variable de entorno |
 | Espera por llamada al modelo | 20 segundos | Variable de entorno |
@@ -202,8 +211,8 @@ completo, con parámetros y textos, está en `docs/02-funciones.md`.
 | 6 | **Las cuatro difíciles**: `cancelar`, `reprogramar`, `mandar_comprobante` y `cambiar_modalidad` | Las tres primeras mueven dinero. `cambiar_modalidad` no lo toca nunca, pero es la única que el plazo bloquea. Son las que más ramas tienen y las que más caro cuesta equivocar: van al final, con todo lo anterior ya probado |
 | 7 | **Los avisos a la profesional** | Van dentro de cada mutación, en la misma transacción. Si el aviso no se pudo escribir, la mutación no ocurrió |
 
-**Ya no hay `pasar_pago`.** Pasar el pago a la próxima dejó de ser una función y es una salida de
-las otras dos: `cancelar(pasa_el_pago: true)` y `reprogramar(a_la_proxima: true)`. La cita destino
+**Pasar el pago a la próxima no es una función**, es una salida de
+otras dos: `cancelar(pasa_el_pago: true)` y `reprogramar(a_la_proxima: true)`. La cita destino
 la pone el servidor, que ya la sabe. Así el modelo no puede mover dinero por iniciativa propia
 sobre una cita que él escogió: sólo puede aceptar una salida que la función ya ofreció.
 
@@ -272,11 +281,19 @@ el dinero —condonar, acreditar, pedir comprobante o retener— y sin eso no ca
 puede tomar esa decisión: no es suya. Hace falta **una función propia** que cancele dejando la
 decisión abierta, con `late_change_decision = 'pending'`.
 
+**Y esa función propia tiene que reclasificar el motivo del cobro en el mismo acto** —D3 de
+`docs/03-dinero.md` §1—: `charge_reason` pasa de `session` a `cancellation` al cancelar y a
+`reschedule` al reprogramar sin tiempo mínimo. `docs/03-dinero.md` §7.2 lo dice sin matices: **D3
+no es opcional**, porque sin la reclasificación la fila desaparece de la facturación aunque la
+profesional decida cobrar, sin error y sin aviso. El enum ya existe en la base con los cuatro
+valores; lo que falta es la escritura.
+
 **El vocabulario real de la base**, que es el que se escribe. No se inventan valores nuevos:
 
 | Campo | Valores |
 |---|---|
 | `payment_status` | `not_applicable` · `pending` · `credited` · `waived` |
+| `charge_reason` | `session` · `no_show` · `cancellation` · `reschedule` |
 | `waive_reason` | `forgiven` · `carried_forward` |
 | `late_change_decision` | `pending` · `charge` · `no_charge` |
 | `change_policy_result` | `on_time` · `late` |
@@ -305,9 +322,18 @@ trampa del §9. Lo que le toca a este archivo es lo que hay que construir y qui�
 **Lo que hay que crear**, porque hoy no existe:
 
 - La tabla, con las ocho columnas de `docs/07-portero.md` §8.1.
-- En `whatsapp_inbound_messages`, `respondido_at` —que separa recibido de atendido— y las dos
-  columnas del texto: lo que ella escribió y lo que se le contestó. Hoy la tabla no guarda ni una
-  palabra, y sin ellas no hay ida y vuelta anterior que mandar al modelo.
+- En `whatsapp_inbound_messages`, **las dos columnas del texto**: lo que ella escribió y lo que se
+  le contestó. Hoy la tabla no guarda ni una palabra, y sin ellas no hay ida y vuelta anterior que
+  mandar al modelo.
+- En esa misma tabla, **la columna donde se anota el archivo del comprobante** que se bajó. Es la
+  que `docs/07-portero.md` §9 da por existente cuando dice que «el archivo se guarda y
+  `mandar_comprobante` lo toma del renglón del mensaje entrante», y la que hoy falta: sin ella
+  `mandar_comprobante` no funciona aunque todo lo demás esté. El `file_id` de la memoria no sirve
+  para esto: guarda el archivo **del que se preguntó**, no dónde quedó el que se bajó.
+
+Lo que **no** hay que crear, aunque se haya dicho: separar recibido de atendido ya está resuelto en
+la tabla desplegada, con `processed_at` y `response_message_sid` (`docs/07-portero.md` §5). No hace
+falta ninguna columna nueva para eso.
 
 **La escribe la función, dentro de su misma transacción.** Es la única que conoce el mapa de los
 números, porque acaba de componer la lista. El borde sólo escribe la fila de la profesional
@@ -352,7 +378,7 @@ huso la hora que lea la paciente sería correcta y la etiqueta falsa.
 
 ---
 
-## 7.1 Los dos índices que el sobre necesita
+## 7.1 El índice que el sobre necesita, y el que ya está
 
 El sobre se arma con **una sola lectura** en cada mensaje, y no se guarda en ningún lado. La razón
 no es el costo —medido contra la base desplegada: 5.1 milisegundos, todo desde memoria— sino que
@@ -366,28 +392,27 @@ agente cotice un precio viejo sin dar ningún síntoma.
 de la base se lee fresco; lo que sólo existe por la conversación se guarda, porque no se puede
 recalcular.
 
-Pero esa lectura sólo se mantiene barata con dos índices que hoy no existen. Los dos se vieron en
-el plan de ejecución de la consulta real:
+Esa lectura se mantiene barata con dos índices. Los dos se vieron en el plan de ejecución de la
+consulta real, pero **sólo uno hay que crear**:
 
-**Uno, el vínculo por teléfono.** Hoy la búsqueda recorre la tabla entera en cada mensaje. Con
-diecinueve renglones da igual; con veinte mil, es un recorrido completo por cada mensaje que entra.
+**Uno, el vínculo por teléfono: ya existe, no hay nada que hacer.** Comprobado contra la base
+desplegada:
 
-    create index ix_whatsapp_links_phone on public.whatsapp_links (phone);
+    create index ix_whatsapp_links_phone on public.whatsapp_links using btree (phone);
 
-`phone` **es una columna que cambia** —el disparador la reescribe cuando la profesional corrige el
-número de la paciente—, así que el índice se actualiza en esa escritura. No es un problema: cambiar
-de teléfono es raro y el costo cae en quien lo cambia, no en cada mensaje que llega.
+está creado, con ese mismo nombre y esa misma definición. Así que la búsqueda del vínculo **no
+recorre la tabla entera**, ni con diecinueve renglones ni con veinte mil, y este índice no entra en
+la migración. Queda escrito aquí sólo para que nadie lo vuelva a proponer.
 
-**Dos, la última plantilla.** Buscarla se llevaba **la mitad del tiempo total** —2.5 de los 5.1
-milisegundos— porque busca dentro del contenido del mensaje sin nada que la ayude. Es la parte que
-peor envejece: crece con todos los mensajes que se hayan mandado nunca, no con los de esa paciente.
+**Dos, la última plantilla: éste sí falta.** Buscarla se llevaba **la mitad del tiempo total**
+—2.5 de los 5.1 milisegundos— porque busca dentro del contenido del mensaje sin nada que la ayude.
 
     create index ix_whatsapp_outbox_patient_sent
       on public.whatsapp_outbox ((payload->>'patient_id'), sent_at desc)
       where status = 'sent';
 
-**Los dos van en la misma migración que la tabla de memoria**, no sueltos. Y los dos son
-añadidos: no tocan ninguna fila ni cambian el comportamiento de nada que ya funcione.
+**Va en la misma migración que la tabla de memoria**, no suelto. Y es un añadido: no toca ninguna
+fila ni cambia el comportamiento de nada que ya funcione.
 
 ---
 
@@ -456,7 +481,8 @@ Robles**, que cobra por adelantado y tiene sus datos de transferencia llenos; la
 | Una ficha con anticipación mínima larga y una cita para pasado mañana | Que mover se permita, y que la búsqueda sólo ofrezca días a partir del primero que la anticipación permite |
 | Una cita futura sin pago, otra con comprobante pegado, otra ya acreditada | La matriz del dinero al cancelar y al reprogramar |
 | Dos citas esperando confirmación | Que se pregunte cuál, y que «ambas» confirme las dos |
-| Una serie con su próxima ocurrencia viva, y otra serie sin ninguna próxima | Las dos salidas de la cita con dinero adentro, y el texto de cuando no se pudo |
+| Una serie con su próxima ocurrencia viva, y otra serie sin ninguna próxima | Las dos salidas de la cita con dinero adentro, y que sin próxima viva no se ofrezca la segunda |
+| Una próxima ocurrencia viva que ya trae su propio pago | Que el traslado no ocurra, **que la cita se cancele igual y que no salga ningún texto sobre el choque** |
 | Un cobro de una sesión pasada esperando comprobante, y dos cobros del mismo día | Que el comprobante se identifique por fecha, y que la hora sólo aparezca cuando hay dos |
 | Un cobro vivo sobre una cita ya cancelada, y otro sobre una reprogramada | Que el comprobante de una cancelación tardía se pueda pegar |
 | Una cita de prepago cuya hora ya pasó | Que salga de `mis_citas`, de `cancelar` y de `reprogramar`, y que su cobro siga aceptando comprobante |
@@ -481,9 +507,9 @@ atrapa, porque casi todo el producto vive en ese texto.
 | `agendar` | Con quien cobra por adelantado | El cierre con banco, titular y CLABE. **Sin ninguna frase de 24 horas** |
 | `confirmar` | Dos citas esperando | La lista numerada y la pregunta de cuál. Y «ambas» confirma las dos |
 | `cancelar` | Cita con comprobante pegado, a tiempo, con próxima de su serie | Las dos salidas: reprogramar, o cancelar y dejar el pago en la próxima |
-| `cancelar` | La misma cita, pero fuera del aviso | La salida de dejar el pago en la próxima **no se ofrece**, y se dice que el pago se queda en ésta |
+| `cancelar` | La misma cita, pero fuera del aviso | **Ninguna de las dos salidas se ofrece**: ni reprogramar ni dejar el pago en la próxima. Se cancela, y el cierre dice el cargo |
 | `cancelar` | Y ella dice que no a las dos | **Se cancela.** Y se le dice que su pago queda registrado y su profesional lo resuelve con ella |
-| `cancelar(pasa_el_pago: true)` | Cita destino que ya trae su propio pago | No se pasa, y se le dice que su profesional lo acomoda. Con la destino limpia sí se pasa, **aunque el importe sea distinto** |
+| `cancelar(pasa_el_pago: true)` | Cita destino que ya trae su propio pago | El pago no se pasa, **la cita sí queda cancelada, y no se le dice nada del choque**: sale `cancelar_cierre` con la coletilla del pago registrado. Un texto que le explique el choque es un fallo de la prueba, no un pendiente. Con la destino limpia sí se pasa, **aunque el importe sea distinto** |
 | `reprogramar` | Cita de una recurrencia | La segunda salida: pasarla a la próxima de su serie |
 | `reprogramar(a_la_proxima: true)` | La misma serie, sin ningún pago adentro | **Cierra igual**, sin la frase del dinero. No una negativa |
 | `reprogramar` | Prepago, fuera del aviso de cambio | El cierre con monto y datos de transferencia. El pago viejo no viaja y se dice |
@@ -552,7 +578,7 @@ Recuperarlo es entrar al panel a mano, y mientras tanto no llega nada.
 | La paciente recibe dos respuestas al mismo mensaje | El tiempo hasta el 200 en la bitácora | Se está contestando tarde |
 | Dos citas idénticas | Dos entregas del mismo teléfono muy juntas | El candado por conversación |
 | Una conversación entera muda | El candado tomado y no soltado | La conexión del candado no se cerró en el `finally` |
-| Ella escribió y nunca recibió nada | Un mensaje guardado sin `respondido_at` | El reintento se descartó como duplicado |
+| Ella escribió y nunca recibió nada | Un mensaje guardado con `processed_at` vacío | El reintento se descartó como duplicado |
 | El modelo dice que lo hizo y no hay fila | La bitácora: si no hubo llamada, fue decisión del modelo | El prompt. La regla de `hecho` es lo que lo previene |
 
 ---

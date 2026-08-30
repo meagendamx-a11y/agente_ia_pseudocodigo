@@ -25,7 +25,7 @@ función resuelve todo por dentro —quién escribe, con quién, qué cita, qué
 devuelve el texto ya redactado; el agente lo copia y lo manda. No calcula fechas, no arma frases y
 nunca ve un identificador de la base.
 
-Dos frenos lo sostienen. Un tope de **tres llamadas por mensaje**, porque sin él un modelo confundido
+Los dos frenos del mensaje lo sostienen. Un tope de **tres llamadas por mensaje**, porque sin él un modelo confundido
 llama funciones en círculo y nadie lo detiene. Y un **candado por conversación**: si llegan dos
 mensajes del mismo teléfono al mismo tiempo, el segundo espera, y así no salen citas duplicadas.
 
@@ -60,7 +60,7 @@ palabra: `docs/06-textos.md`. Los parámetros, el resultado o el aviso de una fu
 | `README.md` | Esto: qué es, en qué orden se lee y quién manda. |
 | `AGENTS.md` | Cómo se edita este repositorio: lo que no se nombra, lo que no se inventa y lo que no se propone borrar. |
 | `docs/00-el-agente.md` | El modelo en una página, el recorrido de un mensaje y las reglas numeradas. Los demás archivos las citan por número y no las repiten. |
-| `docs/01-conversaciones.md` | Los nueve flujos y los bordes, mensaje por mensaje. Es el archivo que se lee para saber cómo se siente el producto. |
+| `docs/01-conversaciones.md` | Los ocho flujos y los bordes, mensaje por mensaje. Es el archivo que se lee para saber cómo se siente el producto. |
 | `docs/02-funciones.md` | El catálogo: diez funciones, con sus parámetros, su resultado, si escriben en la base y qué aviso le llega a la profesional. |
 | `docs/03-dinero.md` | Qué le pasa al pago en cada acción: el cobro por adelantado, el cambio tardío, pasar el pago, el comprobante. |
 | `docs/04-horarios.md` | Cómo se buscan y se ofrecen los horarios, y qué hay que arreglarle al motor antes de confiar en él. |
@@ -72,9 +72,11 @@ palabra: `docs/06-textos.md`. Los parámetros, el resultado o el aviso de una fu
 Tres archivos son fuente única de su materia: las reglas sólo viven en `00`, los textos sólo viven
 en `06` —y ahí se lleva el conteo de claves, para que ningún otro archivo lo repita—, y la memoria
 de la conversación sólo se define en `07`. Una regla se busca por su número y un texto por su
-clave. El único que reproduce un texto completo es `docs/01-conversaciones.md`, y sólo cuando la
-conversación no se entiende sin él; si esa copia y `06` difieren, manda `06`. Cómo se editan sin
-partirlos en dos versiones vivas está en `AGENTS.md`.
+clave. Un texto completo se reproduce en dos sitios y en ninguno más: en
+`docs/01-conversaciones.md`, cuando la conversación no se entiende sin él, y en `docs/05-prompt.md`,
+porque los textos de prompt viajan literales dentro del prompt. Si una copia y `06` difieren, manda
+`06`. La regla entera, con su porqué y cómo se editan sin partirlos en dos versiones vivas, está en
+`AGENTS.md` §5.
 
 ---
 

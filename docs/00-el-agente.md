@@ -156,14 +156,17 @@ aquí: eso vive en `AGENTS.md`.
 9. **Tres llamadas a funciones por mensaje, y ni una más.** El tope es por mensaje, no por
    conversación: cada mensaje se atiende entero y se acaba, y el siguiente trae sus tres. Existe
    por un caso concreto y nada más: un modelo confundido llama funciones en círculo y nadie lo
-   detiene. A la tercera se contesta con el texto `se_acabo_el_espacio`.
+   detiene. **Las tres se despachan**: el texto `se_acabo_el_espacio` sale cuando se agotaron las
+   tres y todavía no hay nada que mandarle, nunca en lugar de la tercera.
 10. **«Dinero adentro» tiene una definición exacta y una sola:** el cobro está acreditado, o hay
     un comprobante pegado. Una petición sellada sin archivo **no** es dinero adentro.
-11. **Una cita con dinero adentro sí se cancela.** Antes se ofrecen dos salidas: pasar el pago a
-    su próxima cita, o reprogramar ésta y que el pago se vaya con ella. Si dice que no a las dos,
-    se cancela: se registra como cancelación sin tiempo mínimo, el estado del pago se conserva tal
-    cual, y se le dice que su pago queda registrado y su profesional lo resuelve con ella. **El
-    agente no insiste una segunda vez.**
+11. **Una cita con dinero adentro sí se cancela.** Lo que cambia es si antes se le ofrece algo, y
+    eso lo decide el reloj. **A tiempo** se ofrecen dos salidas: reprogramar ésta y que el pago se
+    vaya con ella, y —sólo si existe una próxima ocurrencia viva de su serie— pasar el pago a esa
+    próxima. **Fuera de plazo no se ofrece nada: se cancela**, y el cierre dice el cargo. Si dice
+    que no a las salidas, se cancela igual: se registra como cancelación sin tiempo mínimo, el
+    estado del pago se conserva tal cual, y se le dice que su pago queda registrado y su
+    profesional lo resuelve con ella. **El agente no insiste una segunda vez.**
 12. **En el cambio tardío el pago viejo se congela tal como está** y queda abierta la decisión de
     cobro para la profesional. La cita nueva va aparte, con su propio pago. La superficie de la
     paciente es hoy la única que abre esa decisión: nadie más la produce.

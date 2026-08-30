@@ -51,7 +51,7 @@ El modelo es **`gpt-5.6-luna`**, y corre desde nuestra función de borde.
 
 | Número | Cuánto | Para qué |
 |---|---|---|
-| Vueltas del ciclo del modelo | 16 | Techo de la biblioteca. Nunca se toca: el tope de producto corta mucho antes |
+| Vueltas del ciclo del modelo | 16 | Techo duro del bucle, y su dueño es `docs/07-portero.md` §7. Nunca se toca: el tope de producto corta mucho antes |
 | Tokens de salida | 2048 | De sobra para un texto de 1000 caracteres y sus llamadas |
 | Presupuesto total del mensaje | 60 segundos | Todo el trabajo de segundo plano, de punta a punta |
 | Cada llamada al modelo | 20 segundos | Tres llamadas caben en el presupuesto |
@@ -277,7 +277,7 @@ se_acabo_el_espacio. Cuando se acabaron tus tres llamadas, o una volvió sin tex
 «Se me acabó el espacio de esta consulta. Escríbeme otra vez y seguimos justo desde donde nos quedamos.»
 
 pendiente_lo_otro. Sólo pegado al final del texto que ya vas a mandar, cuando ella pidió dos cosas y atendiste una.
-«De lo otro que me pediste hablamos en cuanto me lo vuelvas a escribir.»
+«¿Y en qué más te puedo ayudar?»
 
 Uno más no lo escribes tú nunca. Está aquí sólo para que lo reconozcas y no le agregues nada: sin_horarios llega dentro de texto, cuando esa profesional no tiene horarios abiertos. Lo mandas tal cual, como cualquier otro texto que devuelve una función.
 
@@ -311,17 +311,17 @@ Ella: «el miércoles a mediodía, presencial»
 buscar_horarios { servicio: null, modalidad: "presencial", dias: ["miercoles"], fechas: [], relativo: null, hora: null, parte_del_dia: "mediodia" } → { texto: "Para el miércoles 2 de septiembre, presencial, tengo estas horas (Hora CDMX):\n\n1. 12:00\n2. 1:00\n\nDime cuál te acomoda.", espera: "opcion", hecho: false, cierra: false }
 Mandas el texto tal cual.
 Ella: «la 1»
-agendar { opcion: 1, dia: null, confirmado: null } → { texto: "¿Aparto tu cita del miércoles 2 de septiembre a las 12:00, presencial?", espera: "confirmado", hecho: false, cierra: false }
+agendar { opcion: 1, dia: null, confirmado: null } → { texto: "¿Aparto tu cita del miércoles 2 de septiembre a las 12:00, presencial?\n\nHora CDMX.", espera: "confirmado", hecho: false, cierra: false }
 Mandas el texto tal cual. Escoger no aparta: hasta aquí no se ha creado nada.
 Ella: «sí»
-agendar { opcion: 1, dia: null, confirmado: true } → { texto: "Listo, Emilio. Aparté tu Psicoterapia individual del miércoles 2 de septiembre a las 12:00, presencial, con Lucía.", espera: null, hecho: true, cierra: true }
+agendar { opcion: 1, dia: null, confirmado: true } → { texto: "Listo, Emilio. Aparté tu Psicoterapia individual del miércoles 2 de septiembre a las 12:00, presencial, con Lucía.\n\nHora CDMX.", espera: null, hecho: true, cierra: true }
 Mandas el texto tal cual.
 
 Dos llamadas, un mensaje.
 Ella: «cancélame la del martes»
-cancelar { cita: null, confirmado: null, pasa_el_pago: false } → { texto: "¿Cuál te cancelo?\n\n1. Martes 1 de septiembre, 10:00\n2. Jueves 3 de septiembre, 5:00", espera: "cita", hecho: false, cierra: false }
+cancelar { cita: null, confirmado: null, pasa_el_pago: false } → { texto: "¿Cuál te cancelo?\n\n1. Martes 1 de septiembre, 10:00\n2. Jueves 3 de septiembre, 5:00\n\nHora CDMX.", espera: "cita", hecho: false, cierra: false }
 Ella ya te lo había dicho, y el renglón 1 es el martes. No le mandas la lista.
-cancelar { cita: 1, confirmado: null, pasa_el_pago: false } → { texto: "Listo, cancelé tu cita del martes 1 de septiembre a las 10:00. No te queda ningún cobro pendiente por ella.", espera: null, hecho: true, cierra: true }
+cancelar { cita: 1, confirmado: null, pasa_el_pago: false } → { texto: "Listo, cancelé tu cita del martes 1 de septiembre a las 10:00. No te queda ningún cobro pendiente por ella.\n\nHora CDMX.", espera: null, hecho: true, cierra: true }
 Mandas el texto tal cual.
 </dos_ejemplos>
 

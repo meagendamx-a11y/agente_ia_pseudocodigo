@@ -53,14 +53,16 @@ cero llamadas.
 | Clave | Tipo | Qué significa |
 |---|---|---|
 | `texto` | cadena, ≤ 1000 caracteres | Lo que se manda, palabra por palabra. El agente lo copia y no lo adorna |
-| `espera` | cadena o nulo | **El nombre exacto del parámetro que falta** en la llamada siguiente. No es un enum que haya que interpretar: es la clave que hay que llenar |
+| `espera` | cadena o nulo | **El nombre exacto de lo que falta** en la llamada siguiente: en seis de los siete valores, el de un parámetro; en `filtros`, el del grupo de parámetros de día, fecha y franja. No es un enum que haya que interpretar: es la clave que hay que llenar |
 | `hecho` | booleano | Verdadero **sólo** cuando algo se escribió en la base y el servidor lo volvió a leer. El agente no dice «listo» con `hecho: false`, y ésa es toda la regla contra el falso éxito |
 | `cierra` | booleano | Si la conversación queda esperando respuesta o no |
 
 **Los siete valores posibles de `espera`:** `servicio`, `modalidad`, `filtros`, `opcion`, `cita`,
-`citas`, `confirmado`. Cada uno es, literalmente, el nombre de un parámetro de alguna de las diez.
-Eran nueve: se van `estrellas` y `comentario`, porque las dos preguntas de la reseña las hace el
-prompt y ninguna función las devuelve.
+`citas`, `confirmado`. Seis son, literalmente, el nombre de un parámetro de alguna de las diez.
+`filtros` es el único que no nombra un parámetro sino un grupo: los parámetros de día, fecha y
+franja de `buscar_horarios` (§4.2), que se piden juntos y se contestan juntos. Eran nueve: se van
+`estrellas` y `comentario`, porque las dos preguntas de la reseña las hace el prompt y ninguna
+función las devuelve.
 
 **Qué hace `cierra`.** En falso, se guarda en la memoria de la conversación qué se preguntó, qué
 función lo preguntó, qué opciones numeradas se ofrecieron y sobre qué cita se está trabajando; así
@@ -94,7 +96,7 @@ del servidor. El §9 desarrolla esto.
 **La instrucción de mandar el texto tal cual vive en el prompt, no en el resultado.** Las
 instrucciones metidas dentro de un resultado se pueden ignorar, o marcar como inyección.
 
-### 2.1 El único freno: tres llamadas por mensaje
+### 2.1 El freno que ven las funciones: tres llamadas por mensaje
 
 No hay presupuesto por gestión. Una gestión se reparte entre varios mensajes de ella, y **cada
 mensaje trae sus tres llamadas**. Agendar gasta cuatro llamadas en total y ninguna comparte mensaje
@@ -132,8 +134,8 @@ Siete escriben, tres leen.
 | 9 | «5 estrellas, me ayudó mucho» | `dejar_resena` | sí | **ninguno**, a propósito |
 | 10 | «¿dónde es?» · «hola» · «¿qué tengo?» · «¿cuánto debo?» | `mis_citas` | no | — |
 
-**Eran once. `pasar_pago` desapareció** y sobrevive como dos booleanos: `cancelar(pasa_el_pago)` y
-`reprogramar(a_la_proxima)`. Se gana lo que importa: **el modelo ya no puede mover dinero por
+**Son diez, y pasar el pago no es una de ellas:** es un booleano de dos de ellas,
+`cancelar(pasa_el_pago)` y `reprogramar(a_la_proxima)`. Se gana lo que importa: **el modelo ya no puede mover dinero por
 iniciativa propia sobre una cita que él eligió**. La salida sólo existe cuando el servidor ya la
 ofreció, y sólo el servidor sabe si hay dinero adentro, si alcanza el plazo y cuál es el destino.
 
@@ -258,8 +260,8 @@ y lo que la regla 19 le impide: el sobre no lleva la fecha de hoy. Es el mismo p
 de horas es el servidor, con el horario de esa profesional. **El modelo nunca mapea «en la tarde» a
 un rango**, porque la tarde de una profesional que atiende de 3:00 a 7:00 no es la de otra.
 
-**Ya no hay parámetro `mover_cita`.** La cita que se está moviendo la recupera el servidor de la
-columna `subject` de la memoria de la conversación (§6). Era el único número del diseño que cruzaba
+**La cita que se está moviendo no viaja como parámetro:** la recupera el servidor de la
+columna `subject` de la memoria de la conversación (§6). Sería el único número que cruzara
 de una función a otra, y cada excepción a «un número sólo vale contra la última lista de esa
 función» es una puerta por la que un número se resuelve contra la lista equivocada. Además no
 funcionaba: con una sola candidata `reprogramar` no emite lista, así que no había número que mandar
@@ -308,21 +310,21 @@ conteste las dos cosas juntas y esta rama no se dispare.
 | Dos días con las mismas horas | `horarios_lista_compartida` | `opcion` | falso | falso |
 | Falta la modalidad | `horarios_falta_modalidad` | `modalidad` | falso | falso |
 | Ese servicio no se da en esa modalidad | `modalidad_no_disponible_en_servicio` | `modalidad` | falso | falso |
-| No trabaja a esa hora, y se proponen horas de otra ventana | `sin_hueco_fuera_de_horario` | `opcion` | falso | falso |
-| No trabaja esos días, y se proponen horas de un día cercano | `sin_hueco_dias_que_no_trabaja` | `opcion` | falso | falso |
+| No trabaja a esa hora, y se proponen horas de ese mismo día | `sin_hueco_fuera_de_horario` | `opcion` | falso | falso |
+| No trabaja esos días, y se proponen otros días, sin hora | `sin_hueco_dias_que_no_trabaja` | `filtros` | falso | falso |
 | Esos días concretos no va a estar, y se proponen horas de otro día | `sin_hueco_ausencia` | `opcion` | falso | falso |
-| Sí trabaja, está llena, y se proponen horas de otro día | `sin_hueco_lleno` | `opcion` | falso | falso |
+| Sí trabaja, está llena, y se proponen horas con su día | `sin_hueco_lleno` | `opcion` | falso | falso |
 | Es demasiado pronto, y se proponen horas del primer día que alcanza | `sin_hueco_demasiado_pronto` | `opcion` | falso | falso |
-| Cualquiera de los cinco motivos cuando lo que se propone es otra ventana, no horas | el mismo texto | `filtros` | falso | falso |
 | La fecha que pidió cae más allá del horizonte | `fuera_del_horizonte` | `filtros` | falso | falso |
 
-**`espera` se parte por lo que la lista trae, no por el motivo.** Los cinco motivos **llevan
-alternativas numeradas de verdad**, no una frase: un motivo sin alternativas obliga a volver a
-preguntar y cuesta otra llamada y otro mensaje. Cuando esas alternativas son horas apartables, la
-función queda esperando `opcion`, porque ella va a contestar «la 2» y ese 2 tiene que aterrizar en
-`agendar`. Con `filtros`, ese «la 2» se iría a `buscar_horarios`, que no tiene parámetro `opcion`, y
-la gestión se atora justo cuando ella ya había escogido. `espera: "filtros"` queda sólo para cuando
-lo que se propone es otra ventana.
+**`espera` se parte por lo que la lista trae.** Los cinco motivos **llevan alternativas numeradas de
+verdad**, no una frase: un motivo sin alternativas obliga a volver a preguntar y cuesta otra llamada
+y otro mensaje. **Cuatro de los cinco traen horas apartables**, así que quedan esperando `opcion`,
+porque ella va a contestar «la 2» y ese 2 tiene que aterrizar en `agendar`. Con `filtros`, ese «la
+2» se iría a `buscar_horarios`, que no tiene parámetro `opcion`, y la gestión se atora justo cuando
+ella ya había escogido. **`sin_hueco_dias_que_no_trabaja` es el único que propone otra ventana** —su
+lista son días, sin hora—, y por eso es el único que espera `filtros`. El reparto de los cinco está
+en `docs/06-textos.md` §3.
 
 **«Es demasiado pronto» no dice cuánta anticipación pide la profesional.** Dice cuál es el día más
 cercano al que sí alcanza, y ahí van las horas. El número no le sirve de nada y convierte un hueco
@@ -577,7 +579,8 @@ leer de otro lado:
 pagado nada: es lo único que hace que el plazo signifique algo para quien cobra al cerrar. **Que se
 mueva dinero, y a dónde, sólo se menciona cuando hay dinero adentro.** Son dos preguntas distintas y
 mezclarlas deja la mitad de las cancelaciones tardías sin decidir. Con precio cero no se menciona
-dinero: decirle «se te cobra» de una sesión de cero pesos es mentirle en la otra dirección (regla 5).
+dinero: decirle «se te cobra» de una sesión de cero pesos es mentirle en la otra dirección. La
+separación completa está en `docs/03-dinero.md` §5.1.
 
 **Resultado.**
 
@@ -837,8 +840,9 @@ Esa redacción arregla dos agujeros que dejaban al producto sin su único camino
    fuera el flujo más frecuente del cobro por adelantado.
 
 Qué es «cobro esperando comprobante» se define una sola vez, en `docs/03-dinero.md` §2, y aquí se
-cita. **Que la petición esté sellada o no sólo decide si la profesional lo ve marcado como pedido y
-si sale la plantilla**, no si el comprobante se acepta.
+cita. **La petición sellada es una sola regla para las dos formas de cobrar**, y decide las tres
+cosas juntas: que la profesional lo vea marcado como pedido, que salga la plantilla, y que el cobro
+acepte comprobante.
 
 **Una cita que llegó a su hora sin comprobante deja de estar programada**, y con eso sale de
 `mis_citas` y de las candidatas de `cancelar` y `reprogramar`. **Su cobro sigue vivo y el comprobante
@@ -1035,7 +1039,7 @@ candidatas de `mandar_comprobante`**, porque ahí el conjunto son cobros.
 1. **Un `cita` sólo vale contra la última lista de esa función.** No es un identificador global: es
    una posición. Un 2 de `cancelar` no significa nada en `cambiar_modalidad`, porque las dos listas
    se construyen con reglas distintas. Es una propiedad de seguridad que un identificador global no
-   tenía, **y desde que `mover_cita` desapareció ya no tiene ni una excepción**.
+   tenía, **y no tiene ni una excepción**.
 2. **Con una sola candidata no hay número**, y `cita` va en nulo. La única excepción es
    `mandar_comprobante`, por lo dicho en su ficha.
 3. **Con cero, se dice, con una salida.** Nunca un error.
@@ -1130,8 +1134,9 @@ Y dos familias —bienvenida y entrega de materiales— no traen cita ni pueden 
 
 **La pista dura siete días.** La cola de salida se purga cada hora y se borran las filas ya enviadas
 de más de siete días. Pasada esa semana la pista sale vacía en vez de mentir con una plantilla vieja,
-que es el comportamiento que se quiere; y como la tabla se mantiene chica sola, la consulta que busca
-la última plantilla de un teléfono no necesita índice nuevo.
+que es el comportamiento que se quiere. Que la tabla se mantenga chica no basta para que la consulta
+salga barata: busca dentro del contenido del mensaje, y por eso lleva su propio índice, el que
+`docs/08-implementacion.md` §7.1 manda crear.
 
 Leer la cola **no es encolar**. El agente no encola nada: contesta dentro de la conversación abierta.
 La cola sólo produce plantillas y sólo la usan los trabajos automáticos.
