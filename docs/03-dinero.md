@@ -118,22 +118,33 @@ Si manda un comprobante y no hay ningún cobro sellado, el agente se lo dice y l
 `comprobante_nada_esperando` le pide que se lo mande directo a su profesional. Ése es el mensaje
 correcto, no un hueco.
 
-**Y una decisión de cobro abierta lo saca de la cuenta.** Mientras la profesional no haya decidido
-si cobra un cambio tardío, ese cobro **no se le cuenta a la paciente como deuda**. Decirle que debe
-algo que quizá le condonen sería adelantarse a una decisión que no es nuestra, y rompería D5: a la
-paciente no se le cuenta que la profesional está decidiendo.
+**Un cambio tardío cuenta como deuda desde que se avisó**, aunque la profesional todavía no haya
+resuelto si lo cobra. La razón es simple: **el agente ya se lo dijo**. Al cancelar o mover sin el
+aviso mínimo le dijo que se le cobra la sesión, y si después pregunta cuánto debe y no aparece,
+va a creer que al final no se cobró — y luego se lo cobran. Eso es peor que adelantarse.
+
+Deja de contar **sólo si la profesional resuelve que no se cobra**. Ahí sí desaparece, porque ahí sí
+hay una respuesta.
+
+Nada de esto rompe D5: no se le dice que su profesional está decidiendo, se le dice lo que ya se le
+había dicho. La decisión sigue siendo de ella y sigue sin contarse.
 
 #### Esto es casi lo mismo que ve la profesional en Cobros
 
 Comprobado contra la base. Cobros cuenta un cobro cuando se juntan cuatro cosas: la cita **ya se
 cerró** —asistió, no asistió, se canceló o se movió—, el motivo del cobro corresponde a ese cierre,
 no hay una decisión tardía abierta ni resuelta como «no cobrar», y el cobro está acreditado o
-pendiente **con la petición hecha o con comprobante**. Las últimas dos son exactamente las nuestras.
+pendiente **con la petición hecha o con comprobante**. Las dos últimas son exactamente las nuestras.
 
-**La única diferencia es el prepago de una cita futura**, y es deliberada. Esa cita todavía no se
-cierra, así que no aparece en Cobros — pero a ella sí le pidieron pagar para confirmarla, y sí lo
-debe. El agente la cuenta; Cobros no. En todo lo demás los dos dicen lo mismo, que es lo que hace
-falta para que la paciente y la profesional nunca discutan sobre una cifra distinta.
+**Y hay dos sitios donde el agente cuenta algo que Cobros no**, los dos a propósito:
+
+- **El prepago de una cita futura.** Esa cita todavía no se cierra, así que no aparece en Cobros —
+  pero a ella sí le pidieron pagar para confirmarla, y sí lo debe.
+- **El cambio tardío con la decisión abierta.** Cobros lo esconde mientras la profesional no
+  decida, y eso es justo el problema conocido del §9.2: mientras sigue abierta **no la ve nadie**.
+  Copiar ese hueco en el agente sería propagar un defecto, no alinearse.
+
+En todo lo demás los dos dicen lo mismo.
 
 ---
 
