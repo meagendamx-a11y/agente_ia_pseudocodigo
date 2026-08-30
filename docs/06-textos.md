@@ -183,7 +183,7 @@ llamar.
 | `{modalidad}` | «presencial» o «en línea», ya en español |
 | `{plazo}` | El plazo de esa ficha: «24 horas», «12 horas» |
 | `{ritmo}` · `{parte_del_dia}` | «cada semana» · «mañana», «mediodía», «tarde», «noche» |
-| `{zona}` | La marca corta de la zona horaria: «Hora CDMX» |
+| `{zona}` | La marca corta de la zona **de esa profesional**, de su ficha: «Hora CDMX», «Hora Tijuana» |
 | `{lista}` | Las opciones numeradas, máximo cinco —hasta ocho sólo en la lista de servicios—, con su etiqueta ya escrita |
 | `{verbos}` | Sólo lo que esa profesional permite |
 | `{como_pagar}` | Cómo transferir, en una de dos frases fijas |

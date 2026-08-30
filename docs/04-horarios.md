@@ -401,7 +401,17 @@ en `docs/06-textos.md`.
 
 **Es corta a propósito.** El hueco `{zona}` es «Hora CDMX», no «la Ciudad de México»: así cabe al
 final del encabezado sin convertir cada respuesta en un formulario. Cuando la ficha tiene otra
-zona, es la suya, con la misma forma breve.
+zona, es la suya, con la misma forma breve — «Hora Tijuana».
+
+**Y no se escribe a mano, sale de la ficha.** Es la misma regla 2 que gobierna los plazos: un
+«Hora CDMX» fijo le miente a la paciente de una profesional que atiende desde otro huso, y le
+miente en la dirección peligrosa, porque la hora que lee es la buena y la etiqueta es la falsa.
+
+**Esta parte no hay que construirla: ya está y se comprobó contra la base.** La profesional tiene
+su zona en su ficha —hoy las seis en Ciudad de México, que es el valor por omisión—, el motor de
+disponibilidad lee esa zona y hace toda la aritmética de días y rangos en ella, y las dos funciones
+que arman la fecha y la hora para los mensajes **reciben la zona como parámetro** en vez de
+suponerla. El agente sólo tiene que pasar la que le corresponde y pedir la marca corta.
 
 ---
 

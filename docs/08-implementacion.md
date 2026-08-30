@@ -333,6 +333,25 @@ identidad—. La fila vieja se limpia sola al caducar a las 24 horas.
 
 ---
 
+## 7.0 Las zonas horarias ya están resueltas, no hay que construirlas
+
+Comprobado contra la base desplegada, para que nadie vuelva a escribirlo:
+
+- **`professionals.timezone`** existe y guarda la zona de cada profesional. Hoy las seis dicen
+  `America/Mexico_City`, que es el valor por omisión.
+- **El motor de disponibilidad ya trabaja en esa zona.** Lee `p.timezone` y hace toda la
+  aritmética de días de la semana, rangos y traslapes con ella. Los horarios se guardan como hora
+  de pared y se convierten a instante una sola vez.
+- **Las dos funciones que arman la fecha y la hora de los mensajes reciben la zona como
+  parámetro**, en vez de suponerla. Las plantillas ya la llevan en su contenido.
+
+Así que el agente **no calcula ni convierte nada**: pasa la zona de la ficha y pide la marca corta
+para el hueco `{zona}`. Lo único que hay que cuidar es no escribir «Hora CDMX» a mano en ningún
+sitio —es la regla 2, la misma de los plazos—, porque el día que entre una profesional en otro
+huso la hora que lea la paciente sería correcta y la etiqueta falsa.
+
+---
+
 ## 7.1 Los dos índices que el sobre necesita
 
 El sobre se arma con **una sola lectura** en cada mensaje, y no se guarda en ningún lado. La razón
