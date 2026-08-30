@@ -93,16 +93,30 @@ comprobante pegado se lee como acreditado**, porque el archivo ya se revisó.
 
 ### 2.3 «Cobro esperando comprobante»
 
-Es **todo cobro suyo que siga pendiente y sin archivo pegado, sin importar el estado de la cita**
-—programada, cancelada, movida o pasada—, más el cobro de su próxima cita futura; de una serie,
-sólo el de la ocurrencia más próxima. Es lo que decide las candidatas de `mandar_comprobante` y lo
-que contesta `mis_citas` cuando pregunta cuánto debe.
+Es **todo cobro suyo que siga pendiente, con la petición sellada y sin archivo pegado**, sin
+importar el estado de la cita —programada, cancelada, movida o pasada—. De una serie, sólo el de la
+ocurrencia más próxima. Es lo que decide las candidatas de `mandar_comprobante` y lo que contesta
+`mis_citas` cuando pregunta cuánto debe.
 
-**Que la petición esté sellada o no, no entra en la definición.** La petición sellada sólo decide dos
-cosas: que la profesional lo vea marcado como pedido, y que salga la plantilla del recordatorio. Si
-entrara, la paciente de quien cobra al cerrar la sesión mandaría su comprobante y leería que no hay
-nada esperando, y eso contradice la regla 6: recibir comprobantes aplica a todas las profesionales,
-cobren antes o después.
+**La petición sellada es la condición, y es una sola regla para las dos formas de cobrar.** Lo que
+cambia entre ellas es cuándo se sella:
+
+- **Cobra por adelantado:** se sella al agendar, automáticamente. Acepta comprobante desde el
+  primer momento.
+- **Cobra después:** se sella cuando la profesional lo pide desde su app, normalmente al cerrar la
+  sesión. Antes de eso no acepta comprobante, porque nadie se lo ha pedido.
+
+Recibir comprobantes sigue aplicando **a todas las profesionales** (regla 6): lo que las distingue
+no es si se acepta, es cuándo se pide.
+
+**Y un cobro sin petición sellada no es una deuda todavía.** Con cobro después, la cita nace con su
+cobro pendiente desde que se agenda, pero decirle que debe $800 por una sesión que aún no ocurre y
+que nadie le ha cobrado sería inventarle una deuda. Por eso la misma condición gobierna las dos
+cosas: lo que acepta comprobante y lo que se le dice que debe.
+
+Si manda un comprobante y no hay ningún cobro sellado, el agente se lo dice y le da la salida:
+`comprobante_nada_esperando` le pide que se lo mande directo a su profesional. Ése es el mensaje
+correcto, no un hueco.
 
 ---
 

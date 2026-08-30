@@ -816,10 +816,15 @@ primera y significaría otra cosa.
 **El cobro se identifica por fecha.** La hora sólo se dice cuando hay dos o más cobros del mismo día:
 «tu sesión del martes 8» basta, y agregar la hora a todo hace la lista ilegible.
 
-**Candidatas: son cobros, no citas.** Todo cobro suyo que siga pendiente y sin archivo pegado
-—**cada uno es su propia deuda, no se colapsan**—, **sin importar el estado de la cita**, más el
-cobro de su próxima cita futura; de una serie, sólo el de la ocurrencia más próxima. Los más
-antiguos primero, con fecha y monto.
+**Candidatas: son cobros, no citas.** Todo cobro suyo que siga pendiente, **con la petición
+sellada** y sin archivo pegado —**cada uno es su propia deuda, no se colapsan**—, **sin importar el
+estado de la cita**. De una serie, sólo el de la ocurrencia más próxima. Los más antiguos primero,
+con fecha y monto.
+
+**La petición sellada es la condición.** Con cobro por adelantado se sella al agendar, así que la
+cita futura entra desde el primer momento. Con cobro después se sella cuando la profesional lo pide,
+normalmente al cerrar la sesión: antes de eso ese cobro no es candidato, porque nadie le ha pedido
+nada. La definición completa está en `docs/03-dinero.md` §2.3.
 
 Esa redacción arregla dos agujeros que dejaban al producto sin su único camino de cobro:
 
@@ -1002,7 +1007,7 @@ que él mismo acaba de escribir.
 
 | Función | Qué entra |
 |---|---|
-| `mandar_comprobante` | **Cobros, no citas.** Todo cobro pendiente y sin archivo, sin importar el estado de la cita, más el de su próxima cita futura; de una serie, sólo el de la más próxima ocurrencia |
+| `mandar_comprobante` | **Cobros, no citas.** Todo cobro pendiente, **con la petición sellada** y sin archivo, sin importar el estado de la cita; de una serie, sólo el de la más próxima ocurrencia |
 | `confirmar`, `reprogramar`, `cancelar`, `cambiar_modalidad` | Sólo citas futuras, y de una serie sólo la más próxima |
 
 Y dentro de ese conjunto, **sólo las que de verdad admiten esa acción** —con la corrección de §4.7:
