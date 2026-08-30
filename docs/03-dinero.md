@@ -205,15 +205,14 @@ sólo cuando ya comprobó que se puede (§7). Por eso esta tabla vive pegada a c
 | Sin dinero adentro | Nada. Se cancela, o se avisa del cargo y se cancela | `cancelar_cierre` · `cancelar_aviso_tardio` |
 | Con dinero adentro, a tiempo, sin próxima viva de su serie | Sólo reprogramarla, y el pago se va con ella | `cancelar_dinero_adentro` |
 | Con dinero adentro, a tiempo, con próxima viva de su serie | Reprogramarla, **o** cancelar ésta y dejar el pago en la próxima | `cancelar_dinero_adentro_con_proxima` |
-| Con dinero adentro, sin tiempo mínimo | Sólo moverla, **diciendo que el pago se queda en ésta y la nueva se cobra aparte** | `cancelar_dinero_adentro_tarde` |
+| Con dinero adentro, sin tiempo mínimo | **Nada. Se cancela**, y el cierre dice el cargo | `cancelar_dinero_adentro_tarde` |
 
-**Fuera de plazo la salida de dejar el pago en la próxima no se ofrece.** Sin tiempo mínimo el pago
-se queda en la cancelada; ofrecerla sería prometerle un traslado que no ocurre, y además dejaría la
-cancelación tardía sin cargo, porque el traslado cierra el cobro viejo como condonado con motivo y en
-Cobros eso se lee «no se cobró». La profesional perdería el cargo que su propia política le concede.
-
-**Y sí se le sigue ofreciendo mover, con el precio por delante.** Ofrecer una salida antes de cancelar
-es más honesto que no ofrecer ninguna, con tal de que la salida diga la verdad.
+**Fuera de plazo no se ofrece nada, y las dos salidas se caen por razones distintas.** Mover no le
+ahorra el cargo: fuera de plazo se cobran las dos sesiones igual, así que ofrecerlo sólo alarga la
+conversación sin mejorarle nada. Y dejar el pago en la próxima **no se puede**: fuera de plazo el
+pago se queda en la cancelada, y trasladarlo cerraría el cobro viejo como condonado con motivo —en
+Cobros eso se lee «no se cobró»— y la profesional perdería el cargo que su propia política le
+concede.
 
 ### 3.4 Movimientos de dinero que el agente no produce
 
@@ -326,7 +325,9 @@ mudarle el dinero.
 
 ### 5.2 Reprogramar sin tiempo mínimo: se cobran las dos sesiones
 
-El aviso lo dice con esas palabras porque eso es lo que pasa:
+**La regla cabe en una línea, igual que la otra: el cobro viejo se queda donde está y la cita nueva
+nace con el suyo.** Y el cobro nuevo se trata según cómo cobre esa profesional, como si fuera una
+cita recién agendada. El aviso lo dice con esas palabras porque eso es lo que pasa:
 
 - **El cobro viejo se congela tal como está** sobre la cita movida. Si estaba pendiente, sigue
   pendiente; si tenía petición de comprobante, la conserva; si tenía archivo, lo conserva; si estaba
@@ -349,7 +350,9 @@ aviso vaya antes de mover y no en el cierre.
 
 ### 5.3 Reprogramar con tiempo mínimo: el cobro nuevo hereda
 
-El cobro viejo se salda como **pasado adelante** y el nuevo nace con lo que el viejo tenía:
+**La regla cabe en una línea: el estado del cobro se pasa tal cual a la cita nueva.** Pendiente sigue
+pendiente, acreditado sigue acreditado, y el comprobante se va con ella. Por dentro, el cobro viejo
+se salda como **pasado adelante** y el nuevo nace con lo que el viejo tenía:
 
 | Estado del cobro viejo | Con qué nace el cobro nuevo |
 |---|---|
@@ -358,12 +361,11 @@ El cobro viejo se salda como **pasado adelante** y el nuevo nace con lo que el v
 | Comprobante pedido, o pendiente desnudo | Pendiente, y manda cómo cobra esa profesional: con petición de comprobante si cobra antes, sin nada si cobra después |
 | Sin costo | Sin costo |
 
-**La petición de comprobante se vuelve a sellar sobre el cobro nuevo cuando la cita nueva sigue
-siendo de prepago y ese cobro nace pendiente**, no cuando el comprobante viajó copiado: ése ya está
-pegado y no se vuelve a pedir. El camino que la base ya tiene sólo la conserva cuando había archivo,
-que es justo el caso contrario al de la cita de prepago que ella todavía no ha pagado. Sin ese
-sellado, el cobro nuevo queda pendiente y sin petición, y la profesional deja de ver «se pidió y no
-ha llegado», que es la señal entera del prepago (§4.1). Ahí el cierre es `reprogramar_cierre_prepago`.
+> **Nota de implementación, no de producto.** El camino que la base ya tiene sólo conserva la
+> petición de comprobante **cuando había un archivo**. Si no lo había —la cita de prepago que ella
+> todavía no ha pagado— el cobro nuevo nace pendiente y sin petición, y la profesional deja de ver
+> «se pidió y no ha llegado», que es la señal entera del prepago (§4.1). Así que hay que volver a
+> sellarla al escribir el cobro nuevo. Ahí el cierre es `reprogramar_cierre_prepago`.
 
 ### 5.4 Por qué congelar y no arrastrar
 
