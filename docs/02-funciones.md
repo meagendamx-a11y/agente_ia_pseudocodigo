@@ -336,9 +336,10 @@ Si dos días traen las mismas horas **se numeran una sola vez** y se dice que so
 Numerarlas dos veces es enseñarle diez opciones que en realidad son cinco. Si difieren, se numeran
 día y hora juntos. El detalle del motor está en `docs/04-horarios.md`.
 
-**La marca de zona va en el encabezado de toda lista de horas, cada vez** —«…tengo estas horas (Hora
-CDMX):»—. No es una frase del cierre: sirve para leer la lista, y para eso tiene que estar antes de
-que escoja.
+**La marca de zona la pone el servidor en todo mensaje que diga una hora**, y la regla de
+composición está en `docs/06-textos.md` §2.0.1. En las listas va dentro del encabezado —«…tengo
+estas horas (Hora CDMX):»— porque ahí tiene que estar **antes** de que escoja, no después. En los
+demás mensajes con hora va como última línea. Ninguna función la escribe dentro de su texto.
 
 **Muta:** no. **Aviso:** ninguno.
 

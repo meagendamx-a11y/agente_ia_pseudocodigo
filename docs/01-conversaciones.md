@@ -87,6 +87,8 @@ de nada**, y de ahí toda la conversación es de esa profesional.
     qué hora?
 
     Tu cita nueva la puedes tomar presencial o en línea, dime también cómo la prefieres.
+
+    Hora CDMX.
 [reprogramar() · 1 de 3 · no muta]
 ```
 
@@ -141,12 +143,16 @@ paciente no tiene dónde deshacerla más que pidiéndolo por aquí.
 >>  la 2
 
 <<  ¿Aparto tu cita del miércoles 2 de septiembre a las 4:00, en línea?
+
+    Hora CDMX.
 [agendar(opcion: 2) · 1 de 3 · no muta]
 
 >>  sí
 
 <<  Listo, Ariadna. Aparté tu Psicoterapia individual del miércoles 2 de septiembre a las 4:00,
     en línea, con Ramiro.
+
+    Hora CDMX.
 [agendar(opcion: 2, confirmado: true) · 1 de 3 · muta · aviso appointment_created_by_patient ·
  cierra]
 ```
@@ -157,9 +163,16 @@ El segundo renglón del menú es un ejemplo puesto a propósito: se llama «Valo
 cuesta $800, para que se vea que **el precio sale del número, nunca del nombre**. Y no se pregunta
 la modalidad porque ese servicio admite una sola.
 
-**La zona horaria va pegada a la lista de horas, cada vez, y no en el cierre.** Son dos palabras
-entre paréntesis y contestan la duda antes de que la tenga. Dicha una sola vez al final, ella
-escogía una hora y se enteraba del huso cuando la cita ya estaba apartada.
+**Todo mensaje que diga una hora lleva su zona, y la pone el servidor al componer.** En las listas
+de horas va dentro del encabezado, entre paréntesis, pegada a donde se leen; en cualquier otro
+mensaje con hora va sola, como última línea. **Y en ningún mensaje sin hora:** si no hay ninguna
+hora que situar, no hay nada que marcar.
+
+Son dos palabras y contestan la duda antes de que la tenga. Dicha una sola vez al final de agendar,
+ella escogía una hora y se enteraba del huso cuando la cita ya estaba apartada; y sin la línea final
+leía «tu cita del miércoles a las 4:00» sin saber de qué reloj le hablaban. Ningún texto la trae
+escrita adentro —así no se puede olvidar en uno solo— y la zona sale de la ficha de la profesional,
+nunca escrita a mano (regla 2). La regla completa está en `docs/06-textos.md` §2.0.1.
 
 ### 1.2 Prepago, con los datos de transferencia llenos — 4 llamadas
 
@@ -189,6 +202,8 @@ escogía una hora y se enteraba del huso cuando la cita ya estaba apartada.
 >>  la 2, el martes
 
 <<  ¿Aparto tu cita del martes 1 de septiembre a las 4:00, en línea?
+
+    Hora CDMX.
 [agendar(opcion: 2, dia: "martes") · 1 de 3 · no muta]
 
 >>  sí
@@ -197,6 +212,8 @@ escogía una hora y se enteraba del huso cuando la cita ya estaba apartada.
     línea, con Lucía. Son $800, y para confirmarla necesito tu comprobante.
 
     Transfiere a {banco}, a nombre de {titular}, CLABE {clabe}, y mándame el comprobante por aquí.
+
+    Hora CDMX.
 [agendar(opcion: 2, dia: "martes", confirmado: true) · 1 de 3 · muta ·
  aviso appointment_created_by_patient · cierra]
 ```
@@ -227,6 +244,8 @@ Es el **mismo texto** con el otro valor del hueco. Cambia sólo el segundo párr
     línea, con Lucía. Son $800, y para confirmarla necesito tu comprobante.
 
     Pídele los datos para la transferencia y mándame el comprobante por aquí.
+
+    Hora CDMX.
 [agendar(opcion: 2, dia: "martes", confirmado: true) · 1 de 3 · muta · cierra]
 ```
 
@@ -447,6 +466,8 @@ futura; de una serie, sólo el de la ocurrencia más próxima.
 
 <<  Listo, recibí tu comprobante. Tu cita del martes 1 de septiembre a las 4:00 ya quedó
     confirmada.
+
+    Hora CDMX.
 [mandar_comprobante(cita: 1) · 1 de 3 · muta · avisos payment_proof_received y
  appointment_confirmed · cierra]
 ```
@@ -556,6 +577,8 @@ deje de escribir. El recordatorio llega solo, por plantilla, desde el trabajo pr
 >>  sí voy
 
 <<  Listo, tu cita del miércoles 2 de septiembre a las 4:00 quedó confirmada.
+
+    Hora CDMX.
 [confirmar() · 1 de 3 · muta · aviso appointment_confirmed · cierra]
 ```
 
@@ -571,6 +594,8 @@ llamada.
 <<  Tu cita del martes 1 de septiembre a las 4:00 se confirma con tu comprobante.
 
     Transfiere a {banco}, a nombre de {titular}, CLABE {clabe}, y mándame el comprobante por aquí.
+
+    Hora CDMX.
 [confirmar() · 1 de 3 · no muta · cierra]
 ```
 
@@ -593,11 +618,15 @@ veces el mismo archivo la hace dudar de que el primero llegó, y la base admite 
 
     1. Miércoles 2, 4:00
     2. Viernes 4, 10:00
+
+    Hora CDMX.
 [confirmar() · 1 de 3 · no muta]
 
 >>  la 1
 
 <<  Listo, tu cita del miércoles 2 de septiembre a las 4:00 quedó confirmada.
+
+    Hora CDMX.
 [confirmar(citas: [1]) · 1 de 3 · muta · cierra]
 ```
 
@@ -644,6 +673,8 @@ está tomando un horario nuevo hoy, así que el corte se recalcula hoy.
     qué hora?
 
     Tu cita nueva la puedes tomar presencial o en línea, dime también cómo la prefieres.
+
+    Hora CDMX.
 [reprogramar() · 1 de 3 · no muta]
 
 >>  el viernes en la mañana, en línea
@@ -659,6 +690,8 @@ está tomando un horario nuevo hoy, así que el corte se recalcula hoy.
 >>  la 2
 
 <<  Listo, moví tu cita al viernes 4 de septiembre a las 10:00, en línea.
+
+    Hora CDMX.
 [reprogramar(opcion: 2) · 1 de 3 · muta · aviso appointment_rescheduled_by_patient · cierra]
 ```
 
@@ -697,6 +730,8 @@ viejo era un pendiente a secas y su profesional cobra por adelantado, el cierre 
 <<  Va, muevo tu cita del jueves 27 de agosto a las 5:00. ¿Qué días te quedan mejor y a qué hora?
 
     Tu cita nueva la puedes tomar presencial o en línea, dime también cómo la prefieres.
+
+    Hora CDMX.
 [reprogramar(confirmado: true) · 1 de 3 · no muta]
 
 >>  ¿tienes mañana?
@@ -712,6 +747,8 @@ viejo era un pendiente a secas y su profesional cobra por adelantado, el cierre 
 >>  la 2
 
 <<  Listo, moví tu cita al sábado 29 de agosto a las 11:00, presencial.
+
+    Hora CDMX.
 [reprogramar(opcion: 2) · 1 de 3 · muta · aviso appointment_rescheduled_by_patient · cierra]
 ```
 
@@ -753,12 +790,16 @@ segunda salida: no buscar hueco nuevo, sino dejarla en esa próxima.
 
 <<  Esa cita es de tus sesiones cada semana. Te busco otro día, o te la paso a tu próxima del
     martes 8 de septiembre a las 4:00 y cancelo ésta. ¿Cuál prefieres?
+
+    Hora CDMX.
 [reprogramar() · 1 de 3 · no muta · la conversación sigue abierta]
 
 >>  pásala a la del 8
 
 <<  Listo, cancelé tu cita del martes 1 de septiembre. Tu próxima sigue en pie, el martes 8 de
     septiembre a las 4:00, y tu pago quedó ahí.
+
+    Hora CDMX.
 [reprogramar(a_la_proxima: true) · 1 de 3 · muta · aviso appointment_cancelled_by_patient · cierra]
 ```
 
@@ -771,7 +812,7 @@ pasaba por la función del dinero, que contestaba «esa cita no tiene ningún pa
 que no hay nada que pasar» justo cuando ella acababa de aceptar lo que le acabábamos de ofrecer.
 Consolidar la serie es una operación de agenda; el dinero se mueve **si lo hay y si alcanza el
 tiempo mínimo**, y si no, el cierre es el mismo sin la última frase: «Listo, cancelé tu cita del
-martes 1 de septiembre. Tu próxima sigue en pie, el martes 8 de septiembre a las 4:00».
+martes 1 de septiembre. Tu próxima sigue en pie, el martes 8 de septiembre a las 4:00. Hora CDMX».
 
 **Pasar el pago a una ocurrencia que ya existe no toca la anticipación mínima**, porque ahí no se
 está tomando ningún horario nuevo: se está usando uno que ya estaba apartado.
@@ -788,7 +829,7 @@ le dice que por aquí se mueve la más próxima y que las demás las ajusta su p
 app. Ninguno de los dos es un error, y los dos ofrecen algo.
 
 Y si después del aviso tardío dice que no: «Va, la dejo como está: tu cita del jueves 27 de agosto
-a las 5:00 sigue en pie». Con `hecho: false` y cierra.
+a las 5:00 sigue en pie. Hora CDMX». Con `hecho: false` y cierra.
 
 ### 4.5 La cita dejó de estar donde estaba — 1 llamada
 
@@ -800,6 +841,8 @@ cancelarla, moverla o cerrarla desde su app.
 
 <<  Esa cita se movió mientras hablábamos: ahora es el viernes 4 de septiembre a las 10:00. ¿Te la
     muevo desde ahí?
+
+    Hora CDMX.
 [reprogramar(opcion: 2) · 1 de 3 · no muta · la conversación sigue abierta]
 ```
 
@@ -823,6 +866,8 @@ cargo, y lo único que cambia es qué se le ofrece antes.
 
 <<  Listo, cancelé tu cita del sábado 29 de agosto a las 11:00. No te queda ningún cobro
     pendiente por ella.
+
+    Hora CDMX.
 [cancelar() · 1 de 3 · muta · aviso appointment_cancelled_by_patient · cierra]
 ```
 
@@ -846,6 +891,8 @@ primera línea en tres sitios es cómo se separan.
 >>  sí, cancélala
 
 <<  Listo, cancelé tu cita del jueves 27 de agosto a las 5:00.
+
+    Hora CDMX.
 [cancelar(confirmado: true) · 1 de 3 · muta · cierra]
 ```
 
@@ -856,7 +903,8 @@ nadie. Aquí el cierre no lleva coletilla: el cargo ya se avisó antes, y repeti
 **En ningún caso se cobra solo.** La cancelación deja la decisión de cobro abierta, y quien la cobra
 o la condona es la profesional desde su app.
 
-Si dice que mejor no: «Va, no la cancelo: tu cita del jueves 27 de agosto a las 5:00 sigue en pie».
+Si dice que mejor no: «Va, no la cancelo: tu cita del jueves 27 de agosto a las 5:00 sigue en pie.
+Hora CDMX».
 
 ### 5.3 Con dinero adentro y a tiempo: dos salidas primero — 3 llamadas
 
@@ -887,6 +935,8 @@ más, **una vez y sólo una**.
 >>  la 1
 
 <<  Listo, moví tu cita al miércoles 2 de septiembre a las 3:00, en línea.
+
+    Hora CDMX.
 [reprogramar(opcion: 1) · 1 de 3 · muta · cierra]
 ```
 
@@ -941,6 +991,8 @@ ofreció esa salida, porque el único texto que la menciona es el suyo.
 
 <<  Listo, cancelé tu cita del martes 1 de septiembre a las 4:00. Tu pago quedó en tu sesión del
     martes 8 de septiembre a las 4:00.
+
+    Hora CDMX.
 [cancelar(pasa_el_pago: true) · 1 de 3 · muta · aviso appointment_cancelled_by_patient · cierra]
 ```
 
@@ -960,6 +1012,8 @@ porque eso es lo que de verdad le pasa y callarlo la dejaría creyendo que sigue
 <<  Ya no pude dejar el pago en tu próxima sesión, así que no cancelé nada: tu cita del martes 1
     de septiembre a las 4:00 sigue en pie. Lucía lo acomoda contigo. ¿Te la muevo de día, o te la
     cancelo?
+
+    Hora CDMX.
 [cancelar(pasa_el_pago: true) · 1 de 3 · no muta · la conversación sigue abierta]
 ```
 
@@ -978,6 +1032,8 @@ app, que es donde se ajustan los importes.
 
 <<  Listo, cancelé tu cita del martes 1 de septiembre a las 4:00. Tu pago queda registrado y
     Lucía lo resuelve contigo.
+
+    Hora CDMX.
 [cancelar(confirmado: true) · 1 de 3 · muta · aviso appointment_cancelled_by_patient · cierra]
 ```
 
@@ -1010,11 +1066,15 @@ no se cambia. Y no toca dinero nunca: ni el cobro, ni su estado, ni su petición
 
 <<  Sí. Tu cita del miércoles 2 de septiembre a las 4:00 pasaría de presencial a en línea.
     ¿La cambio?
+
+    Hora CDMX.
 [cambiar_modalidad() · 1 de 3 · no muta]
 
 >>  sí
 
 <<  Listo, tu cita del miércoles 2 de septiembre a las 4:00 queda en línea.
+
+    Hora CDMX.
 [cambiar_modalidad(confirmado: true) · 1 de 3 · muta · aviso modality_changed_by_patient · cierra]
 ```
 
@@ -1113,6 +1173,8 @@ cuarto.
     2. Viernes 4 de septiembre, 10:00 — en línea
 
     ¿Qué necesitas? Te las puedo mover, cancelar o confirmar.
+
+    Hora CDMX.
 [mis_citas(sobre: "citas") · 1 de 3 · no muta · cierra]
 ```
 
@@ -1130,6 +1192,8 @@ dice y ofrece: «Ahorita no tienes ninguna cita con Lucía. ¿Te busco día para
 
 <<  Tu cita del miércoles 2 de septiembre a las 4:00 es presencial. La dirección te la comparte
     Lucía directamente.
+
+    Hora CDMX.
 [mis_citas(sobre: "donde") · 1 de 3 · no muta · cierra]
 ```
 
@@ -1309,6 +1373,8 @@ era**; se contesta esto y ella lo vuelve a decir con palabras.
 <<  Listo, cancelé tu cita del martes 1 de septiembre a las 4:00. No te queda ningún cobro
     pendiente por ella.
 
+    Hora CDMX.
+
     De lo otro que me pediste hablamos en cuanto me lo vuelvas a escribir.
 [cancelar() · 1 de 3 · muta · el segundo párrafo vive en el prompt · cierra]
 ```
@@ -1318,6 +1384,10 @@ pendiente**, que es lo que antes no podía hacer: se contestaba una y de la otra
 palabra. Pegar ese párrafo al final es la **única excepción** a copiar el texto de la función sin
 agregar nada antes ni después, y está escrita como excepción justo para que no se lea como permiso
 general.
+
+**Y va después de la marca de zona, no antes.** La marca cierra el texto que compuso la función;
+lo que el prompt agrega viene detrás. Si se colara en medio, la marca dejaría de leerse como parte
+de lo que la función dijo.
 
 ### Se acabó el espacio — 0 llamadas
 
@@ -1355,6 +1425,8 @@ existe para cortar.
 
 <<  Hola Emilio. Sobre tu cita del martes 1 a las 4:00: te la puedo mover, cancelar o confirmar.
     ¿Cuál prefieres?
+
+    Hora CDMX.
 [mis_citas(sobre: "citas") · 1 de 3 · no muta · cierra]
 ```
 

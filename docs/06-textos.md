@@ -190,6 +190,32 @@ llamar.
 | `{banco}` · `{titular}` · `{clabe}` | Los datos de transferencia del perfil, sólo dentro de `{como_pagar}` |
 | `{direccion}` | Dónde es |
 
+### 2.0.1 La marca de zona horaria la pone el servidor, no el texto
+
+**Todo mensaje que diga una hora lleva su zona.** Son veintiséis textos y ninguno la trae escrita
+adentro: la pone el servidor al componer, con una sola regla, para que no haya que acordarse
+veintiséis veces.
+
+**En las listas de horas va en el encabezado**, entre paréntesis, pegada a donde se leen las horas:
+
+> Para el {dia}, {modalidad}, tengo estas horas ({zona}):
+
+**En cualquier otro mensaje con hora va como última línea**, sola:
+
+> Listo, {paciente}. Aparté tu {servicio} del {dia} a las {hora}, {modalidad}.
+>
+> {zona}
+
+**Y no va en ningún mensaje sin hora.** Un «no tengo ninguna cita tuya por cancelar» no lleva
+marca: no hay ninguna hora que situar.
+
+La zona sale de la ficha de la profesional, nunca escrita a mano — es la regla 2, la misma de los
+plazos. **La cita ocurre donde está ella**, así que su hora es la que manda, y la marca existe
+justo para que la paciente que vive en otro huso no tenga que adivinarlo. Los avisos automáticos y
+la app de la profesional usan esa misma zona, así que todo lo que ella lee coincide.
+
+---
+
 `{como_pagar}` tiene **exactamente dos valores**, y los escoge el servidor según el perfil:
 
 - Con datos de transferencia guardados: «Transfiere a {banco}, a nombre de {titular}, CLABE
@@ -387,8 +413,8 @@ Lo que confirma esta cita es el comprobante, no el reloj: por eso se pide igual 
 tres horas. Lo único que cambia dentro de la ventana del aviso es que **no se le encola el
 recordatorio**, para que no reciba por plantilla lo que acaba de leer aquí.
 
-**Ninguno de los dos cierres lleva la marca de zona horaria** —ya iba pegada a la lista donde
-escogió— y **ninguno pone plazo al comprobante ni amenaza con cancelar.** Nada cancela citas solo:
+**Los dos cierres llevan la marca de zona horaria** como última línea, igual que todo mensaje que
+diga una hora (§2.0.1). Y **ninguno pone plazo al comprobante ni amenaza con cancelar.** Nada cancela citas solo:
 la cita queda apartada y sin confirmar, con el comprobante pedido, y ahí se queda hasta que llegue.
 La profesional ve en su app que se pidió y no ha llegado. El monto se dice en la de prepago y no en
 la de cobro después: donde hay que transferir, callar la cantidad sería inútil.

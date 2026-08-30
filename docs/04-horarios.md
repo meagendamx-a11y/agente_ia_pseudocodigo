@@ -391,13 +391,22 @@ paciente que está en otro huso escoge una hora y se entera del horario **despu�
 está apartada**: tarde. La marca sirve para leer la lista, no para cerrar la gestión, así que va
 donde hay algo que escoger.
 
-**Dónde va.** En toda lista de horas: `horarios_lista`, `horarios_lista_compartida`,
-`horario_ocupado` y cuatro de los cinco `sin_hueco_*`. El quinto,
-`sin_hueco_dias_que_no_trabaja`, propone días sin horas, así que no lleva marca: no hay ninguna
-hora que situar. Al mover una cita las listas son estas mismas, porque las compone
-`buscar_horarios`. Y **en ningún cierre**: los cierres de `agendar` ya no llevan la frase «las
-horas te las doy en horario de {zona}», porque ahí ya no queda nada que escoger. Los textos están
-en `docs/06-textos.md`.
+**Dónde va: en todo mensaje que diga una hora.** Son veintiséis textos, y la regla de
+composición está en `docs/06-textos.md` §2.0.1. En resumen:
+
+- **En las listas de horas**, dentro del encabezado y entre paréntesis, pegada a donde se leen:
+  `horarios_lista`, `horarios_lista_compartida`, `horario_ocupado` y cuatro de los cinco
+  `sin_hueco_*`. Al mover una cita las listas son estas mismas, porque las compone
+  `buscar_horarios`.
+- **En los demás mensajes con hora**, como última línea, sola. Los cierres de `agendar`, de
+  `reprogramar`, de `cancelar` y de `confirmar` la llevan, y también las respuestas de
+  `mis_citas`. Antes no la llevaban y estaba mal: una paciente en otro huso leía «tu cita del
+  miércoles a las 4:00» sin saber de qué reloj le hablaban.
+- **En ningún mensaje sin hora.** Un «no tengo ninguna cita tuya por cancelar» no lleva marca: no
+  hay nada que situar. Y `sin_hueco_dias_que_no_trabaja` tampoco, porque propone días, no horas.
+
+**No la escribe el texto, la pone el servidor al componer.** Si cada uno de los veintiséis la
+trajera escrita adentro, bastaría olvidarla en uno para que ese mensaje mintiera en silencio.
 
 **Es corta a propósito.** El hueco `{zona}` es «Hora CDMX», no «la Ciudad de México»: así cabe al
 final del encabezado sin convertir cada respuesta en un formulario. Cuando la ficha tiene otra
