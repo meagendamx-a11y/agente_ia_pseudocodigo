@@ -323,6 +323,53 @@ vuelvan a divergir: ya pasó una vez y quien copiara esta versión escribiría e
 `whatsapp_inbound_messages`. Queda dicho a propósito: treinta días de conversaciones de terapia es
 una postura, no un accidente de la tabla.
 
+**La memoria cuelga del teléfono, y el teléfono se puede mover.** La paciente puede cambiar de
+número: su profesional lo actualiza en la app y un disparador reescribe la fila del vínculo. Si eso
+pasa a media conversación, **la memoria se queda huérfana** y ella tiene que repetir lo último que
+dijo. Se acepta a propósito y no se compensa: pasa muy poco, lo que se pierde es una pregunta, y
+seguir la conversación a través de un cambio de número obligaría a colgarla de la paciente —que es
+justo lo que no existe cuando el teléfono no se reconoce, que es cuando más falta hace resolver la
+identidad—. La fila vieja se limpia sola al caducar a las 24 horas.
+
+---
+
+## 7.1 Los dos índices que el sobre necesita
+
+El sobre se arma con **una sola lectura** en cada mensaje, y no se guarda en ningún lado. La razón
+no es el costo —medido contra la base desplegada: 5.1 milisegundos, todo desde memoria— sino que
+guardarlo sería mentir en cuanto algo cambie. La profesional sube un precio, activa un servicio,
+cambia su plazo, llena sus datos de banco; la paciente se da de baja; sale una plantilla. Cada una
+de esas cosas obligaría a acordarse de invalidar el sobre en cada sitio que toca esas tablas —las
+funciones de la app, los trabajos programados, los disparadores—, y olvidar uno solo hace que el
+agente cotice un precio viejo sin dar ningún síntoma.
+
+**La regla que separa las dos cosas, y vale para todo el diseño:** lo que se puede volver a deducir
+de la base se lee fresco; lo que sólo existe por la conversación se guarda, porque no se puede
+recalcular.
+
+Pero esa lectura sólo se mantiene barata con dos índices que hoy no existen. Los dos se vieron en
+el plan de ejecución de la consulta real:
+
+**Uno, el vínculo por teléfono.** Hoy la búsqueda recorre la tabla entera en cada mensaje. Con
+diecinueve renglones da igual; con veinte mil, es un recorrido completo por cada mensaje que entra.
+
+    create index ix_whatsapp_links_phone on public.whatsapp_links (phone);
+
+`phone` **es una columna que cambia** —el disparador la reescribe cuando la profesional corrige el
+número de la paciente—, así que el índice se actualiza en esa escritura. No es un problema: cambiar
+de teléfono es raro y el costo cae en quien lo cambia, no en cada mensaje que llega.
+
+**Dos, la última plantilla.** Buscarla se llevaba **la mitad del tiempo total** —2.5 de los 5.1
+milisegundos— porque busca dentro del contenido del mensaje sin nada que la ayude. Es la parte que
+peor envejece: crece con todos los mensajes que se hayan mandado nunca, no con los de esa paciente.
+
+    create index ix_whatsapp_outbox_patient_sent
+      on public.whatsapp_outbox ((payload->>'patient_id'), sent_at desc)
+      where status = 'sent';
+
+**Los dos van en la misma migración que la tabla de memoria**, no sueltos. Y los dos son
+añadidos: no tocan ninguna fila ni cambian el comportamiento de nada que ya funcione.
+
 ---
 
 ## 8. Kapso: qué se configura y qué no se toca
