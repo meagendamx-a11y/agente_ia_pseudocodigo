@@ -1,605 +1,503 @@
 # 08 · La implementación
 
-Corte: 2026-08-29.
+Corte de auditoría: 2026-09-01.
 
-Este archivo dice **qué hay que construir, en qué orden, y cómo se prueba antes de que lo toque
-una paciente**. Cómo se comporta el agente está en `docs/01-conversaciones.md` y
-`docs/02-funciones.md`; los textos, en `docs/06-textos.md`; el recorrido de un mensaje por dentro,
-en `docs/07-portero.md`.
-
-Los nombres de personas que aparecen aquí son **inventados y sirven de ejemplo**. Ningún dato de
-producción se cita en este repositorio.
+Este archivo separa lo comprobado, lo ya realizado y lo que falta construir. No contiene una
+migración ejecutable. Antes de implementar se vuelve a consultar el proyecto de Supabase y la
+documentación oficial de Kapso.
 
 ---
 
-## 1. Lo que hay que construir, en una página
+## 1. Decisiones cerradas
 
-El modelo corre en nuestro código. Kapso queda como mensajería: guarda el número, guarda las
-plantillas, entrega lo que llega y manda lo que le damos. No hay flujo de trabajo, no hay nodo de
-agente, no hay funciones ni formularios de su lado.
+- El MVP usa un workflow de Kapso y su Agent Node.
+- El modelo es `gpt-5.6-luna`, temperatura cero.
+- `message_delivery_mode` es `tool_only`.
+- La identidad se resuelve de forma determinista antes del modelo.
+- `not_patient` e `inactive_patient` son estados y mensajes distintos.
+- Kapso y WhatsApp entregan BSUID; la paciente no lo captura.
+- Sólo se pide compartir contacto cuando un BSUID nuevo no puede ligarse sin teléfono.
+- El Agent Node llama herramientas; el modelo nunca recibe UUID.
+- La RPC redacta el texto final y el agente lo manda literalmente, salvo la única coletilla
+  autorizada de `pendiente_lo_otro`.
+- En el MVP se acepta el pequeño costo de tokens de esa copia para no duplicar transporte e
+  idempotencia.
+- La conversación pendiente vive en `enter_waiting`; no se crea memoria propia.
+- `whatsapp_outbox` sigue atendiendo plantillas y avisos iniciados por el negocio, no el chat.
+- Las mutaciones usan `command_id` interno y bloqueos transaccionales cortos.
+- No se crea cron de recuperación ni agente OpenAI dentro de Supabase.
 
-De ahí salen cuatro frentes y ninguno depende de Kapso para existir.
+---
 
-| Frente | Qué se construye | Sin esto no arranca |
+## 2. Estado comprobado de la base
+
+### 2.1 `whatsapp_links`
+
+La tabla vigente ya tiene:
+
+- relación con paciente y profesional;
+- `phone` obligatorio;
+- `kapso_contact_id`;
+- `business_portfolio_id`;
+- `business_scoped_user_id`;
+- `parent_business_scoped_user_id`;
+- `whatsapp_username`;
+- `last_inbound_at`;
+- marcas de creación y actualización.
+
+También conserva sus restricciones de relación y sus índices por teléfono, contacto de Kapso y
+portafolio/BSUID. RLS está habilitado y no se abre al cliente. Se mantiene como tabla interna.
+
+**Ya realizado:** el índice único parcial por
+`(professional_id, business_portfolio_id, business_scoped_user_id)` cuando BSUID no es nulo. No
+forma parte de los pendientes de esta guía.
+
+No se hace nullable `phone`. Esta tabla no es un directorio genérico de contactos: representa una
+relación local que ya tiene paciente.
+
+### 2.2 Objetos relacionados
+
+- `reviews` existe: `dejar_resena` sí forma parte del MVP.
+- `command_log` existe y se reutiliza para idempotencia.
+- `agent_sessions` no existe en el proyecto auditado y no se crea para este MVP; se usa un
+  `identity_token` corto sellado por Supabase y cada herramienta revalida la relación.
+- `whatsapp_outbox` existe y no se modifica para responder conversaciones.
+- `whatsapp_inbound_messages` existe; se deja intacta por compatibilidad legacy y auditoría, pero no
+  es la memoria ni la guardia del workflow nuevo.
+- `whatsapp_conversation_state` no existe y no debe crearse.
+- `agent_tool_gateway` está desplegada y se adecuará como frontera privada, sin OpenAI.
+- `kapso_inbound_webhook` sigue desplegada, pero la versión vigente es phone-first y rechaza
+  batches; no se considera fallback. Durante el corte se desconecta y permanece apagada.
+- Las diez RPC con los contratos de `docs/02-funciones.md` todavía deben implementarse o adecuarse.
+
+El bucket `comprobantes` es privado y admite JPEG/PNG/WebP de hasta 5 MiB. `payment_proofs` exige
+`payment_id` único, ruta, MIME, tamaño y checksum. Por eso HEIC/HEIF y PDF se normalizan en servidor;
+no se amplía el bucket ni se cambia el visor para el MVP.
+
+---
+
+## 3. Primer cambio: teléfono e identidad de proveedor
+
+La rutina vigente `tg_patients_whatsapp_link_phone_au`, activada después de actualizar
+`patients.phone`, sincroniza el nuevo teléfono en `whatsapp_links` y exige que se actualice la fila
+esperada. Hoy no invalida la identidad de proveedor.
+
+Debe adecuarse para que, **sólo cuando el teléfono cambie realmente**, haga una sola actualización:
+
+```text
+si NEW.phone es distinto de OLD.phone:
+    actualizar whatsapp_links WHERE patient_id = NEW.id
+    phone = NEW.phone
+    kapso_contact_id = null
+    business_portfolio_id = null
+    business_scoped_user_id = null
+    parent_business_scoped_user_id = null
+    whatsapp_username = null
+    last_inbound_at = null
+    updated_at = ahora del servidor
+
+    exigir exactamente la fila esperada
+si el teléfono no cambió:
+    no invalidar nada
+```
+
+Motivo: el teléfono nuevo no prueba que conserve el mismo contacto de WhatsApp. Mantener el BSUID
+anterior autorizaría a una identidad que ya no corresponde. En el siguiente mensaje entrante,
+`resolve_whatsapp_identity` vuelve a poblar los campos si teléfono y BSUID coinciden.
+
+Este cambio no borra la relación, no crea una nueva fila y no toca datos de agenda. Se prueba con
+tres casos: mismo teléfono, teléfono distinto y error de integridad.
+
+Se conserva su frontera vigente: función `SECURITY DEFINER`, `search_path` vacío, referencias
+cualificadas y ejecución sólo para `service_role`; no se abre a `PUBLIC`, `anon` ni
+`authenticated`.
+
+---
+
+## 4. Function Node de identidad
+
+Construir `resolve_whatsapp_identity` con el contrato de `docs/07-portero.md`:
+
+```text
+entrada confiable:
+    phone_number_id receptor
+    kapso_contact_id
+    telefono, si existe
+    business_scoped_user_id, si existe
+    parent_business_scoped_user_id, si existe
+    whatsapp_username, si existe
+    seleccion de profesional, si el workflow estaba esperando una
+    identity_token pendiente, si estaba resolviendo contacto o profesional
+
+obtener business_portfolio_id desde configuracion del servidor
+
+buscar por portafolio + BSUID
+si no resuelve, buscar por contacto Kapso y validar su estado actual antes de reconciliar BSUID
+si no resuelve y hay telefono, normalizar E.164 y buscar por telefono
+
+si telefono y BSUID contradicen relaciones locales:
+    identity_conflict
+si falta telefono para ligar un BSUID nuevo:
+    emitir identity_token ligado al BSUID y conversacion
+    enviar request_contact_info con recipient = BSUID, nunca con to
+    needs_contact
+si llega contacts como respuesta:
+    exigir from_user_id igual al BSUID pendiente
+    exigir exactamente un contacto origin = contact_request
+    exigir telefono y wa_id coherentes; rechazar origin = other
+si no existe relacion despues de una resolucion valida:
+    not_patient
+si existe pero no esta activa:
+    inactive_patient
+si hay varias relaciones activas y ninguna seleccion valida:
+    needs_professional
+si existe una sola relacion activa:
+    completar metadatos de proveedor de forma idempotente
+    actualizar last_inbound_at de forma monotona con timestamp confiable
+    devolver nombre visible y verbos permitidos por su configuracion
+    emitir identity_token ligado a link.updated_at, conversacion y caducidad
+    identified
+```
+
+El mapeo `phone_number_id → business_portfolio_id` vive en configuración de servidor. Para el MVP
+de un solo número puede ser una sola variable validada al arrancar. No se deriva del contenido que
+manda la paciente.
+
+`user_changed_number` y `user_changed_user_id` no se envían al Agent Node. Kapso reconcilia su
+contacto y el siguiente inbound permite actualizar la copia local mediante `kapso_contact_id`. El
+parser acepta que falten campos telefónicos; nunca crea un vínculo sólo porque apareció un BSUID.
+
+La Function Node no consulta Postgres ni porta `service_role`: llama la ruta privada `/identity` de
+`agent_tool_gateway`. Conserva el batch original mientras espera contacto o profesional y, al
+resolver, entrega al Agent Node el texto/tipo visibles y los identificadores de medio sellados; no
+entrega la tarjeta de contacto ni UUID. `last_inbound_at` usa el timestamp confiable del proveedor y
+`greatest(valor_actual, recibido)` para no retroceder. Antes de seleccionar profesional se actualiza
+en todas las relaciones locales que coincidan con la identidad; un status webhook nunca lo cambia.
+
+La salida para `identified` guarda la relación resuelta en contexto confiable del workflow. Sus UUID
+no se interpolan en el prompt ni en el esquema de herramientas y `get_variable` permanece
+deshabilitada. Las opciones que nazcan después dentro de una herramienta se guardan como estado
+sellado, según `docs/07-portero.md` §6.1.
+
+### 4.1 Compatibilidad saliente con BSUID
+
+No se reemplaza `whatsapp_outbox` ni se vuelve nullable `whatsapp_links.phone` para el MVP. El
+sender vigente continúa con `{to: phone}` mientras exista teléfono. Se deja preparado y probado el
+contrato alternativo `{recipient: business_scoped_user_id}` para una futura fila sin teléfono,
+validando siempre el portafolio; un BSUID nunca se coloca en `to` y no se usa `recipient` para
+plantillas de autenticación. El parser de status acepta `recipient_user_id` sin `recipient_id` y lo
+usa sólo para correlación, nunca para crear una relación.
+
+`needs_contact` sí usa hoy `{recipient: business_scoped_user_id}` para enviar la solicitud
+interactiva porque todavía no conoce teléfono; es una respuesta del workflow, no una plantilla del
+outbox.
+
+---
+
+## 5. Las diez RPC
+
+Implementar o adecuar, en este orden:
+
+1. `ver_servicios`
+2. `buscar_horarios`
+3. `mis_citas`
+4. `agendar`
+5. `confirmar`
+6. `reprogramar`
+7. `cancelar`
+8. `cambiar_modalidad`
+9. `mandar_comprobante`
+10. `dejar_resena`
+
+Las lecturas se terminan primero para validar identidad, forma y textos antes de habilitar
+mutaciones. Cada RPC sigue este esqueleto:
+
+```text
+validar tipos y valores de argumentos
+resolver de nuevo whatsapp_link, paciente y profesional desde contexto interno
+comprobar que la relacion sigue activa y que el recurso pertenece a esa relacion
+
+si es lectura:
+    leer en zona de la profesional
+    componer texto
+    construir next_state interno si falta continuar
+    devolver {result:{texto, espera, hecho:false, cierra}, next_state}
+
+si esta rama realmente puede escribir:
+    reclamar command_id en command_log con INSERT ON CONFLICT + SELECT FOR UPDATE
+    comparar command_type y request_hash; cualquier diferencia falla cerrada
+    si ya termino, devolver su resultado guardado
+    bloquear solo las filas necesarias dentro de la transaccion
+    volver a comprobar estado y reglas
+    si la regla permite escribir:
+        escribir la mutacion y el aviso a la profesional
+        volver a leer el resultado
+        hecho = true
+    si la regla no permite escribir:
+        hecho = false
+    guardar resultado y completed_at del comando en la misma transaccion
+    devolver {result:{texto, espera, hecho, cierra}, next_state}
+```
+
+El contrato exacto de parámetros, candidatos y textos vive en `docs/02-funciones.md`. Ninguna RPC
+confía en una cita, paciente o profesional elegidos por el modelo.
+
+`mandar_comprobante` además bloquea el pago y verifica en `storage.objects` el bucket, la ruta
+`professional_id/payment_id/object_uuid.ext`, MIME, tamaño, SHA-256 guardado en metadata y
+existencia antes de insertar la fila única de `payment_proofs` con su `checksum` obligatorio.
+
+Todas las RPC del agente son exclusivas de servidor: `REVOKE EXECUTE` a `PUBLIC`, `anon` y
+`authenticated`, y `GRANT EXECUTE` sólo a `service_role`. Si usan `SECURITY DEFINER`, pertenecen a
+un rol dueño dedicado, llevan `SET search_path = ''` y cualifican cada objeto. Después de la
+migración se ejecutan los advisors de seguridad y rendimiento de Supabase.
+
+---
+
+## 6. `agent_tool_gateway`
+
+Adecuar la Edge Function existente; no crear un segundo agente.
+
+```text
+POST solamente
+validar HMAC-SHA-256(timestamp + nonce + hash del cuerpo canonico)
+comparar en tiempo constante, rechazar timestamp vencido y soportar rotacion de secreto
+limitar tamaño y parsear JSON
+si ruta = /identity:
+    ejecutar sólo resolve_whatsapp_identity y devolver estado + identity_token
+si ruta = /tool:
+    validar operacion fija del adaptador contra las diez permitidas
+
+leer del contexto confiable:
+    identity_token sellado
+    WAMID y conversacion
+    medio, si aplica
+
+abrir identity_token y revalidar link.updated_at, actividad, paciente y profesional
+
+leer de input solamente los argumentos publicos del contrato
+rechazar claves extra, objetos anidados y cualquier UUID
+
+si la rama ya puede escribir:
+    obtener los whatsapp_message_id estables del batch o reanudacion actual
+    ordenar y deduplicar los identificadores
+    derivar UUIDv5 = namespace(version + relacion + mensajes), sin operacion
+    derivar request_hash de operacion + argumentos canonicos + paso sellado
+
+si hay comprobante sin confirmacion:
+    obtener URL fresca por el identificador de medio
+    fijar HTTPS/host permitido/redirects y descargar con limite
+    validar MIME, firma magica, dimensiones y tamano
+    normalizar HEIC/HEIF o PDF de una pagina a JPEG
+    no guardar; conservar el identificador sólo dentro del estado privado
+
+si hay comprobante confirmado:
+    abrir el identificador desde el estado sellado
+    obtener URL fresca, descargar y validar de nuevo
+    normalizar a JPEG/PNG/WebP de hasta 5 MiB
+    usar ruta professional_id/payment_id/UUIDv5(command_id).ext
+    subir create-only; si existe, exigir checksum/MIME/tamano identicos
+    si la RPC no lo liga, borrar; si falla, encolar storage_cleanup_payment_proofs
+
+llamar la RPC fija de la operacion
+validar {texto, espera, hecho, cierra}
+construir next_state interno sólo si la gestión sigue abierta
+sellar next_state dentro del gateway con clave de Supabase
+devolver al adaptador {result, state_token}
+```
+
+Las credenciales de Supabase permanecen en servidor. Los errores internos se registran con un ID
+de correlación, sin devolver secretos ni SQL al Agent Node.
+
+---
+
+## 7. Adaptadores de Kapso y herramientas
+
+Una Function Tool de Kapso recibe automáticamente el contexto completo; por eso se prefiere sobre
+pedir al modelo que pase teléfono, BSUID o medios.
+
+Crear diez adaptadores mínimos, uno por operación. Comparten implementación y sólo fijan el nombre
+de operación antes de llamar `agent_tool_gateway`. El modelo controla `input`; no controla la
+operación real ni el contexto.
+
+Cada herramienta declara únicamente sus argumentos de negocio públicos. No aparecen:
+
+- UUID;
+- `patient_id` o `professional_id`;
+- BSUID o teléfono;
+- `command_id`;
+- URL o ID interno de un comprobante;
+- fecha actual o zona horaria.
+
+La respuesta privada del gateway al adaptador es `{result, state_token}`. `result` conserva las
+cuatro claves públicas; `state_token` ya contiene cifradas y autenticadas las opciones y recursos
+internos necesarios para continuar. El adaptador valida `result` y devuelve al Agent Node las
+cuatro claves junto con `vars.agent_state = state_token`. Si la gestión termina, limpia esa
+variable. El adaptador nunca recibe la clave de sellado.
+
+En la siguiente llamada el adaptador toma `vars.agent_state` de `execution_context` y lo reenvía al
+gateway sin abrirlo. El gateway valida firma, versión, conversación, profesional y caducidad, y
+recupera el contexto interno. Nunca acepta el estado desde `input`. El secreto para llamar al
+gateway es específico del workflow; la clave de sellado y la `service_role` sólo viven dentro de
+Supabase.
+
+---
+
+## 8. Configuración del workflow
+
+1. Trigger de mensajes entrantes para el número autorizado.
+2. Agrupamiento de cinco segundos.
+3. Function Node `resolve_whatsapp_identity`.
+4. Decide Node con los seis estados de identidad.
+5. Solicitud de contacto por `recipient: BSUID`, espera y validación estricta de
+   `origin: contact_request` para `needs_contact`.
+6. Lista fija y espera para `needs_professional`.
+7. Envío directo de `no_te_reconocemos`, `paciente_inactivo` o `fuera_de_alcance` para los cierres
+   deterministas.
+8. Compuerta determinista de medios: si el lote sólo trae formatos incompatibles, compone
+   `no_entendi` con los verbos permitidos y espera; si además hay texto entendible, ignora el medio
+   y conserva una sola respuesta.
+9. Agent Node para `identified` con texto o medio compatible.
+
+Configuración del Agent Node:
+
+```text
+model = gpt-5.6-luna
+temperature = 0
+message_delivery_mode = tool_only
+sandbox = false
+default tools = send_notification_to_user, enter_waiting, complete_task
+function tools = las diez herramientas de dominio
+```
+
+El límite de iteraciones se fija conservadoramente después de pruebas; no se usa como regla de
+negocio. La regla funcional es una herramienta de dominio por batch.
+
+---
+
+## 9. Prompt
+
+Usar el prompt de `docs/05-prompt.md`. Sus prohibiciones principales:
+
+- no calcular;
+- no inventar ni reescribir `texto`;
+- no aceptar identificadores;
+- no llamar más de una herramienta de dominio por batch;
+- no afirmar éxito sin `hecho: true`;
+- llamar `enter_waiting` cuando falta una respuesta;
+- llamar `complete_task` cuando terminó.
+
+Saludo o agradecimiento con intención directa ejecuta esa intención. Sin intención directa, se
+pregunta en qué puede ayudar y se espera. No se convierte automáticamente todo “hola” o “gracias”
+en `mis_citas`.
+
+---
+
+## 10. Pruebas antes del número real
+
+### 10.1 Identidad
+
+- BSUID conocido sin teléfono: `identified`.
+- BSUID desconocido sin teléfono: `needs_contact`.
+- Contacto compartido que coincide: completa campos y continúa.
+- `origin: other`, `from_user_id` distinto, varios teléfonos o `wa_id` incoherente: no liga y vuelve
+  a solicitar el contacto nativo.
+- Contacto compartido que no coincide: `not_patient` y no inserta vínculo.
+- Vínculo existente inactivo: `inactive_patient`, nunca `not_patient`.
+- Dos relaciones activas: `needs_professional`.
+- Teléfono y BSUID incompatibles: `identity_conflict`, sin sobrescritura.
+- Cambio manual de teléfono: limpia todos los campos de proveedor.
+- Índice único: rechaza dos identidades iguales dentro de la misma relación profesional.
+- Rotación de BSUID con el mismo contacto Kapso: reconcilia en el siguiente inbound sin duplicar.
+- Status sólo BSUID: correlaciona entrega y no crea `whatsapp_links`.
+- Envío por teléfono usa `to`; el contrato alternativo por BSUID usa `recipient`, nunca ambos.
+- Tras `needs_contact` o `needs_professional`, el Agent Node recibe el batch original y no sólo la
+  tarjeta o la selección.
+
+### 10.2 Herramientas y RPC
+
+- Las tres lecturas con relaciones activas, inactivas y ajenas.
+- `dejar_resena`: relación activa, al menos una cita atendida, unicidad, `pending`, comentario como
+  texto; rechazo inelegible, cross-tenant y replay.
+- Cada mutación repetida con el mismo `command_id`: un solo efecto y el mismo resultado.
+- Mismo `command_id` con payload distinto o segunda herramienta mutante para el mismo batch:
+  `COMMAND_PAYLOAD_MISMATCH` y ningún segundo efecto.
+- El mismo batch conserva los mismos WAMID durante un reintento de herramienta. Si no se demuestra,
+  las mutaciones no se habilitan.
+- Respuesta perdida después del commit: el reintento no repite la mutación.
+- Dos intentos por el mismo horario: una escritura y una respuesta de horario ocupado.
+- Aviso a la profesional falla: toda la mutación revierte.
+- UUID o clave extra en `input`: rechazo antes de la RPC.
+- Estado sellado alterado, vencido o reproducido en otra conversación: no muta y vuelve a preguntar.
+- `opcion` o `confirmado` contra otra `pending_tool`, paso o acción: rechazo; una intención nueva no
+  hereda el estado anterior.
+- JPEG, PNG y WebP válidos de hasta 5 MiB.
+- HEIC/HEIF y PDF de una página normalizados a JPEG; nunca se guardan crudos.
+- PDF multipágina, MIME falso, archivo grande, bomba de dimensiones, audio, video y sticker
+  rechazados sin mutación.
+- Medio incompatible solo: respuesta determinista sin tokens; acompañado de texto entendible: se
+  ignora el medio y se atiende el texto, con una sola respuesta.
+- Primera llamada de comprobante: valida pero no crea objeto ni `payment_proofs`.
+- Confirmación: crea un solo objeto privado y un solo registro; el reintento reutiliza ambos.
+- Medio vencido o no recuperable al confirmar: pide reenviarlo y no muta.
+
+### 10.3 Agent Node
+
+- La RPC devuelve un texto: se envía idéntico, una vez, salvo el sufijo autorizado de
+  `pendiente_lo_otro`.
+- `espera` no nulo: manda el texto y entra en `waiting`.
+- `cierra: true`: manda el texto y completa, salvo el caso probado de dos intenciones.
+- Consulta `mis_citas`: completa.
+- Creación de cita: completa sólo después de `hecho: true`.
+- Saludo o agradecimiento sin intención: pregunta cómo ayudar y espera.
+- Saludo con “muévela”: ejecuta reprogramación, no `mis_citas`.
+- Dos intenciones en un batch: una sola mutación, texto exacto más dos saltos de línea y
+  `pendiente_lo_otro`; después `enter_waiting` aunque la primera gestión tenga `cierra: true`.
+- Identidades no activas nunca aparecen en registros de tokens del Agent Node.
+
+### 10.4 Precio y entrega
+
+- Una respuesta visible por batch.
+- Ningún mensaje de progreso.
+- Respuesta del agente dentro de la ventana abierta.
+- Mensaje iniciado por negocio fuera de ventana usa plantilla por la vía existente.
+- Registros de Kapso muestran tokens y costo por ejecución.
+- Para respuestas directas del Agent Node, categoría y precio se verifican en logs/billing de
+  Kapso; el MVP no inventa una tabla de costos ni escribe esa telemetría en `whatsapp_links`.
+
+---
+
+## 11. Corte a producción
+
+1. Desplegar trigger corregido, identidad, RPC, gateway y adaptadores sin conectar el número.
+2. Ejecutar pruebas de base y del workflow en un entorno controlado.
+3. Confirmar que los textos coinciden con `docs/06-textos.md`.
+4. Aprobar expresamente la reversa degradada: apagar automatización y atender manualmente.
+5. Dejar terminar ejecuciones legacy y desconectar sus eventos entrantes.
+6. Activar el workflow para el número.
+7. Probar un caso por cada estado de identidad y una lectura antes de una mutación.
+8. Vigilar duplicados, errores de herramientas, tokens, entrega y costo.
+
+Para revertir, se desactiva el workflow y **no** se reconecta el webhook legacy: la atención pasa a
+manual hasta corregir. Una reversa automática futura debe probar batches, BSUID-only, los seis
+estados, la misma guardia de mutación y cero solape en vuelo. No se deshace el índice ni se borran
+tablas.
+
+---
+
+## 12. Orden de implementación
+
+| Orden | Trabajo | Estado |
 |---|---|---|
-| La función de borde | Una sola, con el nombre `kapso_inbound_webhook`. Recibe, guarda, contesta 200, y sigue trabajando aparte: identidad, memoria, prompt, bucle del modelo, llamada a las funciones, envío de la respuesta | Nada |
-| La base | **Las diez funciones de dominio**, una función propia de cancelar, el motor de horarios arreglado, la búsqueda con filtros y los avisos a la profesional | El modelo no tiene qué llamar |
-| La memoria | La tabla `whatsapp_conversation_state`, una fila por teléfono. Se define en `docs/07-portero.md` §8.1 | Un «la 2» aterriza en la función equivocada |
-| Los medios | Bajar la foto o el PDF del comprobante y guardarlo | `mandar_comprobante` no funciona aunque todo lo demás esté |
-
-**Los dos frenos del mensaje** —los del trabajo de un mensaje, distintos de los dos frenos de
-tráfico de `docs/07-portero.md` §7.2—, que sustituyen a todo el andamio que se borró:
-
-- **Tres llamadas por mensaje.** No por gestión: por mensaje. Sin tope, un modelo confundido llama
-  funciones en círculo y nadie lo detiene. Tres alcanzan porque lo más largo que ocurre dentro de
-  un mismo mensaje son dos llamadas —la que escribe la lista y la que actúa sobre el número—, y
-  queda una de margen. **Cuenta cada intento**, incluida la llamada que el borde rechaza por venir
-  malformada: ése es justo el modo de fallo para el que el tope existe.
-- **Un candado por conversación.** Si llegan dos mensajes del mismo teléfono al mismo tiempo, el
-  segundo espera a que el primero termine. Es lo que más fácil se olvida y lo que produce citas
-  duplicadas.
-
-El orden de trabajo, en una línea: **se escriben las funciones de dominio y se prueban una por una
-contra estados sembrados, después la función de borde, y hasta el final se toca el número real.**
-
----
-
-## 2. El estado de la base hoy
-
-Esto **ya se ejecutó**. No es plan, es de dónde se parte.
-
-- **Borradas** las tablas `agent_sessions`, `agent_turns`, `agent_tool_calls`,
-  `agent_option_tokens`, `agent_token_key_registry` y `agent_runtime_targets`.
-- **Borradas** las trece funciones `agent_*` de `public` y de `private`.
-- **Borradas** once columnas de maquinaria de `whatsapp_inbound_messages`. Se conservaron cinco
-  que son datos del mensaje y no del andamio: `webhook_delivery_key`, `payload_sha256`,
-  `reply_to_provider_message_id`, `target_phone_number_id` y `provider_received_at`.
-- **Repuesto** el índice `ix_whatsapp_inbound_phone_received`, porque el anterior colgaba de una
-  columna que se fue.
-- **Queda** el rol `agenda_psi_agent_owner`, vacío. `postgres` no hereda sus privilegios y no puede
-  retirarlo. No estorba y no se usa.
-- **Intactos** los rieles compartidos `whatsapp_links`, `whatsapp_outbox` y `public.jobs`, las
-  dieciocho funciones de la app y los siete trabajos programados.
-- **Siguen desplegadas y rotas** las dos funciones de borde. `kapso_inbound_webhook` se reemplaza
-  con el mismo nombre. `agent_tool_gateway` desaparece: en el diseño nuevo no hay intermediario.
-- El respaldo de todo lo borrado está en `supabase/respaldo-agente-2026-08-28.sql`, en el
-  repositorio de la app.
-
-**Lo que no se toca, y por qué.** Nada de esta ronda propone borrar una tabla, una política, una
-función de la app, un trigger, un trabajo programado ni un bucket. La cola de salida la escriben
-las funciones de la app dentro de sus propias transacciones; el vínculo de WhatsApp lo inserta un
-trigger al crear un paciente y editar su teléfono falla si no encuentra su renglón; los
-comprobantes y su bucket nacieron antes que el agente; el Marketplace no se menciona en esta ronda
-para nada. Y el proveedor de WhatsApp del inicio de sesión de la app **no es del agente**: es el
-único modo de entrar, y no se toca por ninguna razón.
-
----
-
-## 3. La función de borde
-
-Se despliega con el nombre **`kapso_inbound_webhook`**. No es nostalgia: esa dirección ya está
-configurada en el número de Kapso, y reusar el nombre hereda la configuración sin volver a tocarla.
-Desplegar con otro nombre obliga a cambiar la dirección del webhook, que es justo lo que no
-queremos mover.
-
-### Lo que hace, paso a paso
-
-1. **Recibe el POST y valida el sobre.** Método, tipo de contenido, cabeceras de control y la firma
-   sobre los bytes crudos. Lo que no valida, se rechaza antes de tocar la base.
-2. **Acepta lote, siempre.** El agrupamiento de Kapso está prendido con ventana de 5 segundos y
-   lote máximo de 50. Con eso encendido **todas** las entregas llegan en formato de lote, aunque
-   venga un solo mensaje. Suponer un mensaje suelto es el error clásico, y la versión desplegada
-   hoy hace justo lo contrario: rechaza los lotes.
-3. **Guarda cada mensaje del lote** en `whatsapp_inbound_messages`, cada uno con su `message_sid`.
-   **La llave de entrega va en un solo renglón del lote: el del último mensaje**, que es el que
-   dispara la respuesta; los demás van sin ella (`docs/07-portero.md` §5). No es un detalle:
-   `uq_whatsapp_inbound_delivery` es un índice **único** sobre `webhook_delivery_key`, así que
-   escribir la misma llave en los cinco renglones de una ráfaga revienta la inserción entera,
-   devuelve algo distinto de 200 y alimenta el auto-apagado del webhook (§11).
-   **Recibido no es atendido**: la llave dice que llegó, y la respuesta se anota aparte cuando el
-   texto sale —`processed_at` y `response_message_sid`, las dos columnas que ya existen en la tabla
-   desplegada (`docs/07-portero.md` §5)—. Una entrega ya guardada **y respondida** se contesta 200 y
-   no se ejecuta nada; una guardada **y sin responder** se atiende, porque si no, el mensaje que se
-   cayó a media respuesta nunca recibe una.
-4. **Contesta 200 de inmediato** y sigue trabajando en segundo plano. Si tardara en contestar,
-   Kapso reintenta la entrega y la paciente recibe dos respuestas al mismo mensaje.
-5. **Toma el candado de la conversación.** `pg_try_advisory_lock` sobre el hash del teléfono, en
-   una conexión dedicada que se sostiene hasta el final del trabajo y se cierra en el `finally`.
-   Nunca una conexión del pool compartido: un candado de sesión sobre una conexión prestada se
-   queda pegado a otra conversación. Si no se consigue en 30 segundos, el mensaje queda guardado y
-   sin contestar.
-6. **Resuelve quién escribe, y no corta.** Teléfono contra los vínculos de WhatsApp. Sin vínculo,
-   `estado: publica`. Dado de baja, `estado: inactiva`. En los dos casos **el borde escribe el
-   estado en el sobre y corre el modelo igual**. El borde no contesta esos textos por su cuenta,
-   nunca. La razón es una sola: la crisis se detecta leyendo el mensaje, y un «ya no aguanto» desde
-   un teléfono que no conocemos es el caso que más importa de todos. El prompt manda `crisis`
-   antes de mirar `estado`, y vale para cualquier estado. Los dos textos de identidad los manda el
-   modelo y siguen costando cero llamadas a funciones.
-   Cuando el teléfono tiene dos profesionales y ella acaba de contestar con cuál, el borde anota la
-   elegida y **sigue en el mismo mensaje**: arma el sobre y corre el modelo con el lote completo.
-   No la hace escribir otra vez.
-7. **Lee la memoria** de ese teléfono: la profesional elegida, qué función preguntó, qué dato
-   espera, qué opciones ofreció, la cita de la gestión en curso y el archivo del que se preguntó
-   (§7).
-8. **Arma el prompt** con cuatro cosas: el sobre de quién es, la memoria, **el último ida y vuelta**
-   —lo que ella escribió y lo que se le contestó, leído de `whatsapp_inbound_messages`, y sólo si
-   tiene menos de 24 horas— y el texto de los mensajes del lote juntos, en orden. Sin ese par
-   anterior, un «con Ramiro» después de «hola, quiero mover mi cita» se contesta `no_entendi`.
-   Cada renglón del lote lleva **su tipo cuando no es texto**: `[imagen]`, `[pdf]`, `[audio]`,
-   `[video]`, `[sticker]`, `[ubicación]`, `[contacto]`, `[archivo]`, seguido del texto si lo trae.
-   Sin esa marca, una foto sin texto llega como un renglón vacío y el flujo del comprobante no
-   puede arrancar.
-9. **Corre el bucle**, con el tope de tres llamadas. El modelo pide una función, la función de
-   borde la llama directo en la base, el resultado vuelve al modelo. **Al agotarse el tope, el
-   borde deja de despachar**: le devuelve al modelo un resultado vacío marcado como el último, y el
-   modelo manda `se_acabo_el_espacio`. Si aun así el modelo escribe otra cosa, **el borde la
-   sustituye** por ese texto. El modelo no redacta, ni cuando se queda sin llamadas.
-10. **Si el mensaje trae imagen o PDF**, se pide una liga fresca con el identificador del archivo,
-    se baja, y se guarda. No se usa la liga que viene en el webhook, porque no sabemos si caduca
-    (§12). La función `mandar_comprobante` lo toma del renglón del mensaje, no de un parámetro.
-11. **La memoria ya quedó guardada, antes de mandar nada.** La escribe la función dentro de su
-    misma transacción, en el paso 9, no el borde aquí al final. Por eso la pregunta pendiente no
-    depende de que el mensaje salga: si el envío falla, ella contesta «la 2» a una pregunta que el
-    servidor sí recuerda.
-12. **Manda el texto** por el relevo de Kapso, como texto libre dentro de la ventana abierta, no
-    como plantilla. No pasa por la cola de salida: esa cola sólo produce plantillas y sólo la usan
-    los trabajos programados. Si el envío falla después de haber mutado —la cita ya se movió y el
-    aviso ya le llegó a la profesional— se reintenta **una vez, a los dos segundos**.
-13. **Anota la respuesta, guarda lo que se contestó y suelta el candado.** La hora en
-    `processed_at` y el identificador del mensaje que salió en `response_message_sid`. El texto de
-    entrada y el de salida quedan en `whatsapp_inbound_messages`, que ya se limpia sola a los 30
-    días.
-
-Los modos de fallo de cada paso —el modelo que no contesta, la base que no contesta, el envío que
-falla— están en `docs/07-portero.md` §10.
-
-### Una llamada sin respuesta no significa que no se escribió nada
-
-Significa que no se escribió **si la llamada no llegó a la base**. Si la transacción cerró y la
-respuesta se perdió en el camino —tiempo de espera agotado, conexión caída—, la cita quedó creada,
-movida o cancelada, y ella leería que no pasó nada.
-
-Por eso, antes de mandar `se_acabo_el_espacio` por una llamada que escribe y volvió sin respuesta,
-**el borde relee el estado** con la función de lectura que corresponda y contesta con lo que
-encuentre. Sin ese paso, `agendar` acaba en dos citas: ella repite «sí», la función intenta el
-mismo hueco y le contesta «se acaba de ocupar esa hora» —lo ocupó ella misma—, y escoge otra.
-
-La regla general no cambia: **nada se da por escrito hasta que la base lo confirma**. Si el
-servidor no sabe si la escritura ocurrió, la lee de vuelta y contesta con certeza.
-
----
-
-## 4. El modelo y sus números
-
-**`gpt-5.6-luna`**, llamado desde la función de borde. Kapso no interviene: ni cuenta tokens ni
-pone margen.
-
-| Número | Valor | Dónde vive |
-|---|---|---|
-| Vueltas máximas del ciclo del modelo | 16 | Techo duro del bucle de la función de borde. El dueño del número es `docs/07-portero.md` §7 |
-| Tokens de salida | 2048 | Variable de entorno |
-| Presupuesto total por mensaje | 60 segundos | Variable de entorno |
-| Espera por llamada al modelo | 20 segundos | Variable de entorno |
-| Reintento ante error de red o 5xx | Uno | Variable de entorno |
-| Llamadas a funciones por mensaje | **Tres** | En el código, no configurable |
-
-Las dieciséis vueltas son el techo técnico del ciclo. **El freno de producto es el tope de tres
-llamadas**, que es más estricto y corta antes. Se separan a propósito: el primero evita un ciclo
-infinito, el segundo evita que el agente trabaje de más sobre las citas de alguien.
-
-Agotado el presupuesto de 60 segundos, el borde manda `se_acabo_el_espacio` —compuesto por él, no
-por el modelo— y suelta el candado. Antes se prefería el silencio; el silencio deja la conversación
-muda para siempre, porque el 200 ya salió y Kapso no reintenta.
-
-La llave del proveedor va en el secreto de la función. Nunca en el repositorio.
-
----
-
-## 5. Las diez funciones de dominio, en orden de dependencia
-
-Las diez viven en la base y devuelven el texto ya redactado. La función de borde las llama directo,
-con la llave de servicio: no hay intermediario y no hay rol intermedio que autorizar. El catálogo
-completo, con parámetros y textos, está en `docs/02-funciones.md`.
-
-| Orden | Pieza | Por qué va aquí |
-|---|---|---|
-| 1 | **Los ayudantes de lectura**: identidad por teléfono, la política de cada profesional, los servicios de esa paciente y su precio efectivo | Sin ellos ninguna función resuelve un plazo ni un precio, y todos los textos dirían el mismo número para todas |
-| 2 | **El arreglo del motor de horarios** | Hoy toma los primeros seis del día en pasos de quince minutos: un día que abre a las 3:00 y cierra a las 7:00 contesta de 3:00 a 4:15 y las 5:00 no aparecen nunca. Hay que subir el tope, quitar los traslapes, respetar la franja que pidió y ofrecer **en punto** |
-| 3 | **La búsqueda con filtros** | Recibe días, fechas, franja y fecha relativa, recorre los treinta días del horizonte por dentro, excluye la cita que se mueve, respeta la anticipación mínima de la ficha, y devuelve hasta cinco opciones o el motivo redactado con alternativas de verdad. Es una operación nueva |
-| 4 | **Las tres que sólo leen**: `ver_servicios`, `buscar_horarios`, `mis_citas` | Se pueden probar completas sin escribir una fila, y son las que más pronto enseñan si los textos suenan bien |
-| 5 | **Las que escriben sin dinero de por medio**: `agendar`, `confirmar`, `dejar_resena` | Dependen de la búsqueda y de la memoria |
-| 6 | **Las cuatro difíciles**: `cancelar`, `reprogramar`, `mandar_comprobante` y `cambiar_modalidad` | Las tres primeras mueven dinero. `cambiar_modalidad` no lo toca nunca, pero es la única que el plazo bloquea. Son las que más ramas tienen y las que más caro cuesta equivocar: van al final, con todo lo anterior ya probado |
-| 7 | **Los avisos a la profesional** | Van dentro de cada mutación, en la misma transacción. Si el aviso no se pudo escribir, la mutación no ocurrió |
-
-**Pasar el pago a la próxima no es una función**, es una salida de
-otras dos: `cancelar(pasa_el_pago: true)` y `reprogramar(a_la_proxima: true)`. La cita destino
-la pone el servidor, que ya la sabe. Así el modelo no puede mover dinero por iniciativa propia
-sobre una cita que él escogió: sólo puede aceptar una salida que la función ya ofreció.
-
-**Siete detalles que la implementación no puede improvisar.**
-
-- **`agendar` confirma antes de apartar.** Primero devuelve la pregunta con el día, la hora y la
-  modalidad; hasta que ella dice que sí, se crea. Son dos llamadas, no una.
-- **Al reservar se valida que el hueco siga libre**, en la llamada que escribe. Si se ocupó mientras
-  conversaban, se dice y se ofrecen alternativas del mismo día, renumeradas, en esa misma respuesta.
-  Así lo resolvía la web anterior y se conserva.
-- **La llamada que escribe relee la cita de origen dentro de su misma transacción.** Reprogramar son
-  tres llamadas en tres mensajes, y entre la primera y la última la profesional pudo cancelarla,
-  moverla o cerrarla desde su app. Se comprueba el estado de la cita, no sólo el efecto de la
-  escritura.
-- **Las citas que crea la paciente nacen con `is_editable = false`.**
-- **Una cita nace confirmada si cae dentro de la ventana del aviso automático**, que hoy es de 26
-  horas. Es un solo número para todas las profesionales, y es **el mismo que ya usa el trabajo
-  programado**, para que el agente y el aviso nunca se pisen. La base pone además su propio techo
-  (§6). Con cobro por adelantado la cita nace sin confirmar **siempre**, sin importar cuánto falte:
-  ahí lo que confirma es el comprobante.
-- **El aviso de cambio y la anticipación mínima son dos cosas distintas, y las dos conviven.** El
-  aviso de cambio decide **si hay cargo**. La anticipación mínima de la ficha decide **desde cuándo
-  se puede tomar un horario**, y corta igual al agendar y al reprogramar. Mover se permite sin
-  importar el aviso, pero el horario nuevo tiene que caber en la anticipación mínima. Los dos
-  pueden salir en la misma gestión: primero se le avisa que se cobran las dos sesiones, y después la
-  búsqueda sólo le ofrece días a partir del primero que la anticipación permite. **Se cuenta desde
-  hoy**, no desde la fecha de la cita que se mueve. Pasar el pago a una ocurrencia que ya existe no
-  la toca, porque ahí no se está tomando ningún horario. Cancelar no la toca nunca.
-- **Cambiar la modalidad es lo único que el plazo sigue bloqueando**, porque la profesional necesita
-  saber con tiempo si va al consultorio. Su filtro de candidatas baja a dos condiciones —viva y en
-  el futuro, y servicio con dos modalidades—: el permiso y la anticipación **deciden el texto**, no
-  filtran. Si filtraran, las dos negativas no podrían salir nunca y ella leería que no tiene ninguna
-  cita a la que cambiarle la modalidad, cuando lo que pasó es que llegó tarde.
-
-**Los servicios llegan hasta ocho.** Son la única excepción a las cinco opciones de cualquier
-lista: el catálogo es corto, estable y no caduca como una lista de horas. El parámetro `servicio`
-va tipado 1..8. Si alguna profesional tuviera más, se muestran ocho y se le pide que diga cuál
-busca.
-
-**Nada cancela citas solo.** No hay reloj que borre una cita de prepago por falta de comprobante, y
-ningún texto anuncia que la cita se cancele sola. Lo que sí pasa, a la hora de la sesión, es que el
-barrido de citas vencidas la pasa a «Revisar», como a cualquier cita que llegó a su hora: ahí la
-profesional la cierra como asistida o como falta, y resuelve el cobro. **Desde ese momento deja de
-aparecer en `mis_citas` y de ser candidata de `cancelar` y de `reprogramar`.** El comprobante sí se
-le sigue pudiendo pegar, porque las candidatas de `mandar_comprobante` son cobros, no citas.
-
----
-
-## 6. Qué hay que escribir en la base, y qué ya está
-
-**Reprogramar se reusa.** `reschedule_appointment` ya hace el camino con tiempo mínimo: salda el
-cobro viejo como pasado adelante —`waive_reason = 'carried_forward'`—, crea el nuevo y **copia el
-comprobante**. No hay que escribir eso otra vez. Dos cosas sí hay que añadirle:
-
-- **Sin tiempo mínimo el cobro viejo no se salda.** Se queda congelado tal como esté, con la
-  decisión abierta para la profesional, y el cobro nuevo nace desde cero. Por eso se cobran dos
-  sesiones y por eso se avisa antes de mover.
-- **Cuando la cita nueva sigue siendo de prepago, hay que volver a sellar la petición de
-  comprobante** sobre el cobro nuevo. El camino que ya existe sólo la conserva cuando ya había
-  archivo pegado, que es justo el caso contrario al del prepago sin pagar. Sin ese sello, la
-  profesional deja de ver «se pidió y no ha llegado», que es la señal entera del cobro por
-  adelantado.
-
-**Cancelar no se puede reusar.** `cancel_appointment` exige que quien la llama diga qué hacer con
-el dinero —condonar, acreditar, pedir comprobante o retener— y sin eso no cancela. El agente no
-puede tomar esa decisión: no es suya. Hace falta **una función propia** que cancele dejando la
-decisión abierta, con `late_change_decision = 'pending'`.
-
-**Y esa función propia tiene que reclasificar el motivo del cobro en el mismo acto** —D3 de
-`docs/03-dinero.md` §1—: `charge_reason` pasa de `session` a `cancellation` al cancelar y a
-`reschedule` al reprogramar sin tiempo mínimo. `docs/03-dinero.md` §7.2 lo dice sin matices: **D3
-no es opcional**, porque sin la reclasificación la fila desaparece de la facturación aunque la
-profesional decida cobrar, sin error y sin aviso. El enum ya existe en la base con los cuatro
-valores; lo que falta es la escritura.
-
-**El vocabulario real de la base**, que es el que se escribe. No se inventan valores nuevos:
-
-| Campo | Valores |
-|---|---|
-| `payment_status` | `not_applicable` · `pending` · `credited` · `waived` |
-| `charge_reason` | `session` · `no_show` · `cancellation` · `reschedule` |
-| `waive_reason` | `forgiven` · `carried_forward` |
-| `late_change_decision` | `pending` · `charge` · `no_charge` |
-| `change_policy_result` | `on_time` · `late` |
-| `appointment_status` | `scheduled` · `past_pending` · `attended` · `no_show` · `cancelled` · `rescheduled` |
-| `confirmation_source` | `patient_booking` · `patient_response` |
-
-**El techo de 48 horas.** La base sólo deja nacer una cita ya confirmada por la paciente si empieza
-dentro de las 48 horas siguientes a su creación, si viene de la paciente o de una serie, si no
-viene de una reprogramación, y si su confirmación es del mismo instante que su creación. Nuestra
-regla es de **26 horas**, así que cabe dentro y no hay que tocar la restricción. Una cita
-confirmada exige además `is_editable = false`, que es lo que las citas de la paciente ya traen.
-
-**Los avisos van dentro de la misma transacción que la mutación.** Y uno que se cuenta mal seguido:
-`mandar_comprobante` sobre una cita de prepago **la confirma**, así que escribe **dos** avisos —el
-del comprobante recibido y el de la cita confirmada—, no uno. Una mutación de cita sin su aviso no
-existe.
-
----
-
-## 7. La memoria
-
-La tabla se llama **`whatsapp_conversation_state`** y se define en un solo sitio:
-`docs/07-portero.md` §8.1. **Aquí no se vuelve a describir**: describirla en dos archivos es la
-trampa del §9. Lo que le toca a este archivo es lo que hay que construir y quién la escribe.
-
-**Lo que hay que crear**, porque hoy no existe:
-
-- La tabla, con las ocho columnas de `docs/07-portero.md` §8.1.
-- En `whatsapp_inbound_messages`, **las dos columnas del texto**: lo que ella escribió y lo que se
-  le contestó. Hoy la tabla no guarda ni una palabra, y sin ellas no hay ida y vuelta anterior que
-  mandar al modelo.
-- En esa misma tabla, **la columna donde se anota el archivo del comprobante** que se bajó. Es la
-  que `docs/07-portero.md` §9 da por existente cuando dice que «el archivo se guarda y
-  `mandar_comprobante` lo toma del renglón del mensaje entrante», y la que hoy falta: sin ella
-  `mandar_comprobante` no funciona aunque todo lo demás esté. El `file_id` de la memoria no sirve
-  para esto: guarda el archivo **del que se preguntó**, no dónde quedó el que se bajó.
-
-Lo que **no** hay que crear, aunque se haya dicho: separar recibido de atendido ya está resuelto en
-la tabla desplegada, con `processed_at` y `response_message_sid` (`docs/07-portero.md` §5). No hace
-falta ninguna columna nueva para eso.
-
-**La escribe la función, dentro de su misma transacción.** Es la única que conoce el mapa de los
-números, porque acaba de componer la lista. El borde sólo escribe la fila de la profesional
-elegida, y la limpia.
-
-**El mapa de opciones no cruza al modelo.** El modelo ve números y prosa. La equivalencia se
-resuelve del lado del servidor, contra la lista que el servidor mismo acaba de escribir.
-
-Los siete valores de `espera` están en `docs/02-funciones.md` §2. No se repiten aquí, para que no
-vuelvan a divergir: ya pasó una vez y quien copiara esta versión escribiría el enum incompleto.
-
-**El texto de las conversaciones se guarda 30 días**, que es lo que ya hace sola
-`whatsapp_inbound_messages`. Queda dicho a propósito: treinta días de conversaciones de terapia es
-una postura, no un accidente de la tabla.
-
-**La memoria cuelga del teléfono, y el teléfono se puede mover.** La paciente puede cambiar de
-número: su profesional lo actualiza en la app y un disparador reescribe la fila del vínculo. Si eso
-pasa a media conversación, **la memoria se queda huérfana** y ella tiene que repetir lo último que
-dijo. Se acepta a propósito y no se compensa: pasa muy poco, lo que se pierde es una pregunta, y
-seguir la conversación a través de un cambio de número obligaría a colgarla de la paciente —que es
-justo lo que no existe cuando el teléfono no se reconoce, que es cuando más falta hace resolver la
-identidad—. La fila vieja se limpia sola al caducar a las 24 horas.
-
----
-
-## 7.0 Las zonas horarias ya están resueltas, no hay que construirlas
-
-Comprobado contra la base desplegada, para que nadie vuelva a escribirlo:
-
-- **`professionals.timezone`** existe y guarda la zona de cada profesional. Hoy las seis dicen
-  `America/Mexico_City`, que es el valor por omisión.
-- **El motor de disponibilidad ya trabaja en esa zona.** Lee `p.timezone` y hace toda la
-  aritmética de días de la semana, rangos y traslapes con ella. Los horarios se guardan como hora
-  de pared y se convierten a instante una sola vez.
-- **Las dos funciones que arman la fecha y la hora de los mensajes reciben la zona como
-  parámetro**, en vez de suponerla. Las plantillas ya la llevan en su contenido.
-
-Así que el agente **no calcula ni convierte nada**: pasa la zona de la ficha y pide la marca corta
-para el hueco `{zona}`. Lo único que hay que cuidar es no escribir «Hora CDMX» a mano en ningún
-sitio —es la regla 2, la misma de los plazos—, porque el día que entre una profesional en otro
-huso la hora que lea la paciente sería correcta y la etiqueta falsa.
-
----
-
-## 7.1 El índice que el sobre necesita, y el que ya está
-
-El sobre se arma con **una sola lectura** en cada mensaje, y no se guarda en ningún lado. La razón
-no es el costo —medido contra la base desplegada: 5.1 milisegundos, todo desde memoria— sino que
-guardarlo sería mentir en cuanto algo cambie. La profesional sube un precio, activa un servicio,
-cambia su plazo, llena sus datos de banco; la paciente se da de baja; sale una plantilla. Cada una
-de esas cosas obligaría a acordarse de invalidar el sobre en cada sitio que toca esas tablas —las
-funciones de la app, los trabajos programados, los disparadores—, y olvidar uno solo hace que el
-agente cotice un precio viejo sin dar ningún síntoma.
-
-**La regla que separa las dos cosas, y vale para todo el diseño:** lo que se puede volver a deducir
-de la base se lee fresco; lo que sólo existe por la conversación se guarda, porque no se puede
-recalcular.
-
-Esa lectura se mantiene barata con dos índices. Los dos se vieron en el plan de ejecución de la
-consulta real, pero **sólo uno hay que crear**:
-
-**Uno, el vínculo por teléfono: ya existe, no hay nada que hacer.** Comprobado contra la base
-desplegada:
-
-    create index ix_whatsapp_links_phone on public.whatsapp_links using btree (phone);
-
-está creado, con ese mismo nombre y esa misma definición. Así que la búsqueda del vínculo **no
-recorre la tabla entera**, ni con diecinueve renglones ni con veinte mil, y este índice no entra en
-la migración. Queda escrito aquí sólo para que nadie lo vuelva a proponer.
-
-**Dos, la última plantilla: éste sí falta.** Buscarla se llevaba **la mitad del tiempo total**
-—2.5 de los 5.1 milisegundos— porque busca dentro del contenido del mensaje sin nada que la ayude.
-
-    create index ix_whatsapp_outbox_patient_sent
-      on public.whatsapp_outbox ((payload->>'patient_id'), sent_at desc)
-      where status = 'sent';
-
-**Va en la misma migración que la tabla de memoria**, no suelto. Y es un añadido: no toca ninguna
-fila ni cambia el comportamiento de nada que ya funcione.
-
----
-
-## 8. Kapso: qué se configura y qué no se toca
-
-**Lo que ya quedó y no hay que volver a tocar:**
-
-| Pieza | Estado |
-|---|---|
-| La dirección del webhook | Ya apunta a `kapso_inbound_webhook`. Por eso la función nueva se despliega con ese nombre |
-| El agrupamiento de mensajes | Ya prendido: ventana de 5 segundos, lote máximo de 50. Cuesta cero y no se toca |
-| El número y sus plantillas | Se quedan. Kapso es la mensajería |
-| El relevo de envío | El mismo que ya usa el envío de plantillas |
-| El flujo de trabajo, el nodo de agente, las funciones y los formularios | **Ya no existen.** No hay que crearlos ni rehacerlos. Ésa es la mitad del trabajo que este cambio se ahorra |
-
-**Lo único que se revisa antes de encender:** que el secreto de firma del webhook sea el que la
-función nueva espera, y que el agrupamiento siga prendido con esos dos números.
-
-**Lo que nunca se toca:** el proveedor de WhatsApp del inicio de sesión de la app. No es de Kapso y
-no es del agente. Es el único modo de entrar a la app, y apagarlo deja a todos fuera.
-
----
-
-## 9. Las trampas que ya costaron caro
-
-| Trampa | La regla que evita repetirla |
-|---|---|
-| **Kapso apaga el webhook solo y no lo vuelve a prender.** Si acumula 20 entregas, 10 fallidas y 85% de fallo en quince minutos, corta. Si nuestra función se cae un cuarto de hora, el número deja de recibir mensajes hasta que alguien entre al panel | Pide alerta y una persona que sepa dónde prenderlo. Y pide que la palanca de apagado conteste 200, no error (§11) |
-| Contestar el webhook tarde | Kapso reintenta y la paciente recibe dos respuestas al mismo mensaje. Se contesta 200 de inmediato y se trabaja aparte. Siempre |
-| Suponer que llega un mensaje suelto | Con el agrupamiento prendido, **todas** las entregas llegan en lote. La función desplegada hoy rechaza lotes: eso es exactamente lo que hay que cambiar |
-| **Dejar que el borde conteste antes de correr el modelo** | La identidad se resuelve, se escribe en `estado`, y el modelo corre igual. Un borde que corta apaga la crisis justo para quien escribe sin ser paciente de nadie |
-| **Leer «llamada sin texto» como «no se escribió nada»** | Sólo es verdad si la llamada no llegó a la base. Si volvió sin respuesta, se relee el estado antes de contestar |
-| **Describir la tabla de memoria en dos archivos** | Ya pasó: dos nombres, dos juegos de columnas y dos vidas. Se define en `docs/07-portero.md` §8.1 y los demás la citan |
-| Diagnosticar leyendo el repositorio | Ya pasó una vez: lo declarado en el repositorio no era lo que estaba corriendo. Se comprueba contra lo desplegado, siempre. El repositorio no es evidencia |
-| Dar por muerta una pieza porque no tiene invocaciones | Cero invocaciones no la vuelve muerta: la vuelve **no ejercida**. Antes de retirar algo se lee su configuración, no su bitácora |
-| Añadir una plantilla sin migrar el catálogo | Revienta la inserción y el aviso no sale |
-| Tocar el proveedor de WhatsApp del inicio de sesión creyendo que es del agente | Es el único modo de entrar a la app |
-| Escribir «24 horas» en un texto del aviso automático | La ventana real es de **26 horas**: es una constante del trabajo programado, no una política. Los textos a la profesional siguen diciendo 24, y esa diferencia se deja como está |
-| Escribir «si no llega en 24 horas la cita se cancela» | Ese reloj ya no existe. Nada cancela citas solo |
-| Escribir un plazo a mano en un texto que la paciente lee | Sale de la ficha de su profesional, siempre. Un texto con un número fijo adentro le miente a las pacientes de quien configuró otro |
-
----
-
-## 10. El plan de pruebas
-
-La regla que ordena todo esto: **cada pieza se prueba sembrando estados en la base y leyendo el
-texto que devuelve, antes de desplegar nada y antes de tocar el número real.** Una función que
-devuelve el texto correcto contra todos los estados sembrados es una función terminada. Lo que no
-se puede probar así es sólo lo que depende de Kapso, y eso va al final.
-
-### 10.1 Primero se siembran los estados
-
-En una rama de la base, nunca en producción. Todo con nombres inventados: la profesional **Nadia
-Robles**, que cobra por adelantado y tiene sus datos de transferencia llenos; la profesional
-**Irene Sandoval**, que cobra después; las pacientes **Paula Ríos** y **Tomás Vela**. Son ejemplos.
-
-| Estado sembrado | Para qué |
-|---|---|
-| Un teléfono sin ningún vínculo, y otro de alguien dado de baja | Los dos textos de identidad, **y que un mensaje de riesgo desde cualquiera de los dos reciba `crisis`** |
-| Un teléfono con dos profesionales | Que se pregunte con cuál antes de nada, y que al contestar se siga en el mismo mensaje |
-| Paciente con servicios asignados, y paciente sin ninguno | Que el segundo vea el catálogo completo de su profesional |
-| Una profesional con seis servicios | Que se muestren los seis, sin recortar a cinco |
-| Un servicio que admite las dos modalidades y otro que admite una | Que la modalidad se pregunte sólo cuando hay que preguntarla, y que pedir una que el servicio no admite se diga así |
-| Un horario que abre a una hora rara, y otro con dos días de horas idénticas | Que las horas se ofrezcan en punto, y que dos días iguales se numeren una sola vez |
-| Un día lleno y un día que no trabaja | Que cada motivo traiga alternativas de verdad, y que no se nombre a la profesional en el motivo |
-| Una ficha con anticipación mínima larga y una cita para pasado mañana | Que mover se permita, y que la búsqueda sólo ofrezca días a partir del primero que la anticipación permite |
-| Una cita futura sin pago, otra con comprobante pegado, otra ya acreditada | La matriz del dinero al cancelar y al reprogramar |
-| Dos citas esperando confirmación | Que se pregunte cuál, y que «ambas» confirme las dos |
-| Una serie con su próxima ocurrencia viva, y otra serie sin ninguna próxima | Las dos salidas de la cita con dinero adentro, y que sin próxima viva no se ofrezca la segunda |
-| Una próxima ocurrencia viva que ya trae su propio pago | Que el traslado no ocurra, **que la cita se cancele igual y que no salga ningún texto sobre el choque** |
-| Un cobro de una sesión pasada esperando comprobante, y dos cobros del mismo día | Que el comprobante se identifique por fecha, y que la hora sólo aparezca cuando hay dos |
-| Un cobro vivo sobre una cita ya cancelada, y otro sobre una reprogramada | Que el comprobante de una cancelación tardía se pueda pegar |
-| Una cita de prepago cuya hora ya pasó | Que salga de `mis_citas`, de `cancelar` y de `reprogramar`, y que su cobro siga aceptando comprobante |
-| Una cita dentro de la ventana de 26 horas y otra fuera | Que la primera nazca confirmada y la segunda no |
-| Una cita dentro del tiempo mínimo de su ficha | Que cancelar y reprogramar avisen del cargo y se hagan igual, y que cambiar la modalidad sí se niegue |
-
-### 10.2 Después se prueba cada función, sola
-
-Se llama la función con los parámetros que el modelo mandaría y **se lee el `texto`**. No se mira
-la fila: se mira lo que la paciente recibiría. Es la prueba más barata y la que más defectos
-atrapa, porque casi todo el producto vive en ese texto.
-
-| Función | Estado | Lo que el texto tiene que decir |
-|---|---|---|
-| `ver_servicios` | Paciente sin servicios asignados | El catálogo de su profesional, con precio, y la pregunta de días y hora |
-| `ver_servicios` | Pide por nombre uno que sí tiene | Ese servicio, no la lista entera con «dime cuál te interesa» |
-| `buscar_horarios` | Día lleno | El motivo, con otros días de esas horas **o** ese día con otras horas. No una sola salida |
-| `buscar_horarios` | Fecha más allá de los treinta días | Que hasta ahí no alcanza a ver, con salida |
-| `agendar` | Primera llamada | La pregunta con día, hora y modalidad. **No se creó nada todavía** |
-| `agendar` | Ella dice que no | Un texto que cierra sin apartar nada |
-| `agendar` | Segunda llamada, hueco ya ocupado | Se dice, y se ofrecen alternativas del mismo día en la misma respuesta |
-| `agendar` | Con quien cobra por adelantado | El cierre con banco, titular y CLABE. **Sin ninguna frase de 24 horas** |
-| `confirmar` | Dos citas esperando | La lista numerada y la pregunta de cuál. Y «ambas» confirma las dos |
-| `cancelar` | Cita con comprobante pegado, a tiempo, con próxima de su serie | Las dos salidas: reprogramar, o cancelar y dejar el pago en la próxima |
-| `cancelar` | La misma cita, pero fuera del aviso | **Ninguna de las dos salidas se ofrece**: ni reprogramar ni dejar el pago en la próxima. Se cancela, y el cierre dice el cargo |
-| `cancelar` | Y ella dice que no a las dos | **Se cancela.** Y se le dice que su pago queda registrado y su profesional lo resuelve con ella |
-| `cancelar(pasa_el_pago: true)` | Cita destino que ya trae su propio pago | El pago no se pasa, **la cita sí queda cancelada, y no se le dice nada del choque**: sale `cancelar_cierre` con la coletilla del pago registrado. Un texto que le explique el choque es un fallo de la prueba, no un pendiente. Con la destino limpia sí se pasa, **aunque el importe sea distinto** |
-| `reprogramar` | Cita de una recurrencia | La segunda salida: pasarla a la próxima de su serie |
-| `reprogramar(a_la_proxima: true)` | La misma serie, sin ningún pago adentro | **Cierra igual**, sin la frase del dinero. No una negativa |
-| `reprogramar` | Prepago, fuera del aviso de cambio | El cierre con monto y datos de transferencia. El pago viejo no viaja y se dice |
-| `reprogramar` | La cita de origen ya no existe | Que se dice, no que se mueve otra |
-| `cambiar_modalidad` | Sin la anticipación que pide esa ficha | La negativa de anticipación, con el plazo **de esa** ficha. No «no tengo ninguna cita» |
-| `mandar_comprobante` | Un solo cobro esperando, de quien cobra después | **Se pregunta igual** antes de pegarlo. El acuse dice «recibí tu comprobante», nunca «pagado». Recibir comprobantes vale para todas, cobren antes o después |
-| `mandar_comprobante` | Cobro de una cita cancelada tarde | Entra en las candidatas. Es el único camino para cobrar una cancelación tardía |
-| `mis_citas` | Cita en línea | La respuesta de dónde es, **sin la liga**. La liga sale en el aviso de una hora antes |
-
-Y en todas: que el aviso a la profesional se haya escrito en la misma transacción, con las claves
-que la app necesita, y que el del comprobante **no lleve el monto**.
-
-### 10.3 Después la función de borde, sin Kapso
-
-Se le manda un lote a mano, con el mismo formato y la misma firma que Kapso manda. Ocho asertos:
-
-1. **Guarda y contesta 200 rápido.** Se mide el tiempo hasta el 200, no el tiempo total.
-2. **La misma entrega, dos veces.** Si la primera ya se respondió, la segunda no ejecuta nada. Si la
-   primera quedó guardada **sin responder**, la segunda sí la atiende. Las dos contestan 200.
-3. **Un lote de cinco mensajes se lee como una sola intención**, no como cinco. Y un lote con una
-   foto sin texto llega al modelo con su marca `[imagen]`.
-4. **Dos entregas del mismo teléfono a la vez**: la segunda espera. No se crean dos citas.
-5. **Un mensaje de riesgo desde un teléfono sin vínculo recibe `crisis`**, no el directorio. Es el
-   aserto que prueba que el borde no corta antes del modelo.
-6. **El tope de tres llamadas corta**, y lo que sale es `se_acabo_el_espacio`, no un silencio. Y una
-   llamada malformada cuenta para el tope.
-7. **Una llamada que escribe y no devuelve respuesta**: se mata la respuesta después del commit y se
-   comprueba que el borde relee y contesta lo que de verdad pasó, no «se me acabó el espacio».
-8. **El envío falla después de mutar**: se reintenta a los dos segundos, y la memoria ya quedó
-   guardada antes de intentar mandar.
-
-### 10.4 Hasta el final, el número real
-
-Con todo lo anterior en verde. Es la única vía que ejerce lo que no podemos simular: el
-agrupamiento de verdad, la firma de verdad, el archivo de verdad, y las tres preguntas que quedaron
-sin comprobar (§12).
-
-**Criterio de fracaso, no de éxito.** Si el agente dice una fecha que no salió de una etiqueta del
-servidor, o dice un plazo que no salió de la ficha de esa profesional, o dice «pagado», o dice
-«listo» de algo que no se escribió, o contesta el directorio a un mensaje de riesgo, el recorrido
-no pasa aunque la base haya quedado bien.
-
----
-
-## 11. Cómo se apaga si algo sale mal
-
-**La palanca buena contesta 200.** Es la diferencia importante ahora que el modelo corre de este
-lado: una palanca que devuelve error cuenta como entrega fallida, y las entregas fallidas apagan el
-webhook del lado de Kapso, que **no se vuelve a prender solo**.
-
-| # | Palanca | Qué hace | Costo |
-|---|---|---|---|
-| 1 | **El interruptor de la función de borde** | Una variable de entorno. Apagada, contesta 200 diciendo que está deshabilitada, no reintenta, no acumula fallos y no dispara el auto-apagado | Segundos, sin desplegar nada |
-| 2 | **Volver a desplegar la versión anterior** | Como el nombre es el mismo, el despliegue reemplaza. No hay que tocar la dirección del webhook | Minutos |
-| 3 | **Quitar el número de la lista de números permitidos** | Deja de admitirlo | **Es la peor.** Contesta error, y el error cuenta para el auto-apagado de Kapso |
-
-Con la palanca 1 puesta, los mensajes de ese rato no se contestan. No hay cola que los guarde para
-después, y así se acepta: es preferible el silencio a una respuesta equivocada sobre dinero.
-
-**Lo que no se hace nunca:** quitar la dirección del webhook en Kapso, ni desconectar el número.
-Recuperarlo es entrar al panel a mano, y mientras tanto no llega nada.
-
-| Síntoma | Dónde se ve | Qué es |
-|---|---|---|
-| Deja de llegar todo, de golpe, sin que nadie despliegue | El panel de Kapso, el webhook en pausa | El auto-apagado. Se prende a mano |
-| La paciente recibe dos respuestas al mismo mensaje | El tiempo hasta el 200 en la bitácora | Se está contestando tarde |
-| Dos citas idénticas | Dos entregas del mismo teléfono muy juntas | El candado por conversación |
-| Una conversación entera muda | El candado tomado y no soltado | La conexión del candado no se cerró en el `finally` |
-| Ella escribió y nunca recibió nada | Un mensaje guardado con `processed_at` vacío | El reintento se descartó como duplicado |
-| El modelo dice que lo hizo y no hay fila | La bitácora: si no hubo llamada, fue decisión del modelo | El prompt. La regla de `hecho` es lo que lo previene |
-
----
-
-## 12. Lo que quedó sin comprobar
-
-Se dice con todas sus letras. No hay estimación de ninguno de estos tres puntos, y los tres se
-resuelven mirando, no razonando.
-
-1. **Si el webhook nos dice a qué mensaje respondió la paciente.** El formato de Kapso no lo
-   documenta. El formato crudo de Meta sí lo trae, pero ése **no admite agrupamiento**, así que no
-   se pueden tener las dos cosas. Hay que probarlo contra el número real.
-2. **Si la liga de imagen que viene en el webhook caduca**, y si hace falta llave para bajarla. Por
-   eso el diseño pide una liga fresca con el identificador del archivo: ése es el camino
-   documentado y funciona en los dos casos.
-3. **Cuánto cobra Kapso por los tokens de inteligencia y si le pone margen.** Está en el panel de
-   facturación del proyecto, no en su página pública.
-
-**Lo que estaba abierto y ya se cerró:** el texto de las conversaciones se guarda 30 días, y una
-fila de memoria vale 24 horas.
-
-**Una fecha que hay que apuntar: el 1 de octubre de 2026 Meta deja de dar gratis las respuestas
-libres dentro de la ventana de 24 horas.** Cada respuesta del agente pasa a costar. No cambia el
-diseño, cambia el costo de operarlo.
+| 1 | Índice único parcial de BSUID por profesional | **Realizado** |
+| 2 | Limpiar identidad de proveedor cuando cambia `patients.phone` | **Siguiente paso** |
+| 3 | `resolve_whatsapp_identity` y sus seis estados | Pendiente |
+| 4 | RPC de lectura | Pendiente |
+| 5 | RPC de mutación, `command_log` y avisos atómicos | Pendiente |
+| 6 | Adecuar `agent_tool_gateway` | Pendiente |
+| 7 | Adaptadores y herramientas de Kapso | Pendiente |
+| 8 | Configurar Agent Node y workflow | Pendiente |
+| 9 | Pruebas, aprobación de reversa degradada y corte controlado | Pendiente |
+
+No se comienza el paso siguiente porque el anterior “parezca sencillo”: se valida su contrato y
+sus casos negativos. En especial, no se activa el Agent Node hasta que identidad impida que
+`not_patient` e `inactive_patient` lleguen al modelo.

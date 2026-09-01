@@ -203,7 +203,7 @@ paga una vez por conexión.
 
 **Y todo eso es una sola llamada del agente.** Aunque el servidor mire treinta días y toque el
 cálculo exacto en diez, el agente hizo un viaje. **El freno cuenta viajes del agente al
-servidor, no trabajo de la base:** tres llamadas por mensaje de ella (regla 9). Buscar horarios
+servidor, no trabajo de la base:** una herramienta de dominio por batch (regla 9). Buscar horarios
 gasta una, y por eso preguntar por treinta días cabe holgado en un mensaje; preguntar día por día
 no cabría en ninguno.
 
@@ -333,9 +333,9 @@ se crea. El detalle está en `docs/02-funciones.md` §4.3.
 
 Cuando la búsqueda sirve para mover una cita, el servidor la **excluye de la agenda antes de
 calcular**. Cuál es no se lo dice el modelo: la búsqueda no recibe ninguna cita. El servidor la
-saca de la memoria de la conversación, de la columna `subject`, donde `reprogramar` la dejó escrita
+saca del estado privado de la ejecución, de `subject`, donde `reprogramar` la dejó escrita
 al resolver el número —o al resolver una sola candidata sin listarla—. La memoria está definida en
-`docs/07-portero.md` §8.1.
+`docs/07-portero.md` §6.1.
 
 Sin la exclusión pasan dos cosas feas, y las dos se ven en la conversación:
 
@@ -458,7 +458,7 @@ el traslape aunque la comprobación fallara; ese rechazo también se traduce a `
 nunca a un error crudo.
 
 **Lo único que se gastó es una llamada de las tres de ese mensaje**, un viaje que no escribió nada
-y que deja intacta la mutación de ese mensaje. El candado por conversación y el tope por mensaje
+y que deja intacta la mutación de ese mensaje. La idempotencia y los bloqueos transaccionales
 están en `docs/07-portero.md`.
 
 ---

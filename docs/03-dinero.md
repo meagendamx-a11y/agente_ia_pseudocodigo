@@ -126,8 +126,9 @@ va a creer que al final no se cobró — y luego se lo cobran. Eso es peor que a
 Deja de contar **sólo si la profesional resuelve que no se cobra**. Ahí sí desaparece, porque ahí sí
 hay una respuesta.
 
-Nada de esto rompe D5: no se le dice que su profesional está decidiendo, se le dice lo que ya se le
-había dicho. La decisión sigue siendo de ella y sigue sin contarse.
+Nada de esto rompe la regla 5 de `docs/00-el-agente.md`: no se le dice que su profesional está
+decidiendo, se le dice lo que ya se le había dicho. La decisión sigue siendo de ella y sigue sin
+contarse.
 
 #### Esto es casi lo mismo que ve la profesional en Cobros
 
@@ -649,7 +650,7 @@ las produce cancelar sin tiempo mínimo, reprogramar sin tiempo mínimo y cancel
 **9.5 · Una foto equivocada queda pegada para siempre.** Cabe un solo comprobante por cobro y la app
 no tiene por dónde reemplazarlo. Por eso `mandar_comprobante` **siempre pregunta** antes de guardar,
 aunque haya una sola candidata: es la única excepción del diseño a actuar cuando sólo hay una. Y por
-eso la fila de la conversación guarda **de qué archivo se preguntó**: sin eso la pregunta protege
+eso el estado privado de la ejecución guarda **de qué archivo se preguntó**: sin eso la pregunta protege
 contra la cita equivocada y no contra el archivo equivocado, que es el mismo daño.
 
 **9.6 · Un pago puede acabar sobre una sesión que cuesta distinto.** Los importes no bloquean el

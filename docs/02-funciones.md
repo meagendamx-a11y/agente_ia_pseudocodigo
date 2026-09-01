@@ -6,9 +6,10 @@ Este archivo es el catálogo completo: **una intención, una función, un texto*
 lo poco que la paciente dijo, resuelve por dentro todo lo demás —quién es, con quién, qué cita,
 qué plazo, qué precio— y devuelve el texto ya redactado en español. El agente lo copia y lo manda.
 
-Las diez viven en la base. **El modelo corre en nuestra función de borde**, y cada herramienta que
-pide es una de estas diez, llamada directo, sin intermediario. Kapso entrega el mensaje y manda la
-respuesta; no decide nada de lo que hay aquí.
+Las diez deben implementarse como RPC en la base; al corte auditado todavía están pendientes. El
+Agent Node de Kapso escoge una herramienta; su adaptador llama la Edge
+Function privada `agent_tool_gateway`, y ésta llama la RPC fija. El gateway valida forma, contexto
+e idempotencia, pero las reglas de negocio siguen viviendo en la RPC.
 
 Las reglas numeradas se citan por número y viven en `docs/00-el-agente.md`. Los textos se citan por
 clave y viven completos en `docs/06-textos.md`, que cierra con el índice de todas ellas. **Si una
@@ -26,16 +27,14 @@ Valen además, sin repetirlas, **las reglas 17, 18 y 19** de `docs/00-el-agente.
 identificador de la base cruza al modelo, la entrada y la salida son planas con todas las claves
 presentes, y el «ahora» lo pone el servidor. Estaban copiadas aquí y la copia envejecía sola.
 
-**La identidad no viaja en los parámetros.** El teléfono lo pone la función de borde desde el
-mensaje que llegó, y **las diez vuelven a resolver quién es por su cuenta**, nunca de lo que traiga
-el mensaje ni de lo que el modelo crea. Si el teléfono no tiene ningún vínculo, cualquiera de las
-diez devuelve `no_te_reconocemos` y cierra; si el vínculo está dado de baja, devuelve
-`paciente_inactivo` y cierra. Esa comprobación se repite en las diez y no se vuelve a mencionar en
-cada ficha.
+**La identidad no viaja en los parámetros.** Kapso la inyecta en `execution_context` y
+`whatsapp_context`; el adaptador y el gateway la convierten en contexto interno. **Las diez vuelven
+a comprobar relación, actividad, profesional y propiedad**, sin confiar en lo que diga el modelo.
+Si ya no hay vínculo devuelven `no_te_reconocemos`; si el vínculo existe pero está inactivo,
+`paciente_inactivo`.
 
-Ese cerrojo es una defensa contra un sobre viejo, **no el camino normal**: en el camino normal el
-borde ya resolvió la identidad antes de correr el modelo y esos dos textos salen del prompt, con
-cero llamadas.
+Es un cerrojo, no el camino normal. El workflow ya separó `not_patient` de `inactive_patient` antes
+del Agent Node.
 
 ---
 
@@ -49,6 +48,11 @@ cero llamadas.
   "cierra": true
 }
 ```
+
+Éste es el contrato público que ve el Agent Node. Internamente, la RPC puede devolver al gateway
+`{result, next_state}`: `result` contiene exactamente estas cuatro claves y `next_state` contiene
+opciones, sujeto, paso y acciones con identificadores internos. Ese segundo objeto no sale de
+Supabase; el gateway lo valida y sella como `state_token` antes de responder al adaptador.
 
 | Clave | Tipo | Qué significa |
 |---|---|---|
@@ -64,11 +68,13 @@ franja de `buscar_horarios` (§4.2), que se piden juntos y se contestan juntos. 
 `estrellas` y `comentario`, porque las dos preguntas de la reseña las hace el prompt y ninguna
 función las devuelve.
 
-**Qué hace `cierra`.** En falso, se guarda en la memoria de la conversación qué se preguntó, qué
-función lo preguntó, qué opciones numeradas se ofrecieron y sobre qué cita se está trabajando; así
-un «la 2» del mensaje siguiente aterriza donde debe sin que el modelo tenga que acordarse de nada.
-En verdadero no queda nada pendiente y esa memoria se limpia. `cierra` **no frena al agente a media
-respuesta**: sólo dice si la conversación quedó abierta.
+**Qué hace `cierra`.** En falso, el gateway actualiza el estado sellado de la ejecución con la
+herramienta, las opciones, la cita o el archivo en curso, y el Agent Node llama
+`enter_waiting`. En verdadero, normalmente llama `complete_task`. La única excepción ocurre cuando
+el batch traía dos intenciones: la primera gestión termina, se agrega `pendiente_lo_otro` y el Agent
+Node llama `enter_waiting` para que la segunda se vuelva a pedir. Los UUID no aparecen en el
+prompt: el adaptador sólo reenvía el token opaco de `execution_context` y el gateway lo abre. El
+contrato técnico está en `docs/07-portero.md` §6.1.
 
 | Caso | `cierra` |
 |---|---|
@@ -96,24 +102,15 @@ del servidor. El §9 desarrolla esto.
 **La instrucción de mandar el texto tal cual vive en el prompt, no en el resultado.** Las
 instrucciones metidas dentro de un resultado se pueden ignorar, o marcar como inyección.
 
-### 2.1 El freno que ven las funciones: tres llamadas por mensaje
+### 2.1 El freno que ven las funciones
 
-No hay presupuesto por gestión. Una gestión se reparte entre varios mensajes de ella, y **cada
-mensaje trae sus tres llamadas**. Agendar gasta cuatro llamadas en total y ninguna comparte mensaje
-con otra, así que el tope no lo roza.
+Cada batch puede llamar una herramienta de dominio. Cuando llega un resultado, el agente manda su
+texto y espera o termina; no encadena otra herramienta en el mismo batch. Las llamadas incorporadas
+de envío y control no son acciones de dominio.
 
-El tope existe para una sola cosa: **un modelo confundido llama funciones en círculo y nadie lo
-detiene**. Tres es suficiente porque la única concatenación autorizada —leer una lista y volver a
-llamar con el número— son dos llamadas en el mismo mensaje.
-
-**El tope cuenta cada intento**, tanto la llamada que llega a la base como la que el borde rechaza
-por venir malformada o por no ser una de las diez. Si no contara los rechazos, el modo de fallo
-para el que se escribió el tope —parámetros mal compuestos, una y otra vez— sería justo el que
-nunca lo tocara.
-
-Aparte del tope hay **un candado por conversación**: si llegan dos mensajes del mismo teléfono al
-mismo tiempo, el segundo espera a que el primero termine. Sin él, «agéndame el martes» repetido dos
-veces son dos citas. Los dos mecanismos están en `docs/07-portero.md`.
+La concurrencia no se protege con un candado largo de conversación. Cada RPC toma bloqueos
+transaccionales sobre las filas que va a leer y escribir, vuelve a validar y usa restricciones de
+base. Las mutaciones repetidas se detienen con el `command_id` interno y `command_log`.
 
 ---
 
@@ -132,26 +129,21 @@ Siete escriben, tres leen.
 | 7 | «¿la puedo tomar en línea?» | `cambiar_modalidad` | sí (segunda llamada) | `modality_changed_by_patient` |
 | 8 | «[imagen]» · «ya pagué» | `mandar_comprobante` | sí (segunda llamada) | `payment_proof_received`, y `appointment_confirmed` cuando el comprobante confirma la cita |
 | 9 | «5 estrellas, me ayudó mucho» | `dejar_resena` | sí | **ninguno**, a propósito |
-| 10 | «¿dónde es?» · «hola» · «¿qué tengo?» · «¿cuánto debo?» | `mis_citas` | no | — |
+| 10 | «¿dónde es?» · «¿qué tengo?» · «¿cuánto debo?» | `mis_citas` | no | — |
 
 **Son diez, y pasar el pago no es una de ellas:** es un booleano de dos de ellas,
 `cancelar(pasa_el_pago)` y `reprogramar(a_la_proxima)`. Se gana lo que importa: **el modelo ya no puede mover dinero por
 iniciativa propia sobre una cita que él eligió**. La salida sólo existe cuando el servidor ya la
 ofreció, y sólo el servidor sabe si hay dinero adentro, si alcanza el plazo y cuál es el destino.
 
-**Fuera del catálogo, y a propósito, con cero llamadas:** crisis, hablar con una persona,
-devoluciones y descuentos, no te entendí, se acabó el espacio, teléfono desconocido, cuenta dada de
-baja, con cuál profesional, las dos preguntas de la reseña, y `pendiente_lo_otro`. Viven literales
-en el prompt (`docs/05-prompt.md`).
+**Fuera del catálogo, y a propósito:** crisis, saludo sin intención, hablar con soporte,
+devoluciones y descuentos, no te entendí, se acabó el espacio, las dos preguntas de la reseña y
+`pendiente_lo_otro`. Viven en el Agent Node. Identidad, solicitud de contacto, selección de
+profesional y formatos incompatibles viven antes del Agent Node, en el workflow.
 
-**La crisis va antes que todo lo demás, en todos los estados.** No espera a saber si el teléfono
-tiene vínculo, y el borde nunca contesta un texto de identidad antes de correr el modelo. Un «ya no
-aguanto» desde un teléfono que no conocemos tiene que recibir la línea de ayuda, no una liga al
-directorio.
-
-**Los dos textos de identidad cuestan cero llamadas.** El borde resuelve el vínculo antes de armar
-el sobre y el prompt los manda leyendo `estado`. El cerrojo dentro de las diez (§1) sigue ahí, pero
-como defensa, no como camino.
+**Los dos textos de identidad no gastan tokens.** `not_patient` manda `no_te_reconocemos`;
+`inactive_patient` manda `paciente_inactivo`. El cerrojo dentro de las diez (§1) sigue ahí como
+defensa si la relación cambia durante una ejecución.
 
 **No hay función de recursos.** La plantilla `patient_resource_delivery` invita a recoger materiales
 y hoy nadie consume esa cola. Si ella contesta a esa plantilla, se contesta con `fuera_de_alcance`.
@@ -260,12 +252,9 @@ y lo que la regla 19 le impide: el sobre no lleva la fecha de hoy. Es el mismo p
 de horas es el servidor, con el horario de esa profesional. **El modelo nunca mapea «en la tarde» a
 un rango**, porque la tarde de una profesional que atiende de 3:00 a 7:00 no es la de otra.
 
-**La cita que se está moviendo no viaja como parámetro:** la recupera el servidor de la
-columna `subject` de la memoria de la conversación (§6). Sería el único número que cruzara
-de una función a otra, y cada excepción a «un número sólo vale contra la última lista de esa
-función» es una puerta por la que un número se resuelve contra la lista equivocada. Además no
-funcionaba: con una sola candidata `reprogramar` no emite lista, así que no había número que mandar
-y la exclusión no ocurría —que es el camino normal, porque la mayoría tiene una sola cita futura—.
+**La cita que se está moviendo no viaja como parámetro del modelo:** el gateway la recupera de
+`subject`, dentro del estado privado de la ejecución (§6.1). Así `buscar_horarios` puede excluirla
+sin pasar un UUID de una herramienta a otra.
 
 **Qué hace por dentro.** Recorre los treinta días del horizonte, aplica los filtros, respeta la
 anticipación mínima que esa ficha pide, quita los traslapes, excluye la cita que se mueve —para que
@@ -433,10 +422,10 @@ llena el hueco con los datos del perfil o con la salida de pedírselos a su prof
 valores literales están en la tabla de huecos de `06`. **El agente no sabe cuál de los dos existe:**
 llega escrito.
 
-**La cuenta de la gestión: cuatro llamadas.** `ver_servicios`, `buscar_horarios`, la propuesta y la
-creación. Cada una contesta un mensaje distinto de ella, así que **ninguna comparte mensaje con otra
-y el tope de tres nunca se acerca**. Si el hueco se ocupa y hay que proponer otra vez, la gestión
-sube a seis. Si la profesional no tiene ni un bloque de horario, la gestión entera es una:
+**La cuenta de la gestión: cuatro herramientas en cuatro mensajes.** `ver_servicios`,
+`buscar_horarios`, la propuesta y la creación. Si el hueco se ocupa y hay que proponer otra vez, la
+gestión usa otra herramienta en otro mensaje. Si la profesional no tiene ni un bloque de horario,
+la gestión entera es una:
 `ver_servicios` ya lo dice.
 
 **Muta:** sí, con `confirmado: true`. **Aviso:** `appointment_created_by_patient`, con
@@ -795,14 +784,21 @@ con su hora y se cierra.
 al cobro por adelantado es **pedir el pago al agendar**. Quien cobra al cerrar la sesión también
 puede recibir una transferencia por WhatsApp, y el agente la pega igual.
 
-**El archivo no viaja en los parámetros.** Entra por el webhook, que es el único componente que ve el
-mensaje crudo de WhatsApp, se guarda, y la función lo toma del renglón del mensaje entrante. **El
-agente no mira la imagen:** no valida que sea un comprobante, valida que haya un cobro al cual
-pegarlo.
+**El archivo no viaja en los parámetros.** Kapso entrega su identificador en
+`whatsapp_context`; sólo el gateway obtiene una URL fresca, descarga y valida. En la primera llamada
+no persiste el archivo: sella el identificador del proveedor en el estado privado y pregunta. Sólo
+después de una confirmación explícita vuelve a descargar, valida de nuevo y guarda en el bucket
+privado antes de llamar la RPC. **El agente no mira la imagen:** no valida que sea un comprobante ni
+recibe su URL privada. Si el proveedor ya no permite recuperarlo, se pide enviarlo otra vez y no se
+muta nada.
+
+El formato final siempre respeta el bucket vigente: JPEG, PNG o WebP, máximo 5 MiB. HEIC/HEIF y un
+PDF de una página se pueden recibir, pero el gateway los normaliza a JPEG; no cambia el bucket ni el
+visor. El contrato de descarga, ruta, checksum y limpieza está en `docs/07-portero.md` §8.
 
 **De un lote con varios archivos se toma el último, y se dice.** El agrupamiento de Kapso entrega
 lotes, así que dos fotos seguidas son una sola entrega con dos renglones: suponer un archivo por
-mensaje es el error clásico. Y **la memoria guarda de qué archivo se preguntó** (`file_id`): si llega
+mensaje es el error clásico. Y **el estado privado guarda de qué archivo se preguntó** (`file_id`): si llega
 uno nuevo antes de que ella conteste, la pregunta se rehace sobre el nuevo y el anterior se descarta.
 Sin eso, la pregunta protege contra la cita equivocada y no contra el archivo equivocado, que es el
 mismo daño y tampoco tiene arreglo.
@@ -891,6 +887,11 @@ está pagado».
 **El agente no pide la reseña:** la pide la plantilla `patient_review_request`, que ya trae la
 petición completa.
 
+La plantilla es una invitación, no una autorización. `dejar_resena` vuelve a derivar paciente y
+profesional desde la identidad, exige relación activa y al menos una cita `attended`, que es la
+misma elegibilidad vigente de `request_patient_review`. También exige la unicidad
+paciente/profesional. Una reseña enviada directamente sin cumplirlo no se guarda.
+
 Puede llegar en uno o en varios mensajes. **Las dos preguntas que faltan cuestan cero llamadas y
 viven en el prompt:** si llegan sólo las estrellas, se pregunta una vez por el comentario sin llamar
 a nada, y si no lo da, se llama con la calificación sola; si llega sólo el comentario, se pide la
@@ -903,23 +904,27 @@ por eso no valen una llamada ni un valor de `espera`.
 |---|---|---|---|---|
 | Con calificación | `resena_gracias` | nulo | **verdadero** | verdadero |
 | Ya había dejado una | `resena_ya_enviada` | nulo | falso | verdadero |
+| Sin relación activa o sesión atendida | `resena_no_disponible` | nulo | falso | verdadero |
 
 El agradecimiento lleva la nota del anonimato. **Nunca promete publicación:** ninguna función escribe
-la moderación y una persona la revisa antes.
+la publicación y una persona la revisa antes. La RPC guarda `moderation_status = pending`,
+`submitted_at` del servidor y el comentario como texto plano de hasta 1000 caracteres; la UI debe
+escaparlo al renderizar. Nunca escribe `published_at` ni HTML.
 
 **Muta:** sí. **Aviso: ninguno, y es deliberado.** El contrato de avisos de la app no tiene un tipo
 para la reseña, la app pinta en blanco lo que no conoce, y la reseña no existe para nadie hasta que
 una persona la modera. Inventarle un tipo sería una tarjeta vacía.
 
-**Errores y su remediación.** Sólo uno: ya había dejado una. Se le agradece y se cierra.
+**Errores y su remediación.** Ya había dejado una usa `resena_ya_enviada`; no cumple la sesión
+atendida o la relación dejó de estar activa usa `resena_no_disponible`. Ambas se componen en
+servidor y cierran sin publicar ni inventar éxito.
 
 ---
 
 ### 4.10 `mis_citas`
 
 **Intención.** Las tres preguntas de la misma familia: **qué citas tengo, dónde es, y cuánto debo.**
-Más «hola» y el caso de los cinco mensajes seguidos, cuando el agrupamiento los entrega juntos y hay
-que leer la intención completa.
+Un saludo sólo llega aquí si el mismo batch contiene una de esas preguntas.
 
 | Parámetro | Tipo | De dónde sale |
 |---|---|---|
@@ -973,34 +978,17 @@ hay citas, o no las hay.
 
 ## 5. Con cuál profesional: un paso previo, no una función
 
-Un teléfono puede tener vínculo con dos profesionales. Cuando pasa, **se pregunta con cuál antes de
-nada**, y de ahí toda la conversación es de esa profesional. Con un solo vínculo —el caso normal— el
-paso no existe y no se nota.
+Una identidad puede tener relaciones activas con más de una profesional. `resolve_whatsapp_identity`
+devuelve `needs_professional`; el workflow manda `con_cual_profesional` y espera. La lista visible
+y su estado sellado quedan en esa ejecución.
 
-**Es un paso del borde, no una función del catálogo, y no gasta ninguna llamada.** Tres razones, y
-las tres son la misma:
-
-1. **Ocurre antes de que haya intención.** Ninguna de las diez sería la función correcta que llamar,
-   porque todavía no se sabe de qué se va a hablar.
-2. **La respuesta es un número contra una lista, y las listas las resuelve quien las escribió.** Aquí
-   quien la escribió es el borde, con lo que ya sabe del teléfono; el modelo no tiene que emparejar
-   nada.
-3. **Si fuera función, el modelo tendría que decidir cuándo identificar.** Eso es justo lo que no se
-   le deja decidir: quién es y con quién no depende de lo que el modelo interprete.
-
-Cómo funciona: el borde ve dos vínculos, manda el texto `con_cual_profesional` con las dos numeradas,
-y guarda en la memoria de la conversación que está esperando esa respuesta. El mensaje siguiente
-resuelve el número contra esa misma memoria y **sigue adelante en el mismo mensaje**: anota la
-profesional elegida, arma el sobre con ella puesta y corre el modelo con el lote completo. Si se
-detuviera ahí, la intención con la que ella abrió —«hola, quiero mover mi cita»— se perdería y
-tendría que volver a escribirla.
-
-Y como siempre: **las diez vuelven a comprobar por su cuenta** que ese teléfono puede actuar sobre lo
-que va a tocar. La elección sirve para hablar; el cerrojo sigue estando dentro de cada función.
+El mensaje siguiente se resuelve contra la lista antes de entrar al Agent Node. Una selección fuera
+de rango vuelve a preguntar. Nunca se elige por el modelo, la última plantilla ni la cita más
+próxima. Después de seleccionar se vuelve a comprobar que la relación siga activa.
 
 ---
 
-## 6. Cuál cita: números de lista, y nada más
+## 6. Cuál cita: números visibles y estado privado
 
 Cuando una función tiene más de una candidata, escribe la lista numerada dentro de `texto` —máximo
 cinco, con el nombre del día, la fecha y la hora, compuestos por el servidor— y devuelve `espera:
@@ -1021,15 +1009,14 @@ Una cita que llegó a su hora deja de estar programada, así que sale de las can
 `reprogramar`, `cancelar` y `cambiar_modalidad`, y de `mis_citas`. **Su cobro no sale de las
 candidatas de `mandar_comprobante`**, porque ahí el conjunto son cobros.
 
-**La resolución, en cinco renglones:**
+**La resolución:**
 
 1. Si vino `cita` —o `citas`—, es ésa.
 2. Cero candidatas: el texto de que no hay nada que hacer, con una salida. No se muta.
 3. Una candidata: se actúa sobre ella, salvo que la acción exija aviso o propuesta previa, y salvo
-   `mandar_comprobante`, que siempre pregunta. **Aunque no se liste, la cita resuelta se anota en
-   `subject`.**
+   `mandar_comprobante`, que siempre pregunta. La cita resuelta se conserva en el estado privado.
 4. Más de una: la lista numerada y la pregunta. **No se muta.**
-5. La pista de la última plantilla desempata el renglón 4: si la plantilla nombró una cita y esa cita
+5. La pista de la última plantilla puede reducir candidatas: si nombró una cita y esa cita
    está entre las candidatas, el conjunto se colapsa a una. **No aplica en `confirmar`**, que con
    varias esperando siempre pregunta, ni en `mandar_comprobante`, que siempre pregunta de todos
    modos.
@@ -1046,35 +1033,28 @@ candidatas de `mandar_comprobante`**, porque ahí el conjunto son cobros.
 4. **El emparejamiento lo hace el modelo, la numeración el servidor.** Si ella dice «la del jueves a
    las 7», el modelo la empareja contra la lista que el servidor ya escribió y manda el número. Es la
    regla 1: el agente compara, no calcula.
-5. **Un número fuera del rango de la última lista no se manda.** Cinco opciones y ella escribe «la
-   7»: el borde **lo recorta a nulo** y la misma función **reemite su lista**. Lo que no puede pasar
-   es que la guardia lo trate como llamada malformada, porque entonces sale `se_acabo_el_espacio`
-   —que es falso, no se gastó ninguna llamada— y ella no se entera de lo único útil, que sólo había
-   cinco. Equivocarse de número es de las cosas más fáciles de hacer por WhatsApp.
+5. **Un número fuera del rango de la última lista no se manda.** La misma función reemite la lista.
+   No se resuelve contra una lista nueva ni contra otra herramienta.
 
 **Los otros dos números tienen su propio productor**, y cada parámetro lo nombra: `servicio` resuelve
 contra la lista de `ver_servicios` y `opcion` contra la de `buscar_horarios`. Un número resuelve
 **contra la lista que lo produjo**, y nunca contra otra.
 
-**Que la lista no cueste un mensaje.** Cuando el renglón 4 devuelve la lista y ella ya había dicho
-cuál —«cancélame la del martes»—, el agente no manda la lista: la lee, encuentra el número y **vuelve
-a llamar en el mismo mensaje**. Dos llamadas de las tres, un solo mensaje. Es la única concatenación
-que el prompt autoriza, y existe porque el agente no puede emparejar «el martes» contra nada hasta
-que el servidor le enseñe las etiquetas.
+No se llama dos veces en el mismo batch. Si una función devuelve una lista, el agente la manda y
+entra en `waiting`, aunque la frase original pareciera identificar una candidata. Esta vuelta
+adicional es el costo de que la selección se confirme contra opciones producidas por servidor y de
+mantener una sola herramienta de dominio por batch.
 
-### 6.1 `subject`: cuál cita, cuando las listas se encadenan
+### 6.1 `subject` y `options`
 
-La equivalencia entre un número y una cita vive en la memoria de la conversación, una fila por
-teléfono, que **se define una sola vez en `docs/07-portero.md` §8.1** —tabla
-`whatsapp_conversation_state`— y aquí sólo se cita. **La escribe la función, dentro de su
-transacción**, porque es la única que conoce el mapa de los números; el borde sólo escribe la fila de
-la profesional elegida y la limpia. Una fila de más de 24 horas se ignora: pasado un día, un «la 2»
-es de otra conversación.
+`options` conserva la última lista numerada con sus identificadores internos. `subject` conserva la
+cita o cobro ya elegido durante una gestión encadenada. Ambos viven dentro del estado sellado de la
+ejecución de Kapso, no en una tabla propia ni en el prompt. El adaptador recibe el token en
+`execution_context` y lo reenvía; sólo el gateway lo valida y abre. El Agent Node no tiene
+`get_variable`.
 
-De sus columnas, dos importan aquí. `options` guarda la última lista numerada **y se reemplaza entera
-en cuanto otra función emite otra lista**. `subject` guarda **la cita ya elegida de la gestión en
-curso** y no se reemplaza: se escribe cuando se resuelve el número —o cuando la función resuelve una
-sola candidata sin listarla— y se borra cuando la gestión cierra.
+`options` se reemplaza cuando otra herramienta emite una lista. `subject` permanece hasta que la
+gestión termina. Al llamar `complete_task`, ese estado ya no se usa.
 
 Hacen falta las dos porque **una gestión encadena varias listas y `options` sólo sobrevive a la
 última**. Reprogramar, con dos citas futuras:
@@ -1089,19 +1069,15 @@ Hacen falta las dos porque **una gestión encadena varias listas y `options` só
 >>  la 2
 ```
 
-Cuando llega ese último «la 2», `options` ya trae las horas: la lista que explicaba el `cita: 2` la
-borró `buscar_horarios`. Sin `subject`, el servidor no sabe **qué cita se está moviendo** —ni para
-escribirla, ni para excluirla de la búsqueda, que es lo que evita que se tape a sí misma y a sus
-vecinas—. Con `subject`, lo sabe en las tres listas y en la cuarta si el hueco se ocupa y hay que
-renumerar.
+Cuando llega el último «la 2», `options` ya trae las horas y `subject` conserva la cita que se está
+moviendo. Así el servidor puede excluirla de disponibilidad y escribir sobre la misma cita sin
+exponer su UUID.
 
 Ejemplo con nombres inventados: da igual que la paciente se llame Emilio o que la profesional se
 llame Ramiro; lo que resuelve el «cuál cita» es la columna, no el contexto.
 
-**Un número que ya no resuelve, con fila viva, no es un error.** Se contesta reescribiendo la lista:
-la misma función —la fila dice cuál—, con `cita` en nulo, la vuelve a emitir. **Sin fila** no se
-adivina de qué lista era: eso se contesta `no_entendi`, y está escrito así en `07` §8.1 y en el
-enrutamiento del prompt.
+Un número que no resuelve reemite la lista. Si no existe estado privado vigente, se contesta
+`no_entendi`; no se adivina de qué lista era.
 
 ---
 
@@ -1110,10 +1086,9 @@ enrutamiento del prompt.
 Ninguna de las plantillas tiene botones: todas son texto. La pista de qué le mandamos sustituye al
 payload de un botón, y viaja por **dos caminos, según para qué haga falta**.
 
-**Para detectar la intención: en el contexto que el borde le arma al modelo, ya redactada, cero
-llamadas.** «Hace 3 horas le mandamos el aviso de prepago de su cita del martes 25 a las 3:30, y está
-respondiendo justo a ese mensaje». El modelo nunca ve la clave de la plantilla ni una referencia a la
-cita: ve una oración.
+**Para detectar la intención:** el contexto confiable puede presentar una frase ya redactada, por
+ejemplo que hace unas horas se envió un aviso de prepago. El modelo nunca ve la clave de la
+plantilla ni el identificador de la cita.
 
 **Para desempatar candidatas: dentro de la función, sin decírselo al modelo.** Es el renglón 5 del
 §6.
@@ -1134,9 +1109,8 @@ Y dos familias —bienvenida y entrega de materiales— no traen cita ni pueden 
 
 **La pista dura siete días.** La cola de salida se purga cada hora y se borran las filas ya enviadas
 de más de siete días. Pasada esa semana la pista sale vacía en vez de mentir con una plantilla vieja,
-que es el comportamiento que se quiere. Que la tabla se mantenga chica no basta para que la consulta
-salga barata: busca dentro del contenido del mensaje, y por eso lleva su propio índice, el que
-`docs/08-implementacion.md` §7.1 manda crear.
+que es el comportamiento que se quiere. La consulta de esta pista se valida con `EXPLAIN` al
+implementar; sólo se agrega un índice sobre el patrón real si el plan demuestra que hace falta.
 
 Leer la cola **no es encolar**. El agente no encola nada: contesta dentro de la conversación abierta.
 La cola sólo produce plantillas y sólo la usan los trabajos automáticos.
@@ -1249,21 +1223,19 @@ cita muerta o revienta, y las dos salidas son peores que decirlo.
 **No existe el caso de «no pudimos saber si se escribió».** Cada función que muta **vuelve a leer lo
 que escribió, dentro de la misma transacción, antes de componer el texto**, y `hecho` es la
 conclusión de esa lectura. O la transacción cerró y el efecto está —y se lee—, o no cerró y no hay
-efecto ninguno. **Eso garantiza que la transacción es atómica, no que el borde se haya enterado:** si
-la llamada commitea y la respuesta se pierde por el camino, lo escrito está y el borde no lo sabe.
-Ese caso no es de este archivo —vive en `docs/07-portero.md`— y se resuelve releyendo el estado antes
-de contestar, nunca dándole a ella un «se me acabó el espacio» sobre una cita que sí se creó.
+efecto ninguno. **Eso garantiza que la transacción es atómica, no que Kapso haya recibido la
+respuesta:** si la llamada commitea y la respuesta se pierde, el reintento usa el mismo `command_id`
+y `command_log` devuelve el resultado guardado. Ese caso vive en `docs/07-portero.md`.
 
 Los rechazos de cada función están en su ficha y no se repiten aquí. Quedan tres que no son de
 ninguna en particular:
 
 | Situación | Qué devuelve | Qué hace el agente |
 |---|---|---|
-| El teléfono no tiene ningún vínculo | `no_te_reconocemos`, `cierra: true` | Manda el texto y cierra. **Cero llamadas:** el borde ya lo sabía |
-| El vínculo está dado de baja | `paciente_inactivo`, `cierra: true` | Igual. **Esto cierra solo el hueco más grave que había:** antes, quien estaba dado de baja no recibía absolutamente nada |
-| Un número que ya no resuelve | La misma lista, reescrita | Vuelve a preguntar cuál. Sin fila en la memoria, `no_entendi`: no se adivina de qué lista era |
+| Ya no existe ningún vínculo | `no_te_reconocemos`, `cierra: true` | Manda el texto y completa |
+| El vínculo existe pero está inactivo | `paciente_inactivo`, `cierra: true` | Manda el texto distinto y completa |
+| Un número ya no resuelve | La misma lista, reescrita | Vuelve a preguntar; sin estado privado, `no_entendi` |
 
-**Lo que no está aquí.** Lo que pasa cuando el modelo se atora, cuando llegan dos mensajes a la vez o
-cuando el borde se cae no es de este archivo: vive en `docs/07-portero.md`. Y el texto que la
-paciente llega a leer de esa capa, `se_acabo_el_espacio`, vive literal en el prompt, lo compone el
-borde y cuesta cero llamadas.
+**Lo que no está aquí.** La ejecución, la identidad, la concurrencia, los reintentos y los fallos de
+Kapso viven en `docs/07-portero.md`. El texto `se_acabo_el_espacio` vive en
+`docs/06-textos.md`.

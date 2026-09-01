@@ -4,9 +4,9 @@
 texto `paciente_inactivo`»— y no vuelven a escribir la frase. El conteo de claves también se lleva
 aquí y sólo aquí: los demás lo citan.
 
-Dos orígenes y sólo dos. **Los once de prompt viven literales en el prompt**, se rellenan con lo que
-el borde ya resolvió del mensaje y cuestan cero llamadas. **Los de las diez funciones los compone el
-servidor** y llegan en la clave `texto`; el agente los copia palabra por palabra.
+Tres orígenes. **Los deterministas del workflow** resuelven identidad y formato antes del modelo.
+**Los fijos del Agent Node** viven literales en su configuración. **Los de las diez funciones los
+compone el servidor** y llegan en la clave `texto`; el agente los copia palabra por palabra.
 
 Tres cuidados atraviesan todo lo de aquí. **Nada de género en la paciente:** hay pacientes hombres,
 así que ni «activa» ni «activo» aplicados a ella. **Nada de género en la profesional:** se le nombra
@@ -16,26 +16,34 @@ ningún reloj fijo del producto.
 
 ---
 
-## 1. Los textos de prompt
+## 1. Los textos del workflow y del Agent Node
 
-Once textos, cero llamadas. Van en el orden en que el prompt los comprueba, y el primero es la
-crisis.
+Trece textos fijos. Cada ficha dice si lo manda el workflow o el Agent Node.
 
 ### `crisis`
 
-**Cuándo.** Cualquier señal de riesgo para ella o para alguien más. Se comprueba **antes que
-cualquier otra cosa, incluido el estado de identidad**, y vale para todos los estados: teléfono
-desconocido, cuenta dada de baja, paciente activa, todos. Va sola y no lleva pregunta de cierre.
+**Cuándo.** Después de identificar una relación activa, el Agent Node detecta una señal explícita e
+inmediata de peligro para ella o para alguien más. Va sola y no lleva pregunta de cierre.
 
 > Si necesitas ayuda inmediata: Agenda Psi no es un servicio de emergencias. Si tú o alguien más se
 > encuentra en peligro, llama al 911. Para recibir apoyo en salud mental, comunícate gratis, las 24
 > horas, a Línea de la Vida: 800 911 2000.
 
-**No lo compone nadie:** vive literal en el prompt, sin un solo hueco, y cierra. No tiene huecos a
-propósito, así no depende de la red ni del tope de llamadas: ni un límite de tráfico ni una caída
-del servidor pueden dejar a alguien sin esta respuesta. Y por eso el borde nunca contesta antes de
-correr el modelo: si cortara en la identidad, la crisis de un teléfono desconocido no se detectaría
-nunca. Las 24 horas de aquí son el horario de la línea, no un plazo del producto.
+Vive literal en el Agent Node, sin huecos, y cierra. Las 24 horas de aquí son el horario de la
+línea, no un plazo del producto.
+
+### `comparte_tu_contacto`
+
+**Cuándo.** El workflow recibió un BSUID todavía no ligado y el evento no trae un teléfono con el
+que pueda buscar una relación existente.
+
+> Para confirmar que este WhatsApp corresponde a tu cuenta de Agenda Psi, toca el botón para
+> compartir el contacto de este número.
+
+Lo manda la solicitud nativa de contacto de WhatsApp y después espera. La paciente no captura un
+BSUID ni escribe su teléfono: sólo usa el botón de compartir contacto. Si el teléfono no coincide
+con un vínculo local, el siguiente resultado es `no_te_reconocemos`. Compartirlo nunca crea una
+fila nueva en `whatsapp_links`.
 
 ### `no_te_reconocemos`
 
@@ -46,8 +54,8 @@ nunca. Las 24 horas de aquí son el horario de la línea, no un plazo del produc
 >
 > Si estás buscando uno, aquí puedes ver quiénes están disponibles: https://agendapsi.mx
 
-**Compone** el prompt, con cero llamadas; cualquiera de las diez funciones lo devuelve también, por
-su cerrojo propio. Cierra. El directorio se ofrece aquí y sólo aquí: quien nunca fue paciente
+Lo manda el workflow, sin Agent Node; cualquiera de las diez funciones puede devolverlo también
+como cerrojo. Cierra. El directorio se ofrece aquí y sólo aquí: quien no tiene vínculo local
 necesita encontrar a alguien.
 
 ### `paciente_inactivo`
@@ -57,7 +65,7 @@ necesita encontrar a alguien.
 > Por ahora tu cuenta con {profesional} no aparece activa, así que desde aquí no puedo ayudarte con
 > tus citas. Escríbele para que te reactive y seguimos por aquí.
 
-**Compone** el prompt, con `{profesional}` y cero llamadas. Cierra. Dice «tu cuenta no aparece
+Lo compone y manda el workflow, con `{profesional}`, sin Agent Node. Cierra. Dice «tu cuenta no aparece
 activa» y no «no apareces como paciente activo» porque lo segundo le pone género a quien lee. Y no
 manda al directorio: **nunca fue paciente → directorio; fue y ya no → que la reactiven.**
 
@@ -70,12 +78,19 @@ de ahí toda la conversación es de esa profesional.
 >
 > {lista}
 
-**Compone** el prompt, con `{lista}` de nombres de pila numerados. La conversación sigue abierta.
-Es lo único que espera el borde por su cuenta, y por eso no entra en los siete valores de `espera`
-de las funciones: el borde anota la respuesta en la fila de la conversación y no se vuelve a
-preguntar. Nunca se adivina por la última plantilla ni por la cita más próxima: adivinar aquí manda
-toda la conversación a la profesional equivocada, y la paciente no tiene forma de darse cuenta a
-tiempo.
+Lo compone y manda el workflow, con `{lista}` de nombres de pila numerados. La ejecución espera la
+respuesta y la resuelve contra esa lista antes de entrar al Agent Node. Nunca se adivina por la
+última plantilla ni por la cita más próxima.
+
+### `en_que_puedo_ayudarte`
+
+**Cuándo.** La identidad está activa y el mensaje sólo saluda o agradece, sin una intención
+directa.
+
+> ¿En qué puedo ayudarte con tus citas o comprobantes?
+
+Lo manda el Agent Node y llama `enter_waiting`. Si el saludo o agradecimiento trae una intención
+—«hola, quiero mover la del martes»— no se manda: se atiende la intención.
 
 ### `fuera_de_alcance`
 
@@ -109,7 +124,7 @@ el comprobante, ¿ya quedó?», que lo contesta `mandar_comprobante`.
 
 **Cuándo.** El mensaje es genuinamente ininteligible. **No** es para un saludo ni para «¿qué
 tengo?»: eso es `mis_citas`. Es también el desenlace de un número suelto sin nada pendiente —«la 2»
-al día siguiente, cuando la fila de la conversación ya caducó—, y el de un audio, un video, un
+cuando no existe un estado privado vigente—, y el de un audio, un video, un
 sticker o cualquier otro archivo que no sea imagen o PDF.
 
 > No te entendí. Por aquí te puedo ayudar con tus citas —{verbos}— y con lo de tus pagos. ¿Qué
@@ -122,22 +137,15 @@ adivina de qué lista era**: se contesta esto y ella lo vuelve a decir con palab
 
 ### `se_acabo_el_espacio`
 
-**Cuándo.** Se acabaron las **tres llamadas de este mensaje** —el tope cuenta cada intento,
-incluidos los que el borde rechaza por malformados—, o se agotó el presupuesto de tiempo del
-mensaje.
+**Cuándo.** Una herramienta no devolvió el contrato válido o el workflow agotó su recuperación
+segura sin poder confirmar un resultado.
 
 > Se me acabó el espacio de esta consulta. Escríbeme otra vez y seguimos justo desde donde nos
 > quedamos.
 
-**Lo compone el borde**, no el modelo, y cierra. Vive fuera de las funciones porque cuando hace
-falta ya no queda ninguna llamada disponible: una herramienta que sólo se puede usar cuando no se
-puede usar ninguna es una herramienta rota. Si el modelo escribe otra cosa en su lugar, el borde la
-sustituye por este texto. Y dice la verdad: la fila de la conversación guarda qué se preguntó y qué
-opciones se ofrecieron, así que el mensaje siguiente sí retoma donde se quedó.
-
-**Antes de mandarlo por una llamada que escribe y no contestó**, el borde relee el estado y responde
-con lo que encuentre. Si la cita quedó creada y ella lee «se me acabó el espacio», su siguiente «sí»
-acaba en dos citas.
+Vive literal en el Agent Node y cierra. Antes de usarlo después de una mutación, el gateway reintenta
+con el mismo `command_id`; si la escritura ya ocurrió, `command_log` devuelve el resultado real. No
+se usa este texto sobre una mutación cuyo estado pueda releerse.
 
 ### `pendiente_lo_otro`
 
@@ -757,7 +765,7 @@ Si en un mismo lote llegaron varias imágenes, `espera: "cita"`:
 
 > Me llegaron varias imágenes. Me quedo con la última. ¿Es el comprobante de tu cita del {dia}?
 
-Se toma **la última** y se dice cuál. La fila de la conversación guarda de qué archivo se preguntó,
+Se toma **la última** y se dice cuál. El estado privado de la ejecución guarda de qué archivo se preguntó,
 y si llega uno nuevo antes de que ella conteste, la pregunta se rehace sobre el nuevo: sin eso, el
 «sí» de ella pegaría una foto que no es la que acaba de mandar.
 
@@ -814,6 +822,11 @@ cero llamadas.
 
 > Ya tenemos tu reseña de {profesional}, y te lo agradecemos mucho. Si quieres cambiarla,
 > coméntaselo.
+
+**`resena_no_disponible`** — no hay relación activa o todavía no existe una sesión atendida. Cierra.
+
+> Todavía no puedo guardar una reseña de {profesional}. Cuando corresponda, te llegará la
+> invitación por aquí.
 
 ### 2.10 `mis_citas`
 
@@ -1076,7 +1089,7 @@ quién se ve.
 
 ### 4.3 La cita dejó de estar donde estaba
 
-Reprogramar son tres llamadas en tres mensajes, y entre la primera y la última la profesional puede
+Reprogramar usa tres herramientas en tres mensajes, y entre la primera y la última la profesional puede
 haber tocado esa cita desde su app. La llamada que escribe **relee el estado de la cita de origen
 dentro de su propia transacción**, y si cambió, sale uno de estos tres. Los tres van igual:
 `hecho: false`, `espera: null` y **`cierra: false`**, porque los tres traen su salida dentro del
@@ -1123,15 +1136,17 @@ profesional configura, nunca sobre lo que hoy tiene configurado.
 
 ## 6. Índice de claves
 
-Las 83 claves de esta página, en el orden en que aparecen. Los demás archivos citan por clave y
+Las 86 claves de esta página, en el orden en que aparecen. Los demás archivos citan por clave y
 citan este número; si una clave no está aquí, el texto no existe todavía.
 
 | Clave | Sección |
 |---|---|
 | `crisis` | 1 |
+| `comparte_tu_contacto` | 1 |
 | `no_te_reconocemos` | 1 |
 | `paciente_inactivo` | 1 |
 | `con_cual_profesional` | 1 |
+| `en_que_puedo_ayudarte` | 1 |
 | `fuera_de_alcance` | 1 |
 | `asunto_de_dinero` | 1 |
 | `no_entendi` | 1 |
@@ -1191,6 +1206,7 @@ citan este número; si una clave no está aquí, el texto no existe todavía.
 | `comprobante_sin_archivo` | 2.8 |
 | `resena_gracias` | 2.9 |
 | `resena_ya_enviada` | 2.9 |
+| `resena_no_disponible` | 2.9 |
 | `mis_citas_lista` | 2.10 |
 | `mis_citas_una` | 2.10 |
 | `mis_citas_donde_presencial` | 2.10 |

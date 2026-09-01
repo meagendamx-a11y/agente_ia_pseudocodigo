@@ -4,7 +4,7 @@ Corte: 2026-08-29.
 
 Éste es el archivo que se lee para saber **cómo se siente el producto**: el paso previo de las dos
 profesionales, los ocho flujos y los bordes, mensaje por mensaje. Debajo de cada respuesta, una
-línea dice qué función se llamó y cuántas llamadas van de las tres de ese mensaje.
+línea dice qué función se llamó, si mutó y si la ejecución espera o termina.
 
 **Son ocho flujos, y este archivo es el dueño de ese número:** agendar, mandar el comprobante,
 confirmar, reprogramar, cancelar, cambiar de modalidad, dejar reseña y consultar — del §1 al §8, uno
@@ -27,18 +27,15 @@ difieren, manda `06`.**
 ```
 >>  lo que llega por WhatsApp
 <<  lo que contesta el agente
-[qué función se llamó · cuál de las tres llamadas de ese mensaje · si muta · si la conversación cierra]
+[qué función se llamó · si muta · si la ejecución espera o termina]
 ```
 
-**El tope es por mensaje: tres llamadas, y cada mensaje de ella trae tres nuevas.** La cuenta
-arranca de cero en cada mensaje y no se arrastra al siguiente. El tope existe para una sola cosa:
-que un modelo confundido no llame funciones en círculo. La cuenta completa está en el §10.
+**Una herramienta de dominio por batch.** Cuando la función devuelve texto, el Agent Node lo manda y
+espera o termina. La cuenta completa está en el §10.
 
-Lo que se lleva de un mensaje al siguiente no son las palabras, es **la memoria de la
-conversación**: qué se preguntó, qué función lo preguntó, qué opciones numeradas se ofrecieron y
-sobre qué cita se está trabajando. Por eso un «la 2» aterriza siempre en la función correcta, y por
-eso no hay que acordarse de nada para que el mensaje siguiente siga donde se quedó. La tabla se
-define en `docs/07-portero.md` §8.1 y aquí sólo se usa.
+Entre mensajes, el Agent Node conserva la conversación y un estado sellado conserva qué se
+preguntó, las opciones numeradas, la cita en curso y el archivo pendiente. El modelo no ve sus UUID.
+El mecanismo se define en `docs/07-portero.md` §6.1.
 
 ### El reparto
 
@@ -85,7 +82,7 @@ de nada**, y de ahí toda la conversación es de esa profesional.
 
     1. Lucía
     2. Ramiro
-[cero llamadas · el texto vive en el prompt · la conversación sigue abierta]
+[cero herramientas · el workflow espera]
 
 >>  con Ramiro
 
@@ -95,21 +92,16 @@ de nada**, y de ahí toda la conversación es de esa profesional.
     Tu cita nueva la puedes tomar presencial o en línea, dime también cómo la prefieres.
 
     Hora CDMX.
-[reprogramar() · 1 de 3 · no muta]
+[reprogramar() · una herramienta · no muta]
 ```
 
-**No cuesta ninguna llamada** porque ocurre antes de que haya intención: todavía no se sabe de qué
-se va a hablar, así que ninguna de las diez sería la función que llamar. La lista la escribe el
-borde con lo que ya sabe del teléfono, la respuesta se guarda en la memoria de la conversación, y
-**no se vuelve a preguntar**.
+**No cuesta ninguna herramienta ni tokens** porque ocurre antes del Agent Node. La lista la compone
+el workflow con relaciones activas y la guarda en variables privadas.
 
 **«Con Ramiro» produce una gestión, no un «no te entendí», y hacen falta dos cosas para eso.** La
-primera: el borde resuelve el número contra su propia lista y **sigue adelante en el mismo
-mensaje** —anota la profesional, arma el sobre con ella puesta y corre el modelo con el lote
-completo—. Si se detuviera ahí, ella tendría que volver a escribir para qué escribió. La segunda:
-en ese sobre viaja **el último ida y vuelta** —lo que ella escribió y lo que se le contestó—, que
-es donde está «quiero mover mi cita». Sin ese par, «con Ramiro» es dos palabras sueltas y se
-contesta `no_entendi`.
+primera: el workflow resuelve el número y vuelve a comprobar la relación. La segunda: conserva el
+batch original —«hola, quiero mover mi cita»— y lo entrega al Agent Node junto con la selección. Así
+«con Ramiro» continúa la gestión sin pedir que repita su intención.
 
 Nunca se adivina, ni por la última plantilla ni por la cita más próxima. Adivinar aquí manda toda
 la conversación a la profesional equivocada y ella no tiene cómo darse cuenta a tiempo. Con un solo
@@ -135,7 +127,7 @@ paciente no tiene dónde deshacerla más que pidiéndolo por aquí.
     2. Valoración sin costo · 50 minutos · $800
 
     Dime cuál te interesa, qué días te quedan mejor y a qué hora.
-[ver_servicios() · 1 de 3 · no muta]
+[ver_servicios() · una herramienta · no muta]
 
 >>  la 1, el miércoles por la tarde
 
@@ -144,14 +136,14 @@ paciente no tiene dónde deshacerla más que pidiéndolo por aquí.
     1. 3:00   2. 4:00   3. 5:00
 
     Dime cuál te acomoda.
-[buscar_horarios(servicio: 1, dias: ["miércoles"], parte_del_dia: "tarde") · 1 de 3 · no muta]
+[buscar_horarios(servicio: 1, dias: ["miércoles"], parte_del_dia: "tarde") · una herramienta · no muta]
 
 >>  la 2
 
 <<  ¿Aparto tu cita del miércoles 2 de septiembre a las 4:00, en línea?
 
     Hora CDMX.
-[agendar(opcion: 2) · 1 de 3 · no muta]
+[agendar(opcion: 2) · una herramienta · no muta]
 
 >>  sí
 
@@ -159,7 +151,7 @@ paciente no tiene dónde deshacerla más que pidiéndolo por aquí.
     en línea, con Ramiro.
 
     Hora CDMX.
-[agendar(opcion: 2, confirmado: true) · 1 de 3 · muta · aviso appointment_created_by_patient ·
+[agendar(opcion: 2, confirmado: true) · una herramienta · muta · aviso appointment_created_by_patient ·
  cierra]
 ```
 
@@ -193,7 +185,7 @@ nunca escrita a mano (regla 2). La regla completa está en `docs/06-textos.md` �
     4. Valoración inicial · 30 minutos · $0
 
     Dime cuál te interesa, qué días te quedan mejor y a qué hora.
-[ver_servicios() · 1 de 3 · no muta]
+[ver_servicios() · una herramienta · no muta]
 
 >>  la 2, en línea, el martes o el miércoles en la tarde
 
@@ -203,14 +195,14 @@ nunca escrita a mano (regla 2). La regla completa está en `docs/06-textos.md` �
 
     Dime la hora y en cuál de los dos días.
 [buscar_horarios(servicio: 2, modalidad: "en_linea", dias: ["martes","miércoles"],
- parte_del_dia: "tarde") · 1 de 3 · no muta]
+ parte_del_dia: "tarde") · una herramienta · no muta]
 
 >>  la 2, el martes
 
 <<  ¿Aparto tu cita del martes 1 de septiembre a las 4:00, en línea?
 
     Hora CDMX.
-[agendar(opcion: 2, dia: "martes") · 1 de 3 · no muta]
+[agendar(opcion: 2, dia: "martes") · una herramienta · no muta]
 
 >>  sí
 
@@ -220,7 +212,7 @@ nunca escrita a mano (regla 2). La regla completa está en `docs/06-textos.md` �
     Transfiere a {banco}, a nombre de {titular}, CLABE {clabe}, y mándame el comprobante por aquí.
 
     Hora CDMX.
-[agendar(opcion: 2, dia: "martes", confirmado: true) · 1 de 3 · muta ·
+[agendar(opcion: 2, dia: "martes", confirmado: true) · una herramienta · muta ·
  aviso appointment_created_by_patient · cierra]
 ```
 
@@ -252,7 +244,7 @@ Es el **mismo texto** con el otro valor del hueco. Cambia sólo el segundo párr
     Pídele los datos para la transferencia y mándame el comprobante por aquí.
 
     Hora CDMX.
-[agendar(opcion: 2, dia: "martes", confirmado: true) · 1 de 3 · muta · cierra]
+[agendar(opcion: 2, dia: "martes", confirmado: true) · una herramienta · muta · cierra]
 ```
 
 El nombre no se repite dentro del mismo texto: ella ya sabe quién es su profesional. Y el agente no
@@ -264,7 +256,7 @@ sabe cuál de los dos valores existe: le llega escrito.
 >>  no, mejor no
 
 <<  Va, no la aparto. Cuando quieras, dime qué días te quedan mejor y te busco.
-[agendar(opcion: 2, confirmado: false) · 1 de 3 · no muta · cierra]
+[agendar(opcion: 2, confirmado: false) · una herramienta · no muta · cierra]
 ```
 
 La pregunta de antes de apartar tiene dos mitades y las dos necesitan texto. Por eso `confirmado`
@@ -282,7 +274,7 @@ preguntó», y las dos caían en el mismo falso. Lo mismo vale para las otras tr
     1. 3:00   2. 5:00
 
     ¿Te sirve alguna, o te busco otra fecha?
-[agendar(opcion: 2, confirmado: true) · 1 de 3 · no muta · la conversación sigue abierta]
+[agendar(opcion: 2, confirmado: true) · una herramienta · no muta · la conversación sigue abierta]
 ```
 
 Entre la lista y la escritura pasan dos mensajes de ella, porque el paso de confirmación agrega
@@ -314,7 +306,7 @@ número no le sirve de nada a quien lo lee. Se dice lo que hay y lo que sí se p
     1. 9:00   2. 10:00   3. 11:00   4. 12:00   5. 1:00
 
     ¿Te sirve alguno, o te busco otra fecha?
-[buscar_horarios(relativo: "manana") · 1 de 3 · no muta]
+[buscar_horarios(relativo: "manana") · una herramienta · no muta]
 ```
 
 «Mañana» viaja como palabra, no como fecha: el parámetro `relativo` la recibe tal cual y el
@@ -337,7 +329,7 @@ de horas, y por eso el único que no lleva marca de zona: no hay ninguna hora qu
     3. Jueves 3 de septiembre
 
     ¿Te sirve alguno, o te busco otra fecha?
-[buscar_horarios(dias: ["sábado","domingo"]) · 1 de 3 · no muta]
+[buscar_horarios(dias: ["sábado","domingo"]) · una herramienta · no muta]
 ```
 
 **No hay consulta a esa hora.**
@@ -351,7 +343,7 @@ de horas, y por eso el único que no lleva marca de zona: no hay ninguna hora qu
     1. 12:00   2. 1:00   3. 3:00   4. 4:00   5. 5:00
 
     ¿Te sirve alguno, o te busco otra fecha?
-[buscar_horarios(dias: ["martes"], parte_del_dia: "noche") · 1 de 3 · no muta]
+[buscar_horarios(dias: ["martes"], parte_del_dia: "noche") · una herramienta · no muta]
 ```
 
 Quien convierte «en la noche» en un par de horas es el servidor, con el horario de esa
@@ -373,7 +365,7 @@ días, y otras horas en el mismo día.
     4. Martes 1, 3:00
 
     ¿Te sirve alguno, o te busco otra fecha?
-[buscar_horarios(dias: ["martes"], parte_del_dia: "mediodia") · 1 de 3 · no muta]
+[buscar_horarios(dias: ["martes"], parte_del_dia: "mediodia") · una herramienta · no muta]
 ```
 
 La lista mezcla las dos salidas, y por eso cada renglón lleva día y hora. Ofrecer una sola la manda
@@ -389,7 +381,7 @@ a preguntar otra vez por la que no se le ofreció.
     1. 9:00   2. 10:00   3. 12:00   4. 3:00   5. 5:00
 
     ¿Te sirve alguno, o te busco otra fecha?
-[buscar_horarios(fechas: [15,16]) · 1 de 3 · no muta]
+[buscar_horarios(fechas: [15,16]) · una herramienta · no muta]
 ```
 
 Las fechas viajan como el número del día, sin mes y sin año, y el servidor las resuelve **siempre
@@ -411,7 +403,7 @@ que cambiar es la modalidad.
 
 <<  Ahorita Lucía no tiene horarios abiertos para las próximas semanas. Escríbele directamente
     para que te dé un espacio.
-[ver_servicios() · 1 de 3 · no muta · cierra]
+[ver_servicios() · una herramienta · no muta · cierra]
 ```
 
 Es el texto `sin_horarios` y **cuesta una sola llamada**: no tiene sentido enseñar precios de algo
@@ -425,7 +417,7 @@ la paciente.
 
 <<  Ese servicio no lo tienes asignado, así que desde aquí no te lo puedo agendar. Pídele a Lucía
     que te lo habilite y con gusto te lo agendo.
-[ver_servicios(pidio: "terapia de pareja") · 1 de 3 · no muta]
+[ver_servicios(pidio: "terapia de pareja") · una herramienta · no muta]
 ```
 
 La lista que se le enseña es la que le toca: **sus servicios asignados si tiene alguno, y el
@@ -472,7 +464,7 @@ se le dice que debe. La definición completa vive una sola vez, en `docs/03-dine
 >>  [imagen]
 
 <<  ¿Es el comprobante de tu cita del martes 1 de septiembre?
-[mandar_comprobante() · 1 de 3 · no muta]
+[mandar_comprobante() · una herramienta · no muta]
 
 >>  sí
 
@@ -480,7 +472,7 @@ se le dice que debe. La definición completa vive una sola vez, en `docs/03-dine
     confirmada.
 
     Hora CDMX.
-[mandar_comprobante(cita: 1) · 1 de 3 · muta · avisos payment_proof_received y
+[mandar_comprobante(cita: 1) · una herramienta · muta · avisos payment_proof_received y
  appointment_confirmed · cierra]
 ```
 
@@ -502,13 +494,13 @@ haya un cobro al cual pegarlo.
 
     1. Jueves 20 de agosto — $800
     2. Martes 1 de septiembre — $800
-[mandar_comprobante() · 1 de 3 · no muta]
+[mandar_comprobante() · una herramienta · no muta]
 
 >>  la 1
 
 <<  Listo, recibí tu comprobante de tu sesión del jueves 20 de agosto. Ya se lo hice llegar a
     Lucía.
-[mandar_comprobante(cita: 1) · 1 de 3 · muta · aviso payment_proof_received · cierra]
+[mandar_comprobante(cita: 1) · una herramienta · muta · aviso payment_proof_received · cierra]
 ```
 
 La lista va con fecha y monto, la más antigua primero. **Las sesiones pasadas no se colapsan:**
@@ -522,7 +514,7 @@ ya pasó es otro, porque no confirma nada.
     [contestando a la plantilla que le pidió el comprobante de la cancelación tardía]
 
 <<  ¿Es el comprobante de tu cita del jueves 27 de agosto?
-[mandar_comprobante() · 1 de 3 · no muta]
+[mandar_comprobante() · una herramienta · no muta]
 ```
 
 Es el mismo flujo, y hay que decirlo aparte porque **es el único camino que el producto tiene para
@@ -539,12 +531,12 @@ candidatas puestas sobre cobros, entra.
 
 <<  Me llegaron varias imágenes. Me quedo con la última. ¿Es el comprobante de tu cita del martes
     1 de septiembre?
-[mandar_comprobante() · 1 de 3 · no muta]
+[mandar_comprobante() · una herramienta · no muta]
 ```
 
 El agrupamiento entrega lotes, así que dos fotos seguidas son **una sola entrega con dos
 renglones**: suponer un archivo por mensaje es el error clásico. Se toma la última y se dice cuál.
-La memoria de la conversación guarda **de qué archivo se preguntó**, y si llega uno nuevo antes de
+El estado privado de la ejecución guarda **de qué archivo se preguntó**, y si llega uno nuevo antes de
 que ella conteste, la pregunta se rehace sobre el nuevo. Sin eso, la pregunta protege contra la
 cita equivocada y no contra el archivo equivocado, que es el mismo daño y tampoco tiene arreglo.
 
@@ -555,23 +547,23 @@ cita equivocada y no contra el archivo equivocado, que es el mismo daño y tampo
 
 <<  No tengo ningún cobro tuyo esperando comprobante. Si es de algo que Lucía te pidió aparte,
     mándaselo directo.
-[mandar_comprobante() · 1 de 3 · no muta · cierra]
+[mandar_comprobante() · una herramienta · no muta · cierra]
 ```
 
 Da igual qué traiga la foto: lo que decide la respuesta es si hay un cobro esperando.
 
 ### 2.6 Audio, video o sticker — 0 llamadas
 
-Es `no_entendi` y lo contesta el prompt sin llamar a nada: el agente no oye audio ni ve video, así
-que lo trata como lo que no logró leer y vuelve a ofrecer los verbos de esa profesional. **El
-silencio es peor**, y era lo que hacía la versión anterior.
+El workflow revisa el tipo después de resolver identidad y antes del Agent Node. Si el lote sólo
+trae audio, video, sticker, ubicación u otro archivo incompatible, manda `no_entendi` directamente
+y espera: no hay RPC ni tokens del modelo. **El silencio es peor**, y era lo que hacía la versión
+anterior.
 
-**Cada renglón del lote llega con su tipo cuando no es texto**, en una marca que escribe el borde y
-el modelo sólo lee: `[imagen]`, `[pdf]`, `[audio]`, `[video]`, `[sticker]`, `[ubicación]`,
-`[contacto]`, `[archivo]`, seguida del texto si lo trae. Sin esa marca, una foto sin texto llega
-como un renglón vacío y el flujo del comprobante no arranca. Imagen y PDF van a
-`mandar_comprobante`; **cualquier otro tipo, incluida una ubicación o una tarjeta de contacto, va a
-`no_entendi`**.
+Imagen y PDF compatibles sí se representan para que el Agent Node pueda enrutar a
+`mandar_comprobante`; el modelo nunca recibe bytes, URL privada ni UUID, y no analiza el archivo.
+Si un mismo lote trae un medio incompatible y además texto que por sí solo expresa una intención
+clara, se ignora el medio y se atiende sólo el texto. Así se conserva una respuesta visible por
+lote y no se pierde una petición entendible por culpa de un sticker adjunto.
 
 ### 2.7 Y lo que no pasa
 
@@ -591,11 +583,11 @@ deje de escribir. El recordatorio llega solo, por plantilla, desde el trabajo pr
 <<  Listo, tu cita del miércoles 2 de septiembre a las 4:00 quedó confirmada.
 
     Hora CDMX.
-[confirmar() · 1 de 3 · muta · aviso appointment_confirmed · cierra]
+[confirmar() · una herramienta · muta · aviso appointment_confirmed · cierra]
 ```
 
 Es la gestión más barata del catálogo. Casi siempre llega contestando a la plantilla de
-confirmación, y esa pista viaja ya redactada en el contexto que arma el borde, sin costar ninguna
+confirmación, y esa pista puede viajar ya redactada en el contexto del workflow, sin costar ninguna
 llamada.
 
 ### 3.2 Prepago: decir «sí voy» no confirma — 1 llamada
@@ -608,7 +600,7 @@ llamada.
     Transfiere a {banco}, a nombre de {titular}, CLABE {clabe}, y mándame el comprobante por aquí.
 
     Hora CDMX.
-[confirmar() · 1 de 3 · no muta · cierra]
+[confirmar() · una herramienta · no muta · cierra]
 ```
 
 **Lo que confirma es el archivo, no la palabra.** La función no escribe nada y aun así contesta lo
@@ -632,14 +624,14 @@ veces el mismo archivo la hace dudar de que el primero llegó, y la base admite 
     2. Viernes 4, 10:00
 
     Hora CDMX.
-[confirmar() · 1 de 3 · no muta]
+[confirmar() · una herramienta · no muta]
 
 >>  la 1
 
 <<  Listo, tu cita del miércoles 2 de septiembre a las 4:00 quedó confirmada.
 
     Hora CDMX.
-[confirmar(citas: [1]) · 1 de 3 · muta · cierra]
+[confirmar(citas: [1]) · una herramienta · muta · cierra]
 ```
 
 **Siempre se pregunta cuál.** Nunca se asume, ni por la última plantilla ni por la más próxima:
@@ -651,7 +643,7 @@ confirmar la equivocada la deja creyendo que avisó de una sesión a la que no v
 >>  ambas
 
 <<  Listo, tus citas del miércoles 2 y del viernes 4 quedaron confirmadas.
-[confirmar(citas: "todas") · 1 de 3 · muta · un aviso appointment_confirmed por cita · cierra]
+[confirmar(citas: "todas") · una herramienta · muta · un aviso appointment_confirmed por cita · cierra]
 ```
 
 Va **una sola llamada, una sola transacción, y un aviso a la profesional por cada cita**: si alguno
@@ -687,7 +679,7 @@ está tomando un horario nuevo hoy, así que el corte se recalcula hoy.
     Tu cita nueva la puedes tomar presencial o en línea, dime también cómo la prefieres.
 
     Hora CDMX.
-[reprogramar() · 1 de 3 · no muta]
+[reprogramar() · una herramienta · no muta]
 
 >>  el viernes en la mañana, en línea
 
@@ -697,14 +689,14 @@ está tomando un horario nuevo hoy, así que el corte se recalcula hoy.
 
     Dime cuál te acomoda.
 [buscar_horarios(dias: ["viernes"], parte_del_dia: "manana", modalidad: "en_linea") ·
- 1 de 3 · no muta]
+ una herramienta · no muta]
 
 >>  la 2
 
 <<  Listo, moví tu cita al viernes 4 de septiembre a las 10:00, en línea.
 
     Hora CDMX.
-[reprogramar(opcion: 2) · 1 de 3 · muta · aviso appointment_rescheduled_by_patient · cierra]
+[reprogramar(opcion: 2) · una herramienta · muta · aviso appointment_rescheduled_by_patient · cierra]
 ```
 
 **La modalidad sí se vuelve a preguntar**, cuando ese servicio admite las dos: mover la cita es
@@ -713,7 +705,7 @@ en el mismo mensaje, para que no cueste un viaje aparte. **El servicio no se pre
 la cita que se mueve.
 
 **La búsqueda no recibe cuál cita se está moviendo, y no le hace falta.** La primera llamada la
-anotó en la memoria de la conversación, y de ahí la lee el servidor para excluirla de la búsqueda,
+anotó en el estado privado de la ejecución, y de ahí la lee el servidor para excluirla de la búsqueda,
 que es lo que evita que se tape a sí misma los huecos vecinos. Antes viajaba en un parámetro, y era
 el único número del diseño que cruzaba de una función a otra —además de que no funcionaba cuando
 había una sola candidata, que es el caso normal—.
@@ -735,7 +727,7 @@ viejo era un pendiente a secas y su profesional cobra por adelantado, el cierre 
     cambios y ya faltan menos, así que se cobran las dos sesiones — la del jueves 27 y la nueva.
 
     ¿La movemos?
-[reprogramar() · 1 de 3 · no muta]
+[reprogramar() · una herramienta · no muta]
 
 >>  sí, muévela
 
@@ -744,7 +736,7 @@ viejo era un pendiente a secas y su profesional cobra por adelantado, el cierre 
     Tu cita nueva la puedes tomar presencial o en línea, dime también cómo la prefieres.
 
     Hora CDMX.
-[reprogramar(confirmado: true) · 1 de 3 · no muta]
+[reprogramar(confirmado: true) · una herramienta · no muta]
 
 >>  ¿tienes mañana?
 
@@ -754,20 +746,20 @@ viejo era un pendiente a secas y su profesional cobra por adelantado, el cierre 
     1. 10:00   2. 11:00   3. 12:00   4. 4:00   5. 5:00
 
     ¿Te sirve alguno, o te busco otra fecha?
-[buscar_horarios(relativo: "manana") · 1 de 3 · no muta]
+[buscar_horarios(relativo: "manana") · una herramienta · no muta]
 
 >>  la 2
 
 <<  Listo, moví tu cita al sábado 29 de agosto a las 11:00, presencial.
 
     Hora CDMX.
-[reprogramar(opcion: 2) · 1 de 3 · muta · aviso appointment_rescheduled_by_patient · cierra]
+[reprogramar(opcion: 2) · una herramienta · muta · aviso appointment_rescheduled_by_patient · cierra]
 ```
 
-**El «sí» del aviso cuesta su propia llamada**, y por eso ésta empata con agendar como la gestión
+**El «sí» del aviso usa su propia herramienta**, y por eso ésta empata con agendar como la gestión
 más larga. El aviso espera `confirmado`, así que la respuesta vuelve a `reprogramar` y de ahí sale
-la pregunta del día; sólo después entra la búsqueda. Cuatro llamadas repartidas en cuatro mensajes,
-una por mensaje, y el tope de tres ni se acerca.
+la pregunta del día; sólo después entra la búsqueda. Son cuatro herramientas repartidas en cuatro
+mensajes, nunca dos herramientas de dominio dentro del mismo batch.
 
 **Los dos plazos aparecen en la misma gestión, y no es un error.** Primero se le avisa que se cobran
 las dos sesiones, porque el aviso de cambio ya no alcanza; después la búsqueda sólo le ofrece días
@@ -804,7 +796,7 @@ segunda salida: no buscar hueco nuevo, sino dejarla en esa próxima.
     martes 8 de septiembre a las 4:00 y cancelo ésta. ¿Cuál prefieres?
 
     Hora CDMX.
-[reprogramar() · 1 de 3 · no muta · la conversación sigue abierta]
+[reprogramar() · una herramienta · no muta · la conversación sigue abierta]
 
 >>  pásala a la del 8
 
@@ -812,7 +804,7 @@ segunda salida: no buscar hueco nuevo, sino dejarla en esa próxima.
     septiembre a las 4:00, y tu pago quedó ahí.
 
     Hora CDMX.
-[reprogramar(a_la_proxima: true) · 1 de 3 · muta · aviso appointment_cancelled_by_patient · cierra]
+[reprogramar(a_la_proxima: true) · una herramienta · muta · aviso appointment_cancelled_by_patient · cierra]
 ```
 
 Es lo que casi siempre quiere quien falta a una sesión de una serie semanal, y no gasta un hueco de
@@ -845,7 +837,7 @@ a las 5:00 sigue en pie. Hora CDMX». Con `hecho: false` y cierra.
 
 ### 4.5 La cita dejó de estar donde estaba — 1 llamada
 
-Mover son tres llamadas en tres mensajes. Entre la primera y la última, la profesional pudo
+Mover son tres herramientas en tres mensajes. Entre la primera y la última, la profesional pudo
 cancelarla, moverla o cerrarla desde su app.
 
 ```
@@ -855,7 +847,7 @@ cancelarla, moverla o cerrarla desde su app.
     muevo desde ahí?
 
     Hora CDMX.
-[reprogramar(opcion: 2) · 1 de 3 · no muta · la conversación sigue abierta]
+[reprogramar(opcion: 2) · una herramienta · no muta · la conversación sigue abierta]
 ```
 
 Son tres textos —que ya no está, que cambió de lugar, y que ya pasó— y los tres traen salida. La
@@ -880,7 +872,7 @@ cargo, y con él cambia qué se le dice antes de cancelar: dos salidas, un aviso
     pendiente por ella.
 
     Hora CDMX.
-[cancelar() · 1 de 3 · muta · aviso appointment_cancelled_by_patient · cierra]
+[cancelar() · una herramienta · muta · aviso appointment_cancelled_by_patient · cierra]
 ```
 
 **No se pregunta «¿de verdad?».** Preguntar dos veces cuando no hay ninguna consecuencia es un
@@ -898,14 +890,14 @@ primera línea en tres sitios es cómo se separan.
 
 <<  Te la cancelo, pero antes te aviso: Ramiro pide 12 horas de aviso y ya faltan menos, así que
     la sesión se te cobra. ¿La cancelo de todos modos?
-[cancelar() · 1 de 3 · no muta]
+[cancelar() · una herramienta · no muta]
 
 >>  sí, cancélala
 
 <<  Listo, cancelé tu cita del jueves 27 de agosto a las 5:00.
 
     Hora CDMX.
-[cancelar(confirmado: true) · 1 de 3 · muta · aviso appointment_cancelled_by_patient · cierra]
+[cancelar(confirmado: true) · una herramienta · muta · aviso appointment_cancelled_by_patient · cierra]
 ```
 
 **Cancelar tarde sí se puede.** Rechazarlo deja el peor camino: ella avisó que no podía ir, nadie
@@ -933,7 +925,7 @@ más, **una vez y sólo una**.
 
 <<  Ya mandaste tu comprobante de esa cita. Puedo reprogramarla, o cancelarla y pasar tu
     comprobante a la próxima, la del martes 8. ¿Qué prefieres?
-[cancelar() · 1 de 3 · no muta · la conversación sigue abierta]
+[cancelar() · una herramienta · no muta · la conversación sigue abierta]
 
 >>  va, muévela al miércoles en la tarde
 
@@ -942,14 +934,14 @@ más, **una vez y sólo una**.
     1. 3:00   2. 4:00   3. 5:00
 
     Dime cuál te acomoda.
-[buscar_horarios(dias: ["miércoles"], parte_del_dia: "tarde") · 1 de 3 · no muta]
+[buscar_horarios(dias: ["miércoles"], parte_del_dia: "tarde") · una herramienta · no muta]
 
 >>  la 1
 
 <<  Listo, moví tu cita al miércoles 2 de septiembre a las 3:00, en línea.
 
     Hora CDMX.
-[reprogramar(opcion: 1) · 1 de 3 · muta · cierra]
+[reprogramar(opcion: 1) · una herramienta · muta · cierra]
 ```
 
 Cuando no hay una próxima ocurrencia viva de su serie, la salida es una sola y el texto lo dice así:
@@ -983,7 +975,7 @@ puede ir a dos funciones distintas.
     y ya faltaban menos, tu pago se queda registrado en ella y Lucía lo resuelve contigo.
 
     Hora CDMX.
-[cancelar() · 1 de 3 · muta · aviso appointment_cancelled_by_patient · cierra]
+[cancelar() · una herramienta · muta · aviso appointment_cancelled_by_patient · cierra]
 ```
 
 **Fuera de plazo no se pregunta: se cancela y se dice cómo quedó el dinero.** Es el único caso con
@@ -1016,7 +1008,7 @@ ofreció esa salida, porque el único texto que la menciona es el suyo.
     sesión del martes 8 de septiembre a las 4:00.
 
     Hora CDMX.
-[cancelar(pasa_el_pago: true) · 1 de 3 · muta · aviso appointment_cancelled_by_patient · cierra]
+[cancelar(pasa_el_pago: true) · una herramienta · muta · aviso appointment_cancelled_by_patient · cierra]
 ```
 
 **El destino no se señala y el modelo no lo elige.** Lo resuelve el servidor, que ya sabe cuál es la
@@ -1038,7 +1030,7 @@ vieja, porque eso es lo que de verdad le pasa y callarlo la dejaría creyendo qu
     Lucía lo resuelve contigo.
 
     Hora CDMX.
-[cancelar(pasa_el_pago: true) · 1 de 3 · muta · aviso appointment_cancelled_by_patient · cierra]
+[cancelar(pasa_el_pago: true) · una herramienta · muta · aviso appointment_cancelled_by_patient · cierra]
 ```
 
 Es una carrera, no una política: entre que se ofreció la salida y ella contestó, la próxima se
@@ -1069,7 +1061,7 @@ el importe que traía, y la profesional ajusta desde su app, que es donde se aju
     Lucía lo resuelve contigo.
 
     Hora CDMX.
-[cancelar(confirmado: true) · 1 de 3 · muta · aviso appointment_cancelled_by_patient · cierra]
+[cancelar(confirmado: true) · una herramienta · muta · aviso appointment_cancelled_by_patient · cierra]
 ```
 
 **El agente no insiste una segunda vez:** ella ya escuchó las salidas y las rechazó. La cita queda
@@ -1103,14 +1095,14 @@ no se cambia. Y no toca dinero nunca: ni el cobro, ni su estado, ni su petición
     ¿La cambio?
 
     Hora CDMX.
-[cambiar_modalidad() · 1 de 3 · no muta]
+[cambiar_modalidad() · una herramienta · no muta]
 
 >>  sí
 
 <<  Listo, tu cita del miércoles 2 de septiembre a las 4:00 queda en línea.
 
     Hora CDMX.
-[cambiar_modalidad(confirmado: true) · 1 de 3 · muta · aviso modality_changed_by_patient · cierra]
+[cambiar_modalidad(confirmado: true) · una herramienta · muta · aviso modality_changed_by_patient · cierra]
 ```
 
 **Las candidatas son dos condiciones, no cuatro:** la cita está viva y en el futuro, y su servicio
@@ -1129,7 +1121,7 @@ Si dice que no: «Va, la dejo como está: tu cita del miércoles 2 de septiembre
 
 <<  Esos cambios no los tengo permitidos. Tu cita del martes 1 se queda presencial. Si es
     urgente, coméntaselo.
-[cambiar_modalidad() · 1 de 3 · no muta · cierra]
+[cambiar_modalidad() · una herramienta · no muta · cierra]
 ```
 
 ```
@@ -1137,7 +1129,7 @@ Si dice que no: «Va, la dejo como está: tu cita del miércoles 2 de septiembre
 
 <<  Para eso Ramiro pide 12 horas de anticipación y ya faltan menos. Tu cita del jueves 27 se
     queda presencial. Si es urgente, coméntaselo.
-[cambiar_modalidad() · 1 de 3 · no muta · cierra]
+[cambiar_modalidad() · una herramienta · no muta · cierra]
 ```
 
 Son las dos únicas negativas por plazo que quedan en todo el sistema, y **ahora sí se pueden
@@ -1166,7 +1158,7 @@ El agente no la pide: la pide la plantilla, que ya trae la petición completa.
     se muestran tus iniciales.
 
     Nos ayuda a que más personas encuentren en el directorio a quien las acompañe.
-[dejar_resena(estrellas: 5, comentario: "me ayudó muchísimo") · 1 de 3 · muta · sin aviso ·
+[dejar_resena(estrellas: 5, comentario: "me ayudó muchísimo") · una herramienta · muta · sin aviso ·
  cierra]
 ```
 
@@ -1186,7 +1178,7 @@ adentro:
 >>  así déjala
 
 <<  Listo, te agradecemos mucho que compartieras esto. Tu nombre queda anónimo…
-[dejar_resena(estrellas: 5) · 1 de 3 · muta · cierra]
+[dejar_resena(estrellas: 5) · una herramienta · muta · cierra]
 ```
 
 Se pregunta una vez y no se insiste. Si llega sólo el comentario, se pide la calificación
@@ -1206,7 +1198,7 @@ cuarto.
 ### 8.1 Qué tengo
 
 ```
->>  hola
+>>  hola, ¿qué citas tengo?
 
 <<  Tienes esto con Lucía:
 
@@ -1216,15 +1208,18 @@ cuarto.
     ¿Qué necesitas? Te las puedo mover, cancelar o confirmar.
 
     Hora CDMX.
-[mis_citas(sobre: "citas") · 1 de 3 · no muta · cierra]
+[mis_citas(sobre: "citas") · una herramienta · no muta · cierra]
 ```
 
 Los verbos salen del menú de esa profesional: a las pacientes de Lucía no se les menciona el cambio
 de modalidad, porque no lo permite.
 
 **`mis_citas` cierra la conversación**, porque no queda ningún dato esperando. Si contesta
-«muévela», ése es un mensaje nuevo con sus tres llamadas por delante. Y si no tiene ninguna cita, lo
+«muévela», ése es un mensaje nuevo y otra herramienta. Y si no tiene ninguna cita, lo
 dice y ofrece: «Ahorita no tienes ninguna cita con Lucía. ¿Te busco día para una?».
+
+Un «hola» sin petición no llama `mis_citas`: manda `en_que_puedo_ayudarte` y entra en espera. Un
+saludo con intención directa no agrega pasos; atiende esa intención.
 
 ### 8.2 Dónde es
 
@@ -1235,7 +1230,7 @@ dice y ofrece: «Ahorita no tienes ninguna cita con Lucía. ¿Te busco día para
     Lucía directamente.
 
     Hora CDMX.
-[mis_citas(sobre: "donde") · 1 de 3 · no muta · cierra]
+[mis_citas(sobre: "donde") · una herramienta · no muta · cierra]
 ```
 
 **No se inventa una dirección.** Cuando el dato existe, la segunda frase la lleva adentro: «La
@@ -1257,7 +1252,7 @@ para que la tenga a la mano cuando la necesita y no la busque tres días atrás 
     2. Martes 1 de septiembre — $800
 
     Cuando lo transfieras, mándame el comprobante por aquí.
-[mis_citas(sobre: "adeudos") · 1 de 3 · no muta · cierra]
+[mis_citas(sobre: "adeudos") · una herramienta · no muta · cierra]
 ```
 
 Dice qué se espera y de qué sesión. **No dice «pagado» ni promete que algo quedó saldado.** Y si no
@@ -1279,7 +1274,7 @@ detrás y es asunto de dinero.
     4. Valoración inicial · 30 minutos · $0
 
     Dime cuál te interesa, qué días te quedan mejor y a qué hora.
-[ver_servicios() · 1 de 3 · no muta]
+[ver_servicios() · una herramienta · no muta]
 ```
 
 **Es el mismo texto que al agendar, y ya no hay uno aparte para el precio.** Se pierde un cierre un
@@ -1298,20 +1293,15 @@ septiembre a las 4:00. ¿Quieres agendar otra sesión aparte de ésa?».
 
 ## 9. Los bordes
 
-**Los once textos de borde cuestan cero llamadas.** Viven literales en el prompt y se rellenan con
-lo que el borde ya resolvió, así que ni el tope de llamadas ni una caída del servidor pueden
-dejarlos sin respuesta.
-
-**Y el borde nunca contesta antes de correr el modelo.** Resuelve quién escribe, lo anota, y corre
-el modelo igual. Cortar en la identidad —contestar el texto del teléfono desconocido y ahí
-terminar— apagaba la crisis para quien más la necesita, que es el único caso donde el silencio no
-se puede reparar después.
+Los bordes se reparten. Identidad, solicitud de contacto, selección de profesional y tipos de medio
+incompatibles los resuelve el workflow sin Agent Node. Saludos, límites de alcance y la señal de
+riesgo de una identidad activa los resuelve el Agent Node sin herramienta de dominio.
 
 ### Crisis — 0 llamadas
 
 ```
 >>  ya no quiero seguir aquí, no le veo sentido a nada
-    [desde un teléfono que no tiene vínculo con ninguna profesional]
+    [desde una relación ya identificada y activa]
 
 <<  Si necesitas ayuda inmediata: Agenda Psi no es un servicio de emergencias. Si tú o alguien
     más se encuentra en peligro, llama al 911. Para recibir apoyo en salud mental, comunícate
@@ -1319,14 +1309,24 @@ se puede reparar después.
 [cero llamadas · el texto vive literal en el prompt · cierra]
 ```
 
-**Va primero, antes que el estado de identidad, y vale para todos los estados:** teléfono
-desconocido, cuenta dada de baja y paciente activa. Un «ya no aguanto» desde un teléfono que no
-conocemos tiene que recibir la línea de ayuda, no una liga al directorio.
+Va sola y no lleva otra gestión. Sólo se evalúa después de identificar una relación activa; el
+workflow no manda identidades desconocidas o inactivas al modelo. Las 24 horas que dice son el
+horario de la línea, no un plazo del producto.
 
-Va sola y no lleva pregunta de cierre: si el mensaje trae además «cancélame la del jueves», la
-cancelación no se hace y no se menciona. **No tiene ni un hueco a propósito**, así no depende de
-nada: ni de la red, ni del tope de llamadas. Las 24 horas que dice son el horario de la línea, no
-un plazo del producto.
+### BSUID nuevo sin teléfono — 0 herramientas
+
+```
+>>  hola
+    [WhatsApp entrega un BSUID todavía no ligado y no entrega teléfono]
+
+<<  Para confirmar que este WhatsApp corresponde a tu cuenta de Agenda Psi, toca el botón para
+    compartir el contacto de este número.
+[cero herramientas y cero tokens · estado needs_contact · espera]
+```
+
+La paciente sólo usa el botón nativo. No escribe ni conoce el BSUID. Si el número compartido
+coincide con un vínculo existente, el workflow completa la identidad y continúa; si no,
+`not_patient`. Compartir contacto nunca crea una relación.
 
 ### Teléfono desconocido — 0 llamadas
 
@@ -1337,13 +1337,12 @@ un plazo del producto.
     que ya están con un psicólogo o psicóloga de la plataforma.
 
     Si estás buscando uno, aquí puedes ver quiénes están disponibles: https://agendapsi.mx
-[cero llamadas · el borde ya resolvió el vínculo · cierra]
+[cero herramientas y cero tokens · estado not_patient · termina]
 ```
 
 El directorio se ofrece aquí y sólo aquí: quien nunca fue paciente necesita encontrar a alguien.
-**Ya no cuesta una llamada**, porque el borde resuelve el vínculo antes de armar el sobre y el
-modelo sólo copia el texto. Las diez funciones siguen comprobando quién escribe por su cuenta y
-devuelven este mismo texto si el sobre venía viejo, pero eso es un cerrojo, no el camino normal.
+El workflow lo envía directamente. Las diez funciones siguen comprobando la relación y pueden
+devolver el mismo texto si cambió durante una ejecución, pero ése no es el camino normal.
 
 ### La cuenta dada de baja — 0 llamadas
 
@@ -1352,7 +1351,7 @@ devuelven este mismo texto si el sobre venía viejo, pero eso es un cerrojo, no 
 
 <<  Por ahora tu cuenta con Ramiro no aparece activa, así que desde aquí no puedo ayudarte con
     tus citas. Escríbele para que te reactive y seguimos por aquí.
-[cero llamadas · el borde ya resolvió el vínculo · cierra]
+[cero herramientas y cero tokens · estado inactive_patient · termina]
 ```
 
 El corte es limpio: **nunca fue paciente → directorio; fue y ya no → que la reactiven.** Y esto
@@ -1400,11 +1399,9 @@ comprobante, ¿ya quedó?» no es asunto de dinero**: eso tiene datos detrás y 
 [cero llamadas · el texto vive en el prompt · la conversación sigue abierta]
 ```
 
-Los verbos salen del menú de esa profesional. **Un saludo suelto no es esto:** «hola» es el
-arranque normal y lo contesta `mis_citas`. Esto es para lo genuinamente ininteligible, para el
-audio, el video y el sticker del §2.6, y también para **un número suelto sin nada pendiente**: «la
-2» al día siguiente, cuando la fila de la conversación ya caducó. Ahí **no se adivina de qué lista
-era**; se contesta esto y ella lo vuelve a decir con palabras.
+Los verbos salen del menú de esa profesional. **Un saludo suelto no es esto:** recibe
+`en_que_puedo_ayudarte`. Esto es para lo genuinamente ininteligible y para un número suelto sin
+estado privado vigente. Audio, video y sticker se cortan antes del Agent Node con este mismo texto.
 
 ### Pidió dos cosas y se contestó una — 1 llamada, y el aviso cuesta cero
 
@@ -1417,10 +1414,10 @@ era**; se contesta esto y ella lo vuelve a decir con palabras.
     Hora CDMX.
 
     ¿Y en qué más te puedo ayudar?
-[cancelar() · 1 de 3 · muta · el segundo párrafo vive en el prompt · cierra]
+[cancelar() · una herramienta · muta · la primera gestión cierra · enter_waiting]
 ```
 
-Una mutación por mensaje (regla 14). El agente contesta la primera y **le abre la puerta para lo
+Una mutación por batch (regla 14). El agente contesta la primera y **le abre la puerta para lo
 otro**, que es lo que antes no podía hacer: se contestaba una y de la otra no se decía ni una
 palabra. Pegar ese párrafo al final es la **única excepción** a copiar el texto de la función sin
 agregar nada antes ni después, y está escrita como excepción justo para que no se lea como permiso
@@ -1442,22 +1439,12 @@ de lo que la función dijo.
 
 <<  Se me acabó el espacio de esta consulta. Escríbeme otra vez y seguimos justo desde donde nos
     quedamos.
-[cero llamadas · tres de tres gastadas en este mensaje · cierra]
+[cero herramientas de negocio · no hubo resultado confiable · cierra]
 ```
 
-Vive en el prompt y no en una función porque cuando hace falta ya no queda ninguna llamada: una
-herramienta que sólo se puede usar cuando no se puede usar ninguna es una herramienta rota. **Lo
-compone el borde, no el modelo**, y si el modelo escribe otra cosa en su lugar, el borde la
-sustituye. **Y dice la verdad:** la memoria de la conversación guarda qué se preguntó y qué opciones
-se ofrecieron, así que el mensaje siguiente sí retoma donde se quedó, con sus tres llamadas nuevas.
-
-Sale también cuando se agota el presupuesto de tiempo del mensaje. **Pero nunca después de una
-llamada que escribe y no contestó:** ahí el borde relee el estado y contesta con lo que encuentre.
-Si la cita quedó creada y ella lee «se me acabó el espacio», su siguiente «sí» acaba en dos citas.
-
-Es un texto que casi no se va a leer. Ningún flujo gasta más de dos llamadas en un mismo mensaje;
-para llegar a tres hace falta que el modelo se confunda, que es exactamente el caso que el tope
-existe para cortar.
+Vive en la configuración del Agent Node. Se usa ante un contrato inválido o después de agotar una
+recuperación segura. Nunca se manda sólo porque una mutación perdió su respuesta: el gateway repite
+con el mismo `command_id` y recupera el resultado de `command_log`.
 
 ### La ráfaga de cinco mensajes — 1 llamada
 
@@ -1473,7 +1460,7 @@ existe para cortar.
     ¿Cuál prefieres?
 
     Hora CDMX.
-[mis_citas(sobre: "citas") · 1 de 3 · no muta · cierra]
+[mis_citas(sobre: "citas") · una herramienta · no muta · cierra]
 ```
 
 **Un lote es una solicitud.** Así se escribe por WhatsApp y así se conversa para agendar. El
@@ -1482,38 +1469,22 @@ Con eso prendido, **todas las entregas llegan en formato de lote**, aunque venga
 Suponer que llega un mensaje suelto es el error clásico, y el código tiene que leer el lote
 siempre.
 
-Y hay un segundo cuidado del mismo tamaño: **un candado por conversación**. Si llegan dos mensajes
-del mismo teléfono al mismo tiempo, el segundo espera a que el primero termine. Sin él, «agéndame
-el martes» escrito dos veces son dos citas.
-
-**No hay ningún texto de «vas muy rápido», y es a propósito.** Un tope de tráfico por teléfono se
-puede escribir el día que haya un número que defender: hoy los dos frenos de tráfico que existen son el
-agrupamiento y el candado, y los dos alcanzan. La fecha que hay que apuntar es el **1 de octubre de
-2026**, cuando cada respuesta empieza a costar dinero; ése es el día de decidir el tope, no antes.
+No hay candado durante toda la conversación. Si dos acciones llegan a competir, cada RPC vuelve a
+validar dentro de una transacción corta y `command_log` evita repetir la misma mutación. El batch
+produce una sola respuesta visible, especialmente relevante cuando cada entrega tiene costo.
 
 ---
 
-## 10. La cuenta de las llamadas
+## 10. La cuenta de las herramientas
 
-**Tres por mensaje**, y cada mensaje de ella trae tres nuevas. La cuenta arranca de cero en cada
-mensaje y no se arrastra: una gestión se reparte entre varios mensajes, y esperar el siguiente no
-cuesta nada. El tope **cuenta cada intento**, incluida la llamada que el borde rechaza por venir
-malformada, que es justo el modo de fallo para el que el tope existe.
+Un batch llama como máximo una herramienta de dominio. Una gestión puede necesitar varios mensajes
+y, por tanto, varias herramientas a lo largo del tiempo: agendar consulta servicio, busca horario,
+propone y después escribe. Cada paso manda una respuesta y entra en `waiting` o termina.
 
-**Lo que cuenta no es cuánto cuesta la gestión, sino cuánto cuesta el mensaje más caro de esa
-gestión.** Las dos más largas de este archivo son agendar y mover sin tiempo mínimo, con cuatro
-llamadas cada una; las dos gastan **una por mensaje**, porque cada llamada contesta un dato que ella
-acaba de dar. Fuera de la concatenación del párrafo de abajo, ningún mensaje de este archivo gasta
-más de una.
+Las llamadas a `send_notification_to_user`, `enter_waiting` y `complete_task` son control del Agent
+Node, no acciones de negocio. Sí consumen parte de la ejecución del modelo, por eso el texto de la
+RPC es corto y se envía una sola vez.
 
-**Lo único que alarga una gestión es probar filtros distintos**, y cada filtro es una llamada
-aunque el servidor recorra treinta días por dentro. Pero cada filtro llega en su propio mensaje, así
-que quien prueba seis días distintos gasta una llamada en cada uno de seis mensajes y ninguno se
-acerca al tope.
-
-**Ningún mensaje llega a tres.** El único caso de dos en un mismo mensaje es la concatenación
-autorizada: la función devuelve una lista, ella ya había dicho cuál —«cancélame la del martes»—, y
-el agente lee la lista, encuentra el número y vuelve a llamar sin mandar nada en medio. Dos
-llamadas, un solo mensaje, un solo viaje ahorrado. **Si algún flujo llegara a necesitar más de
-tres llamadas en un mismo mensaje, el defecto sería del flujo:** querría decir que una gestión pide
-más viajes de los que caben en un mensaje, y lo que hay que hacer es partirla, no subir el tope.
+No se vuelve a llamar una segunda función para ahorrar una pregunta. La selección intermedia queda
+en variables privadas, se enseña a la paciente y se confirma en su siguiente mensaje. Esta regla
+mantiene una mutación por batch y hace auditable cada paso.
