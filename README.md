@@ -44,12 +44,15 @@ no calcula fechas, precios ni plazos y no escribe directamente en tablas.
 **Para implementarlo:** `docs/08-implementacion.md`, después `docs/07-portero.md` para el workflow,
 `docs/02-funciones.md` para los contratos y `docs/05-prompt.md` para configurar el Agent Node.
 
+**Antes de programar:** revisar `docs/09-anotaciones-auditoria.md`; contiene correcciones pendientes
+de integrar en los documentos dueños de cada contrato.
+
 **Para conocer un texto exacto:** `docs/06-textos.md`. Los datos o el esquema vigentes se consultan
 en la base desplegada; este repositorio nunca sustituye esa consulta.
 
 ---
 
-## Los once archivos
+## Los doce archivos
 
 | Archivo | Qué contiene |
 |---|---|
@@ -64,10 +67,12 @@ en la base desplegada; este repositorio nunca sustituye esa consulta.
 | `docs/06-textos.md` | Fuente única de todos los textos visibles. |
 | `docs/07-portero.md` | Workflow, identidad BSUID, espera, idempotencia y fallos. |
 | `docs/08-implementacion.md` | Estado actual, pendientes, orden y pruebas. |
+| `docs/09-anotaciones-auditoria.md` | Correcciones y decisiones pendientes de integrar tras la auditoría final. |
 
 Las reglas viven en `00`, los textos en `06`, los contratos en `02`, el transporte y la identidad
-en `07`, y la secuencia de trabajo en `08`. Un archivo cita al dueño del tema en vez de copiar una
-segunda definición.
+en `07`, y la secuencia de trabajo en `08`. `09` es un anexo de auditoría: para los puntos que
+enumera, debe reconciliarse con el documento dueño antes de implementar. Un archivo cita al dueño
+del tema en vez de copiar una segunda definición.
 
 ---
 
