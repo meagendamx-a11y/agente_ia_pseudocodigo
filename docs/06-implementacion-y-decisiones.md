@@ -15,6 +15,7 @@ semanas:**
 | Cuál | Qué numera | Dueño |
 |---|---|---|
 | **Fases del plan** (0, 1, 2, 3, 4) | El **orden de trabajo**: terreno, medición, correcciones, canario, agenda | Este archivo, [Parte B](#parte-b--las-fases) |
+| **La guía paso a paso** | Qué se toca, qué se escribe y cómo se sabe que está hecho, en orden de implementación | Este archivo, [Parte F](#parte-f--la-guía-de-implementación-paso-a-paso) |
 | **Fases de herramientas** (MVP, 2, 3, pospuesta) | Qué **herramienta de dominio** entra cuándo | `docs/01-producto.md` §6 |
 
 No coinciden. La **Fase 4 del plan** es la que construye las **herramientas de Fase 2 y Fase 3**.
@@ -1186,3 +1187,247 @@ resucite.
 
 **Con esto el anexo queda disuelto sin pérdida**, y el repositorio vuelve a la lista cerrada de
 **ocho archivos** de `AGENTS.md` §3.
+
+---
+
+# Parte F · La guía de implementación, paso a paso
+
+Esta parte existe para una sola cosa: **poder implementar sin volver a decidir nada**. Todo lo que
+sigue está verificado contra la base desplegada el **2026-09-02**, en consultas de sólo lectura. Lo
+que no se pudo comprobar está marcado y no se estima.
+
+El orden de los pasos **no es el del flujo de un mensaje**. Es el orden en que cada pieza se puede
+probar sin la de arriba, y el motivo está en [F.8](#f8-por-qué-este-orden-y-no-el-del-flujo).
+
+---
+
+## F.1 Lo que ya existe y no hay que construir
+
+Verificado hoy. Esto ahorra trabajo y hay que saberlo antes de escribir nada.
+
+| Pieza | Estado | Qué significa |
+|---|---|---|
+| `command_log.scope_type` | **texto libre** | Entra `'whatsapp_agent'` sin tocar el esquema |
+| `command_log.actor` | enum `actor_type` con `patient` | El agente escribe como paciente sin DDL |
+| `appointments.confirmation_source` | enum con `patient_booking \| patient_response` | **Confirmar desde WhatsApp usa `patient_response`. Sin DDL** |
+| `appointments.origin` | enum con `patient` | Una cita creada por la paciente ya cabe |
+| `appointments.confirmed_at`, `updated_at` | existen | Confirmar es escribir estas dos columnas más `confirmation_source` |
+| `payments.method`, `proof_requested_at`, `status`, `late_change_decision`, `waive_reason`, `charge_reason` | existen | El modelo económico completo cabe sin DDL |
+| `patients.patient_status` | enum `active \| inactive`, NOT NULL | Aquí se resuelve «relación activa» |
+| `patients.consent_status` | enum `pending \| signed`, NOT NULL | Se ignora por decisión explícita ([D.2](#parte-d--el-registro-de-decisiones)) |
+| `notifications.type` | **texto libre** | Se puede escribir cualquier tipo… con la trampa de F.3 |
+| `_get_internal_availability_core` | **no atada a la profesional** | Fase 2 la reusa tal cual; no se reescribe el motor |
+| `excl_appointments_no_overlap`, `pg_advisory_xact_lock` | desplegados y en uso | El agente hereda la concurrencia ya probada |
+
+## F.2 Lo que NO existe y hay que escribir de cero
+
+**Ninguna función `agent_*` está desplegada.** Cero. Y hay un hallazgo que cambia el plan:
+
+> **`confirm_appointment` y `attach_payment_proof` no existen.** No hay una función de la profesional
+> que «gemelar» para las dos herramientas centrales del MVP. Se escriben desde cero.
+
+Lo que sí existe y sirve de **modelo de estilo**, no de base:
+
+| Función desplegada | Firma | Por qué mirarla |
+|---|---|---|
+| `cancel_appointment` | `(p_appointment_id uuid, p_payment_action text, p_payment_method text, p_command_id uuid)` | Trae el patrón de idempotencia y el advisory lock. **Exige decisión de dinero**: por eso Fase 2 necesita una gemela |
+| `reschedule_appointment` | `(p_appointment_id, p_new_starts_at_local text, p_new_modality text, p_mode text, p_old_payment_action text, p_old_payment_method text, p_expected_updated_at timestamptz, p_command_id uuid)` | Mismo patrón, y muestra la concurrencia optimista |
+| `request_appointment_payment_proof` | `(p_appointment_id uuid, p_command_id uuid)` | Es quien sella `proof_requested_at`. **Atada a la profesional** |
+| `credit_appointment_payment`, `waive_appointment_payment` | `(p_appointment_id, …, p_command_id)` | Los consumidores del lado profesional. El agente **nunca** los llama |
+
+Las cuatro del MVP a escribir: `agent_mis_citas`, `agent_confirmar`, `agent_mandar_comprobante`,
+`agent_crisis`. Su pseudocódigo vive en `05-pseudocodigo.md`.
+
+## F.3 Lo que se dispara solo: cuatro triggers
+
+Esto es lo que más fácil se pasa por alto, porque no está en ninguna llamada. **Al escribir, esto
+ocurre sin pedirlo:**
+
+| Trigger | Sobre | Qué hace |
+|---|---|---|
+| `notificar_push` | `notifications` (AFTER INSERT) | **Escribir una notificación manda un push.** No hay que llamar a nadie más |
+| `payment_proofs_degradar_prepago_ai` | `payment_proofs` (AFTER INSERT) | Adjuntar un comprobante **degrada el prepago solo** |
+| `payments_apagar_cobro_au` | `payments` (AFTER UPDATE) | Apaga el cobro al cambiar el pago |
+| `appointments_apagar_avisos_ad/au` | `appointments` | Apaga los avisos programados al cambiar o borrar la cita |
+
+**Consecuencia para las RPC del agente:** no hay que replicar ninguno de esos efectos. Escribir la
+fila basta. Duplicarlos a mano produciría el efecto dos veces.
+
+## F.4 El contrato con Flutter: las claves literales
+
+La app tiene **enums cerrados** y un valor desconocido lanza `FormatException` que **tumba la lista
+entera**, no sólo la fila. Y `notifications` es el **único canal con Realtime**: es la única vía por
+la que la profesional se entera sola.
+
+Claves exactas del `payload`, verificadas contra las filas existentes:
+
+| `type` | Claves que el payload **debe** traer |
+|---|---|
+| `appointment_confirmed` | `appointment_starts_at`, `appointment_ends_at`, `appointment_modality`, `patient_first_name`, `patient_last_name` |
+| `payment_proof_received` | `appointment_starts_at`, `patient_first_name`, `patient_last_name` |
+| `appointment_created_by_patient` | como `appointment_confirmed` |
+| `appointment_cancelled_by_patient` | como `appointment_confirmed` |
+| `appointment_rescheduled_by_patient` | `previous_starts_at`, `new_starts_at`, `previous_modality`, `new_modality`, `patient_first_name`, `patient_last_name` |
+| `modality_changed_by_patient` | `appointment_starts_at`, `previous_modality`, `new_modality`, `patient_first_name`, `patient_last_name` |
+
+**Las dos primeras son las del MVP.** `patient_last_name` es opcional en el sentido de que puede ser
+nulo, pero **la clave debe estar**: si falta, la app degrada al aviso neutro «Nueva notificación» y
+la profesional pierde el detalle sin que nada falle visiblemente.
+
+**Regla dura de implementación:** una RPC del agente **no inventa un `type` nuevo**. Usa uno de los
+seis. Si hiciera falta uno nuevo, primero se agrega al parser de Flutter y se publica la app.
+
+## F.5 El único punto que exige tocar el esquema
+
+Todo lo demás es sin DDL. Éste no:
+
+> **La bitácora de C5 no cabe hoy.** `whatsapp_inbound_messages.phone` y `.message_sid` son **NOT
+> NULL sin valor por omisión**. Un inbound BSUID-only —sin teléfono— o un turno sin identificador de
+> mensaje **no se puede registrar**.
+
+Tres salidas, con recomendación:
+
+| Opción | Qué cuesta | Veredicto |
+|---|---|---|
+| **`ALTER COLUMN … DROP NOT NULL` en las dos** | Una migración de dos líneas. Las filas existentes no cambian; nada que hoy lea esas columnas asume que son obligatorias más allá del propio `NOT NULL` | **Recomendada.** Es el cambio más pequeño que resuelve el caso, y es reversible |
+| Rellenar con un centinela | Cero DDL, pero corrompe el significado de `phone`: un BSUID guardado ahí ya no es un teléfono | Descartada |
+| Tabla nueva para la bitácora | Limpio, pero es una tabla más que mantener y contradice «reusar lo que existe» | Descartada para el MVP |
+
+**Antes de aplicarla hay que comprobar una cosa que no se pudo comprobar hoy:** qué retención tiene
+`purge_whatsapp_inbound`. Si borra por antigüedad, la bitácora no es append-only de verdad y el
+rastro del dinero se pierde con ella. Es una consulta, no una decisión.
+
+## F.6 Los pasos, en orden
+
+Cada paso dice **qué se toca**, **qué se escribe** y **cómo se sabe que está hecho**. Ninguno
+depende de que el siguiente exista.
+
+### Paso 0 · Desbloquear el modelo — 5 minutos
+
+**Sin esto no hay agente, literalmente.** El `provider_model_id` sigue sin fijar y el Agent Node no
+se despliega sin él.
+
+- **Se toca:** nada del código.
+- **Se hace:** `GET https://api.kapso.ai/platform/v1/provider_models` con la API key del proyecto, y
+  se anota el `id` de `gpt-5.6-luna` junto con sus `supported_reasoning_efforts` y
+  `supports_custom_sampling`.
+- **Hecho cuando:** el identificador está escrito en `04-workflow-y-prompt.md` §C.2, y se sabe si el
+  modelo acepta `reasoning_effort` — la documentación lo describe como propio de modelos o1, así que
+  puede no aplicar.
+- **Necesita:** tu API key. No lo puedo hacer yo.
+
+### Paso 1 · La prueba de un día — 1 a 2 días
+
+Lo que el E2E de agosto **nunca** ejercitó, porque usó API Trigger y no el trigger de mensaje
+entrante. Es la fase 1 de la Parte B y su detalle está ahí.
+
+- **Se toca:** un workflow desechable en Kapso, con **una** herramienta que devuelve lo que recibe.
+- **Se responde:** qué identificadores llegan por el trigger inbound; si son estables cuando la
+  herramienta se reintenta; si `enter_waiting` caduca sola y en cuánto; qué trae de verdad
+  `whatsapp_context.messages`.
+- **Hecho cuando:** las cuatro respuestas están escritas por **observación**, no por documentación.
+- **Por qué antes que todo lo demás:** si los identificadores no son estables, cambia el sellado del
+  estado, y eso cambia el gateway. Descubrirlo después de escribir las RPC no cuesta nada; después
+  de escribir el gateway, sí.
+
+### Paso 2 · Fase 0 del terreno — 1 semana
+
+Nada de esto toca al agente, y todo mejora el producto que ya existe.
+
+- **Se toca:** los teléfonos de prueba; el nodo que persiste identidad; cuatro funciones del esquema
+  `private`.
+- **Se escribe:** el `UPDATE` que guarda `business_scoped_user_id`, `kapso_contact_id` y
+  `business_portfolio_id` —**que Kapso ya entrega en cada inbound y hoy nadie guarda**—; y el
+  `search_path` fijo en `wa_fecha`, `wa_hora`, `wa_modalidad`, `wa_payload_ok`.
+- **Hecho cuando:** los criterios de salida de la Fase 0 en la Parte B se cumplen.
+
+### Paso 3 · Las cuatro RPC — 2 semanas
+
+**Aquí empieza el agente, y se puede probar entero sin Kapso y sin modelo.**
+
+- **Se toca:** el esquema `public`, con cuatro funciones nuevas. Más la migración de F.5.
+- **Se escribe:** `agent_mis_citas`, `agent_confirmar`, `agent_mandar_comprobante`, `agent_crisis`,
+  siguiendo el pseudocódigo de `05-pseudocodigo.md` y el esqueleto de seguridad: `SECURITY DEFINER`,
+  `SET search_path = ''`, `REVOKE` a `PUBLIC`/`anon`/`authenticated`, `GRANT` sólo a `service_role`,
+  y **todo resuelto desde `whatsapp_link.id`**, nunca desde un `p_patient_id` suelto.
+- **Se respeta:** los cuatro triggers de F.3 y las claves literales de F.4.
+- **Hecho cuando:** cada una se llama con SQL directo, sobre datos de prueba, y (a) devuelve las
+  cuatro claves del contrato, (b) escribe la notificación con las claves que Flutter espera, (c)
+  llamada dos veces con el mismo `command_id` no muta dos veces, y (d) la app Flutter abierta al lado
+  muestra el aviso sin degradarlo al texto neutro.
+- **Lo que NO hace falta todavía:** ni Kapso, ni el gateway, ni el modelo.
+
+### Paso 4 · El gateway — 1 semana
+
+- **Se toca:** `agent_tool_gateway`, que hoy es un cascarón con auth Bearer estático y tres rutas
+  que llaman RPC borradas. Se reescribe su enrutado; **se conserva su esqueleto de seguridad**
+  (`routePath` anti-traversal, límites de tamaño, `jsonResponse` con `no-store` y `nosniff`,
+  `secrets.ts`) y se **activa el HMAC que `crypto.ts` ya tiene implementado y nadie usa**.
+- **Se escribe:** las dos rutas —`/identity` con atestación y `/tool`—, el sellado y la apertura de
+  `agent_state`, la acuñación del `command_id`, la comparación de `dicho` contra el bloque `match`
+  (`03-contratos.md` §2.2.1) y la bitácora.
+- **Ojo con el `BASE_PATH`:** el repo local trae `'/functions/v1/agent_tool_gateway'`, que **nunca
+  hace match** en Supabase. La desplegada usa `'/agent_tool_gateway'`.
+- **Hecho cuando:** con `curl` y un token fabricado a mano, cada ruta responde lo que dice el
+  contrato, y `seguimos_en` y `cual_de_esas` se resuelven **sin llamar ninguna RPC**.
+- **Lo que NO hace falta todavía:** el modelo.
+
+### Paso 5 · El workflow y el prompt — 1 semana
+
+- **Se toca:** Kapso. Y `kapso_inbound_webhook`, que hoy llama una RPC borrada y por eso responde
+  503 con su flag activo.
+- **Se escribe:** el grafo nodo por nodo de `04-workflow-y-prompt.md` Parte A, los filtros
+  deterministas antes del modelo, y el system prompt de la Parte C con sus once reglas duras y
+  **sin ninguna interpolación**, para no romper el prefijo cacheable.
+- **Hecho cuando:** un mensaje real recorre el camino entero y la respuesta que lee el teléfono es
+  **idéntica carácter por carácter** a la que compuso la RPC.
+
+### Paso 6 · El canario — 3 semanas
+
+Una sola profesional, en producción, con lista blanca en el gateway. El sandbox de Kapso **no
+sirve** para esto: no soporta plantillas, y los crons de 26 h y 1 h son plantillas.
+
+Criterios de salida en la Fase 3 de la Parte B.
+
+## F.7 Lo que hay que medir antes de dar por buena la elección de modelo
+
+OpenAI recomienda lo contrario de lo que hizo este diseño:
+
+> *«Build your agent prototype with the **most capable model** for every task to establish a
+> performance baseline. From there, try swapping in smaller models to see if they still achieve
+> acceptable results.»*
+
+Aquí se arrancó directo en `gpt-5.6-luna`, el tier más barato, **sin línea base**. Importa porque la
+regla dura 7 —copiar el texto literal, con el precio y la hora dentro— descansa entera sobre ese
+tier, y es el riesgo aceptado de [D.1](#parte-d--el-registro-de-decisiones).
+
+**Qué hacer, y es barato:** en el Paso 5, correr el mismo puñado de casos con un modelo más capaz y
+comparar carácter por carácter contra el texto que compuso la RPC. Si `luna` empata, la decisión
+queda medida en vez de supuesta. Si no empata, el costo de subir de tier es conocido y pequeño frente
+al de un precio mal copiado.
+
+## F.8 Por qué este orden y no el del flujo
+
+La tentación es implementar en el orden en que viaja un mensaje: workflow, agente, gateway, RPC. **Es
+el orden que más tarda en dar señal**, porque hasta que la última pieza existe no se puede probar
+nada.
+
+El orden de F.6 va al revés, de adentro hacia afuera, y cada capa se prueba sin la de arriba:
+
+| Paso | Se prueba con | No necesita |
+|---|---|---|
+| 3 · RPC | SQL directo | Kapso, gateway, modelo |
+| 4 · Gateway | `curl` y un token a mano | Kapso, modelo |
+| 5 · Workflow y prompt | un mensaje real | — |
+
+Tres consecuencias prácticas:
+
+1. **Un fallo aparece en la capa donde nació.** Si la notificación sale mal, se ve en el Paso 3 con
+   una consulta, no depurando un turno de conversación entero.
+2. **Las decisiones caras se toman con información.** El Paso 1 responde qué identificadores llegan
+   *antes* de que el gateway dependa de ellos.
+3. **El modelo entra al final**, cuando todo lo demás ya es determinista. Así, lo único que queda por
+   depurar en el Paso 5 es el enrutamiento — que es lo único que el modelo hace.
+
+**Lo que sí conviene adelantar del orden natural:** el Paso 0, porque sin `provider_model_id` no hay
+nada, y el Paso 1, porque sus respuestas cambian lo que se escribe después.

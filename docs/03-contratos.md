@@ -28,14 +28,15 @@ configura, nunca de la muestra que exista hoy.
   - [1.4 `espera`: los siete valores](#14-espera-los-siete-valores)
   - [1.5 `cierra`, y el inventario de salidas abiertas](#15-cierra-y-el-inventario-de-salidas-abiertas)
   - [1.6 Lo que las once vuelven a comprobar](#16-lo-que-las-once-vuelven-a-comprobar)
-  - [1.7 La superficie de parámetros del modelo: veintiséis](#17-la-superficie-de-parámetros-del-modelo-veintiséis)
+  - [1.7 La superficie de parámetros del modelo: treinta y cuatro](#17-la-superficie-de-parámetros-del-modelo-treinta-y-cuatro)
   - [1.8 Cómo se llama la RPC, y su cabecera](#18-cómo-se-llama-la-rpc-y-su-cabecera)
   - [1.9 Idempotencia: `command_id` y `command_log`](#19-idempotencia-command_id-y-command_log)
   - [1.10 Los avisos a la profesional: las claves literales](#110-los-avisos-a-la-profesional-las-claves-literales)
   - [1.11 El presupuesto de cuatro mensajes](#111-el-presupuesto-de-cuatro-mensajes)
 - [2. C3 · `pending_step` y `allowed_next_tools`](#2-c3--pending_step-y-allowed_next_tools)
   - [2.1 El fallo que corrige](#21-el-fallo-que-corrige)
-  - [2.2 Los ocho parámetros de selección](#22-los-ocho-parámetros-de-selección)
+  - [2.2 Los nueve parámetros de selección](#22-los-nueve-parámetros-de-selección)
+  - [2.2.1 `dicho`: elegir por fecha, hora o atributo](#221-dicho-elegir-por-fecha-hora-o-atributo)
   - [2.3 Tabla completa productor → consumidores](#23-tabla-completa-productor--consumidores)
   - [2.4 Las cinco reglas del candado](#24-las-cinco-reglas-del-candado)
 - [3. Las cuatro del MVP](#3-las-cuatro-del-mvp)
@@ -300,35 +301,40 @@ una omisión: `docs/01-producto.md` §3.5. Ninguna de las once lo consulta.
 Es un cerrojo, no el camino normal: el workflow ya separó `not_patient` de `inactive_patient` antes
 del Agent Node.
 
-### 1.7 La superficie de parámetros del modelo: veintiséis
+### 1.7 La superficie de parámetros del modelo: treinta y cuatro
 
 Esto se cuenta porque es la superficie de ataque y la superficie de error del modelo.
 
 | Herramienta | Parámetros | Cuántos | Fase |
 |---|---|---|---|
 | `mis_citas` | `sobre` | **1** | MVP |
-| `confirmar` | `citas` | **1** | MVP |
-| `mandar_comprobante` | `cita` | **1** | MVP |
+| `confirmar` | `citas`, `dicho` | **2** | MVP |
+| `mandar_comprobante` | `cita`, `dicho` | **2** | MVP |
 | `crisis` | — | **0** | MVP |
-| `cancelar` | `cita`, `confirmado`, `pasa_el_pago` | 3 | 2 |
-| `buscar_horarios` | `servicio`, `modalidad`, `dias`, `fechas`, `relativo`, `hora`, `parte_del_dia` | 7 | 2 |
-| `agendar` | `opcion`, `dia`, `confirmado` | 3 | 2 |
-| `reprogramar` | `cita`, `opcion`, `confirmado`, `a_la_proxima` | 4 | 2 |
-| `cambiar_modalidad` | `cita`, `confirmado` | 2 | 3 |
-| `ver_servicios` | `pidio`, `confirmado` | 2 | 3 |
+| `cancelar` | `cita`, `confirmado`, `pasa_el_pago`, `dicho` | 4 | 2 |
+| `buscar_horarios` | `servicio`, `modalidad`, `dias`, `fechas`, `relativo`, `hora`, `parte_del_dia`, `dicho` | 8 | 2 |
+| `agendar` | `opcion`, `dia`, `confirmado`, `dicho` | 4 | 2 |
+| `reprogramar` | `cita`, `opcion`, `confirmado`, `a_la_proxima`, `dicho` | 5 | 2 |
+| `cambiar_modalidad` | `cita`, `confirmado`, `dicho` | 3 | 3 |
+| `ver_servicios` | `pidio`, `confirmado`, `dicho` | 3 | 3 |
 | `dejar_resena` | `estrellas`, `comentario` | 2 | POSPUESTA |
+
+**`dicho` lo llevan las ocho herramientas que consumen listas**, las mismas que aparecen en algún
+`allowed_next_tools` de §2.3. `mis_citas` **no** lo lleva: escribe listas pero no las consume, y su
+número lo recoge la herramienta por defecto. `crisis` tampoco: no selecciona nada.
 
 **Los números reales:**
 
-- **26 parámetros** en las once herramientas.
-- **24** en las diez que no están pospuestas.
-- **18 nombres distintos**, porque `cita`, `confirmado` y `opcion` se repiten entre herramientas:
-  `sobre`, `citas`, `cita`, `pidio`, `confirmado`, `servicio`, `modalidad`, `dias`, `fechas`,
-  `relativo`, `hora`, `parte_del_dia`, `opcion`, `dia`, `a_la_proxima`, `pasa_el_pago`,
-  `estrellas`, `comentario`.
-- **8 de esos 18 son parámetros de selección** (§2.2); los otros 10 son texto o filtros.
-- **En el MVP la superficie entera son 3 parámetros**, todos escalares: `sobre`, `citas`, `cita`.
-  `crisis` no acepta ninguno.
+- **34 parámetros** en las once herramientas.
+- **32** en las diez que no están pospuestas.
+- **19 nombres distintos**, porque `cita`, `confirmado`, `opcion` y `dicho` se repiten entre
+  herramientas: `sobre`, `citas`, `cita`, `pidio`, `confirmado`, `servicio`, `modalidad`, `dias`,
+  `fechas`, `relativo`, `hora`, `parte_del_dia`, `opcion`, `dia`, `a_la_proxima`, `pasa_el_pago`,
+  `dicho`, `estrellas`, `comentario`.
+- **9 de esos 19 son parámetros de selección** (§2.2); los otros 10 son texto o filtros.
+- **En el MVP la superficie entera son 5 parámetros y 4 nombres**: `sobre`, `citas`, `cita` y
+  `dicho`. Los tres primeros son escalares; `dicho` es texto de hasta 40 caracteres que el modelo
+  copia sin interpretar. `crisis` no acepta ninguno.
 
 **Tres parámetros es la cifra que importa.** El MVP se lanza con una superficie de tres claves
 sobre cuatro herramientas, y de esas tres, dos son un número contra una lista que el propio
@@ -549,7 +555,7 @@ el productor y el consumidor son herramientas distintas.
 lista vive en `options` junto con la herramienta que la escribió. Lo único que cambia es **quién
 puede consumirla**, y eso lo declara `allowed_next_tools`, no la identidad del productor.
 
-### 2.2 Los ocho parámetros de selección
+### 2.2 Los nueve parámetros de selección
 
 El candado no se aplica a toda llamada: se aplica a las llamadas que traen un **parámetro de
 selección**, es decir, un valor que sólo significa algo contra una lista o una pregunta que el
@@ -565,15 +571,81 @@ servidor escribió antes.
 | `confirmado` | la propuesta o el aviso que el servidor acaba de dar | la misma herramienta |
 | `pasa_el_pago` | la salida que el servidor ya ofreció | `cancelar` |
 | `a_la_proxima` | la salida de la serie que el servidor ya ofreció | `reprogramar` |
+| `dicho` | **cualquier lista viva, por fecha, hora o atributo** (§2.2.1) | cualquiera que abra `options` |
 
-**Son ocho, no seis.** El borrador anterior listaba seis y dejaba fuera `servicio` y `dia`, y ese
-hueco es real: un `servicio: 3` sin lista vigente resolvería contra nada, y un `dia: "martes"` sin
-lista compartida vigente decidiría **qué día se aparta** sin que nadie haya escrito esa opción. Los
-dos son números o etiquetas contra una lista del servidor, exactamente como los otros seis.
+**Ocho son posicionales; el noveno no.** Los ocho primeros son un número o una etiqueta contra una
+lista. `dicho` es texto: las palabras exactas con las que ella se refirió a una opción sin usar su
+número. Se detalla enseguida.
 
 **Los otros diez parámetros no son de selección**: `sobre`, `pidio`, `modalidad`, `dias`, `fechas`,
 `relativo`, `hora`, `parte_del_dia`, `estrellas` y `comentario`. Son lo que ella dijo, tal cual, y
 no dependen de ninguna lista previa.
+
+### 2.2.1 `dicho`: elegir por fecha, hora o atributo
+
+**El problema.** Los ocho parámetros posicionales cubren «la 2». Pero contestar por fecha o por hora
+es más natural que contar renglones, y hoy no hay por dónde: *«las dos pm»*, *«el jueves doce»*,
+*«el doce del cero tres»*, *«la de en línea»*, *«la primera»*.
+
+**Lo que hace el modelo: copiar, no interpretar.** `dicho` es texto de hasta 40 caracteres con las
+palabras que ella usó, tal cual. Es el mismo trato que ya reciben `relativo`, `hora` y
+`parte_del_dia`: el modelo transcribe y el servidor decide. El modelo **no** convierte «el doce del
+cero tres» en una fecha, **no** calcula en qué día cae y **no** adivina a qué opción se refiere.
+
+**Lo que guarda `options`.** Cuando la RPC compone la lista ya tiene todos los datos a la mano
+—acaba de escribir el texto con ellos—, así que los deja también en forma comparable:
+
+```json
+{ "n": 2,
+  "ref": "<identificador real; el modelo nunca lo ve>",
+  "match": { "fecha": "2026-03-12", "dia": "jueves", "dia_num": 12,
+             "hora_min": 840, "modalidad": "en_linea", "profesional": "ana" } }
+```
+
+`hora_min` son minutos desde medianoche en hora de la Ciudad de México. Los campos que no apliquen
+se omiten; en una lista de cobros no hay `hora_min`, por ejemplo.
+
+**Cómo compara el gateway, y por qué no hay intérprete de fechas.** Ésta es la decisión que mantiene
+la pieza pequeña: **no se construye un parser de fechas en español.** La lista tiene **cinco
+opciones como máximo** (regla 7, `01-producto.md` §2), así que basta comparar contra esas cinco
+etiquetas. El gateway normaliza lo dicho —minúsculas, sin acentos, números escritos con letra a
+dígito— y cuenta contra cuántas opciones coincide:
+
+| Ella dice | Coincide por | Resultado con una lista de tres horarios |
+|---|---|---|
+| `"las dos pm"` | `hora_min` = 840 | una sola opción a las 14:00 → resuelve |
+| `"el jueves doce"` | `dia` y `dia_num` | refuerzan la misma opción → resuelve |
+| `"el doce del cero tres"` | `dia_num` = 12 y mes de `fecha` | una sola opción el 12/03 → resuelve |
+| `"la de en línea"` | `modalidad` | si hay dos en línea → desambigua |
+
+Un intérprete de fechas tendría que decidir si «12/03» es marzo o diciembre, y equivocarse ahí
+**agenda a la paciente en el mes equivocado**. Comparar contra cinco etiquetas que el servidor ya
+escribió no tiene ese modo de fallo.
+
+**`la 2` y `las 2` no colisionan, porque van por caminos distintos.** Difieren en una letra, pero no
+llegan por el mismo parámetro:
+
+- **Artículo singular más número** —«la 2», «la dos», «el 1»— es **posición**: el modelo lo pone en
+  el parámetro entero que corresponda a la herramienta (`opcion`, `cita`, `servicio`).
+- **Cualquier otra forma** —«las 2», «las dos pm», «a las cuatro»— va en `dicho`, y el gateway la
+  compara por `hora_min`.
+
+La regla vive también en el prompt, con ejemplos de los dos lados (`04-workflow-y-prompt.md` §C).
+
+**Los tres desenlaces.**
+
+| Coincidencias | Qué pasa | Clave de texto |
+|---|---|---|
+| **Una** | Resuelve y sigue el flujo normal, igual que si hubiera dicho el número | la del desenlace normal |
+| **Varias** | El servidor repregunta nombrando **sólo las que coincidieron**, nunca la lista entera | `cual_de_esas` |
+| **Ninguna** | **Retoma el paso abierto** en vez de decir «no te entendí» | `seguimos_en` |
+
+El caso de cero coincidencias es el que más se nota. Si ella nombra un día que no está en la lista,
+no es que no se le entienda: **quiere otro día**, y `seguimos_en` le dice en qué íbamos y qué sí hay.
+Su redacción vive en `02-conversaciones-y-textos.md`.
+
+**El tamaño no es problema.** Cinco opciones con seis claves cortas cada una caben de sobra en los
+16 384 bytes de `max_tool_result_bytes`, y `agent_state` conserva su TTL sin cambios.
 
 ### 2.3 Tabla completa productor → consumidores
 

@@ -152,10 +152,10 @@ ejemplo, hoy es **jueves 27 de agosto** y son las 9 de la mañana.
 |---|---|---|---|
 | **Workflow** (filtros deterministas de Kapso) | 10 | El workflow | No. El modelo ni siquiera se ejecuta |
 | **Agent Node** (literales en el prompt) | 7 | El modelo, sin llamar herramienta | Sí: lo escribe él |
-| **Servidor · gateway** | 2 | El modelo, copiando `texto` | Sí, copiado literal |
+| **Servidor · gateway** | 4 | El modelo, copiando `texto` | Sí, copiado literal |
 | **Servidor · RPC de dominio** | 25 | El modelo, copiando `texto` | Sí, copiado literal |
 
-**El servidor compone 27 de los 44 textos del MVP, y son todos los que llevan un dato.** Los siete
+**El servidor compone 29 de los 46 textos del MVP, y son todos los que llevan un dato.** Los siete
 del modelo no llevan ninguno; de los siete, cinco son constantes exactas y dos sustituyen un único
 hueco, `{profesional}`, cuyo valor le llega al modelo en el bloque de estado del turno —nunca en el
 system prompt, para no romper el prefijo cacheable (`04-workflow-y-prompt.md` §2).
@@ -180,9 +180,15 @@ porque tres de ellas se leen como si fueran «no te entendí» sin serlo.
 | Cobros, descuentos y devoluciones | `asunto_de_dinero` | Agent Node |
 | Genuinamente ininteligible | `no_entendi` | Agent Node |
 
-Y dos casos que **hoy caen en `no_entendi` y dejan de caer**, porque se entienden perfectamente:
-un número suelto sin ninguna lista viva (`no_se_de_cual_lista`) y un audio, un video o un sticker
-(`medio_no_soportado`). Los dos los resuelve el workflow sin gastar un token.
+Y tres casos que **hoy caen en `no_entendi` y dejan de caer**, porque se entienden perfectamente:
+un número suelto sin ninguna lista viva (`no_se_de_cual_lista`), un audio, un video o un sticker
+(`medio_no_soportado`), y **lo que se dice contra un paso abierto sin emparejar con ninguna opción**
+(`seguimos_en`). Los dos primeros los resuelve el workflow sin gastar un token; el tercero lo
+resuelve el gateway contra el estado sellado, sin llamar ninguna RPC.
+
+**El orden de esa cadena es fijo:** con paso abierto, `seguimos_en`; sin paso abierto,
+`no_entendi`; en el segundo fallo seguido, `no_entendi_otra_vez`. Está escrito también en la ficha
+de `no_entendi` para que nadie tenga que deducirlo.
 
 **«Ya te mandé el comprobante, ¿ya quedó?» no es ninguna de las cuatro.** Eso tiene datos detrás y
 lo contesta `mandar_comprobante`. Igual «¿cuánto le debo?», que es `mis_citas`.
@@ -256,7 +262,7 @@ regla, para que no haya que acordarse texto por texto. Ningún texto la trae esc
 marca: no hay ninguna hora que situar.
 
 La columna «zona» del [índice de claves](#a16-índice-de-claves) dice, clave por clave, si la lleva,
-**y ahí y sólo ahí vive el conteo** —hoy 38 en el catálogo completo, 10 en el MVP—. No se repite el
+**y ahí y sólo ahí vive el conteo** —hoy 40 en el catálogo completo, 12 en el MVP—. No se repite el
 número en ningún encabezado: cambia cada vez que se agrega o se mueve una clave, y un total
 desactualizado suelto en el texto es peor que ninguno. Quien agregue una clave actualiza la columna
 del índice y el total sale de contarla.
@@ -509,14 +515,64 @@ que la profesional tenga apagado en su configuración (regla 8), y su segunda l�
 > No te entendí. Por aquí te puedo decir qué citas tienes, confirmarlas y recibir tus comprobantes.
 > ¿Qué necesitas?
 
-No cierra. Cuatro casos que hoy terminan aquí y **dejan de terminar aquí**: un número suelto sin
+No cierra. Cinco casos que hoy terminan aquí y **dejan de terminar aquí**: un número suelto sin
 lista viva (`no_se_de_cual_lista`), un audio o un sticker (`medio_no_soportado`), algo entendido que
-esta fase no hace (`todavia_no_lo_hago`) y un segundo fallo consecutivo (`no_entendi_otra_vez`).
+esta fase no hace (`todavia_no_lo_hago`), un segundo fallo consecutivo (`no_entendi_otra_vez`) y
+—el más frecuente— **algo dicho contra un paso abierto que no empareja con ninguna opción**
+(`seguimos_en`).
+
+**La regla de precedencia, y no admite lectura al revés:** si hay un paso abierto, `seguimos_en`. Si
+no lo hay, `no_entendi`. Si el turno anterior ya terminó en una de las dos, `no_entendi_otra_vez`.
+`no_entendi` es el caso residual, no el primero que se prueba.
 
 No se usa para un saludo, un agradecimiento ni una intención corta pero clara.
 
 En el MVP el menú es constante y por eso el texto puede vivir en el prompt. En fase 2 el menú
 depende de la profesional, vuelve `{verbos}` y el texto se muda al servidor.
+
+### `seguimos_en` · MVP · clave nueva
+
+**Cuándo.** Hay un `pending_step` vivo con opciones y lo que ella escribió **no empareja con
+ninguna**: ni por posición ni por fecha, hora o atributo (`03-contratos.md` §2.2.1, cero
+coincidencias). También cuando pregunta directo *«¿en qué quedamos?»* o *«¿qué estábamos
+haciendo?»*.
+
+> Seguimos con tu cita del jueves 4 a las 10 de la mañana. ¿Te la confirmo o prefieres moverla?
+>
+> Hora CDMX.
+
+No cierra, y **conserva el paso abierto**: el estado sellado no se borra, así que ella puede
+contestar a esto mismo.
+
+**Lo compone el gateway**, no la RPC y no el modelo: es el único que ve el estado sellado y lo que
+ella dijo, y no necesita tocar la base para responder. Sale de `pending_step` —que dice en qué paso
+estamos— y de `options` —que da el dato con el que se nombra la opción—. **Nunca repite la lista
+entera**: nombra una sola opción cuando hay una, y cuando hay varias dice de qué se trata sin
+enumerarlas.
+
+**Existe porque «no te entendí» era mentira.** Cuando ella nombra un día que no está en la lista, se
+le entendió perfectamente: quiere otro día. Decirle que no se le entiende la deja sin saber qué se
+espera de ella, y ése es el momento exacto en que el agente deja de parecer una recepcionista.
+
+Lleva `{zona}` cuando nombra una hora.
+
+### `cual_de_esas` · MVP · clave nueva
+
+**Cuándo.** Lo que ella dijo empareja con **más de una** opción de la lista viva
+(`03-contratos.md` §2.2.1, coincidencia múltiple). El caso típico: dos citas el mismo jueves y ella
+dice «el jueves».
+
+> Tienes dos ese día: una a las 10 de la mañana y otra a las 4 de la tarde. ¿Cuál?
+>
+> Hora CDMX.
+
+No cierra y conserva el paso abierto.
+
+**Nombra sólo las opciones que coincidieron**, nunca la lista completa: repetirla entera obliga a
+ella a releer lo que ya leyó y desperdicia un mensaje saliente. Lo compone el gateway, por lo mismo
+que `seguimos_en`.
+
+Lleva `{zona}` cuando nombra una hora.
 
 ### `no_entendi_otra_vez` · MVP · clave nueva
 
@@ -1370,6 +1426,8 @@ La columna «zona» dice si el servidor le pega la marca.
 | `se_acabo_el_espacio` | MVP | modelo | no |
 | `no_pude_ahorita` | MVP | gateway | no |
 | `no_se_si_quedo` | MVP | gateway | no |
+| `seguimos_en` | MVP | gateway | **sí** |
+| `cual_de_esas` | MVP | gateway | **sí** |
 | `crisis` | MVP | servidor | no |
 | `mis_citas_lista` | MVP | servidor | **sí** |
 | `mis_citas_una` | MVP | servidor | **sí** |
@@ -1591,6 +1649,92 @@ conteo, y sale `confirmar_cierre_ambas`.
 
 **Siempre se pregunta cuál.** Nunca se asume por la plantilla más reciente ni por la cita más
 próxima: son dos plantillas idénticas en forma y ella pudo estar contestando cualquiera.
+
+### B.3.3 · Contesta con la hora, no con el número — 4 salientes
+
+La lista de arriba, pero ella no cuenta renglones. **Ésta es la forma más común de contestar**, y
+antes del parámetro `dicho` terminaba en «no te entendí».
+
+```
+[T0 y T0' · dos plantillas del cron]
+(salientes 1 y 2)
+
+>>  sí voy
+
+<<  ¿Cuál me confirmas?
+
+    1. Miércoles 2, 4:00
+    2. Viernes 4, 10:00
+
+    Hora CDMX.
+[confirmar() · espera: citas · allowed_next_tools: confirmar]
+(saliente 3)
+
+>>  las cuatro
+
+<<  Listo, tu cita del miércoles 2 de septiembre a las 4:00 quedó confirmada.
+
+    Hora CDMX.
+[confirmar(dicho: "las cuatro") · muta · cierra]
+(saliente 4 · TOPE ALCANZADO)
+```
+
+**El modelo no interpretó nada.** Copió «las cuatro» a `dicho` y el gateway comparó contra el
+`hora_min` de las dos opciones selladas: 960 y 600. Coincide una sola, la resuelve, y a partir de
+ahí el recorrido es idéntico al de «la 1». Mismo conteo de salientes.
+
+**«las cuatro» no se confunde con «la 4»**: el artículo singular más número va al parámetro entero
+de posición, y aquí sólo hay dos opciones. La regla completa está en `03-contratos.md` §2.2.1.
+
+### B.3.4 · Contesta con una fecha — 4 salientes
+
+```
+>>  el miércoles dos
+
+<<  Listo, tu cita del miércoles 2 de septiembre a las 4:00 quedó confirmada.
+
+    Hora CDMX.
+[confirmar(dicho: "el miercoles dos") · muta · cierra]
+(saliente 4 · TOPE ALCANZADO)
+```
+
+Coincide por `dia` y por `dia_num`, y las dos apuntan a la misma opción. Igual funciona **«el dos
+del cero nueve»**: coincide por `dia_num` y por el mes de `fecha`.
+
+**No hay intérprete de fechas.** No se decide si «2/09» es septiembre o febrero: se compara contra
+las dos etiquetas que el servidor ya escribió al componer la lista. Con cinco opciones como máximo
+—regla 7— eso alcanza, y no existe el modo de fallo de agendar en el mes equivocado.
+
+### B.3.5 · Nombra un día que no está en la lista — 4 salientes
+
+El caso que antes se sentía como hablar con una máquina.
+
+```
+<<  ¿Cuál me confirmas?
+
+    1. Miércoles 2, 4:00
+    2. Viernes 4, 10:00
+
+    Hora CDMX.
+[confirmar() · espera: citas]
+(saliente 3)
+
+>>  el jueves
+
+<<  De esas dos, ninguna cae en jueves: tienes una el miércoles 2 a las 4:00 y otra el viernes 4
+    a las 10:00. ¿Cuál te confirmo?
+
+    Hora CDMX.
+[cero coincidencias · el gateway responde seguimos_en · no llama ninguna RPC · paso abierto]
+(saliente 4 · TOPE ALCANZADO)
+```
+
+**Antes esto era `no_entendi`, y era falso.** Se le entendió perfectamente: dijo un día que no está
+en la lista. `seguimos_en` lo dice, **conserva el paso abierto** y no gasta una llamada de dominio
+—lo compone el gateway con el estado que ya tiene sellado—.
+
+Si en vez de dos citas hubiera dos el mismo jueves, «el jueves» coincidiría con las dos y saldría
+`cual_de_esas`, que nombra **sólo esas dos** y no vuelve a listar todo.
 
 ---
 
@@ -1861,6 +2005,8 @@ sin herramienta.
 | Contrato de resultado inválido | `se_acabo_el_espacio` | modelo | sí |
 | El gateway no alcanzó a llamar la RPC | `no_pude_ahorita` | gateway | no |
 | La escritura no se pudo verificar | `no_se_si_quedo` | gateway | sí |
+| Dice algo contra un paso abierto y no empareja | `seguimos_en` | gateway | no |
+| Lo que dijo empareja con varias opciones | `cual_de_esas` | gateway | no |
 
 **Ráfaga de cinco mensajes entrantes: 1 saliente.** Los cinco se leen como un lote y se contestan
 una vez. No hay candado durante toda la conversación: `command_log` evita repetir la misma mutación,
